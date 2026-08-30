@@ -1,0 +1,45 @@
+color:
+  palette:
+    ink: "#22303f"
+    navy: "#1a2e4a"
+    steel: "#3d6b9e"
+    slate: "#5b6b7f"
+    gold: "#c9a227"
+    mist: "#f2f5f8"
+  foreground: "#22303f"
+  background: "#ffffff"
+  primary: "#1a2e4a"
+  secondary: "#3d6b9e"
+  tertiary: "#5b6b7f"
+  success: "#2e7d32"
+  info: "#3d6b9e"
+  warning: "#c9a227"
+  danger: "#b3402a"
+  light: "#f2f5f8"
+
+typography:
+  fonts:
+    - family: Inter
+      source: google
+      weight: [400, 500, 600]
+    - family: Space Grotesk
+      source: google
+      weight: [500, 700]
+    - family: JetBrains Mono
+      source: google
+  base:
+    family: Inter
+    size: 1rem
+  headings:
+    family: Space Grotesk
+    weight: 700
+    color: "#1a2e4a"
+  monospace: JetBrains Mono
+  monospace-inline:
+    color: "#1a2e4a"
+    background-color: "#f2f5f8"
+  monospace-block:
+    background-color: mist
+
+meta:
+  name: ReportForge

@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.worktrees/
+
+# Quarto execution and rendered artifacts
+reports/*/.quarto/
+reports/*/_freeze/
+reports/*/output/

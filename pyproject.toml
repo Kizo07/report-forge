@@ -1,0 +1,28 @@
+[project]
+name = "reportforge"
+version = "0.1.0"
+description = "Beautiful multi-format report generation (PDF/DOCX/HTML/...) on Quarto, with an MCP server"
+requires-python = ">=3.11"
+dependencies = [
+    "fastmcp>=2.0",
+    "plotly>=6.0",
+    "kaleido>=1.0",
+    "pandas>=2.2",
+    "pyyaml>=6.0",
+    "jinja2>=3.1",
+    # Jupyter stack — required by Quarto's `execute.jupyter: reportforge` kernel
+    "ipykernel>=6.29",
+    "jupyter_client>=8.6",
+    "nbclient>=0.10",
+    "nbformat>=5.10",
+]
+
+[project.scripts]
+reportforge = "reportforge.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/reportforge"]
