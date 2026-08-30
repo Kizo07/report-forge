@@ -1,0 +1,132 @@
+schema_version: 1
+task_id: task_reportforge_major_review_studio_v1
+title: ReportForge major bug review and flexible Studio template
+objective: >-
+  Review the existing ReportForge Quarto scaffold and render implementation for
+  major correctness failures, fix only failures that have deterministic
+  reproductions, and add a content-neutral premium Studio template. Use strict
+  red-green TDD: every production fix or feature must be preceded by a focused
+  test that is observed failing for the intended reason. Preserve the existing
+  standard, memo, whitepaper, and modern interfaces and render behavior. The
+  Studio template must be visually modern without imposing a financial use case
+  or a fixed report section sequence. Confirmed defects are: indentation-blind
+  format-block removal erases sibling formats; raw front-matter interpolation
+  makes valid titles containing quotes produce invalid YAML; directory source
+  rendering resolves the wrong project/output directory and can report success
+  with no outputs. Investigate other candidates systematically and fix them only
+  if they meet the major-bug definition below and a test reproduces the root
+  cause. A major bug prevents a documented scaffold/render flow, corrupts
+  configuration or output reporting, causes a crash for supported input, or
+  creates a material compatibility regression. Cosmetic nits, naming tastes,
+  and speculative refactors are excluded.
+complexity: complex
+risk: medium
+scope:
+  repository: /home/fire/Documents/report-forge/.worktrees/reportforge-major-review-studio
+  allowed_paths:
+    - pyproject.toml
+    - src/reportforge/...
+    - tests/...
+    - reports/studio-showcase/...
+    - .agent/evidence/...
+    - .agent/reviews/...
+  denied_paths:
+    - .git
+    - .gitignore
+    - .venv
+    - .worktrees
+    - .agent/tasks/...
+    - assets_cache/...
+    - reports/demo-report/...
+    - reports/modern-brief-test/...
+    - reports/wp-scaffold-test/...
+non_goals:
+  - Minor bugs, style nits, broad cleanup, or unrelated refactoring.
+  - Replacing the four existing templates or changing their public defaults.
+  - Network access, dependency downloads, deployment, publishing, pushing, merging, or remote creation.
+  - Pixel-identical DOCX parity with HTML or PDF; DOCX must remain clean, readable, and structurally correct.
+  - Editing generated outputs or existing showcase report sources to hide regressions.
+acceptance_criteria:
+  - >-
+    Focused regression tests first fail on the baseline for format-subset
+    scaffolding, quoted/special-character front matter, and directory-source
+    output discovery, then pass after root-cause fixes.
+  - >-
+    Requesting any supported non-empty subset of html, pdf, and docx preserves
+    exactly those configured formats; unsupported or empty-effective requests
+    return a structured error instead of a success with an empty format map.
+  - >-
+    User-controlled title, subtitle, author, firm/organization, eyebrow,
+    confidentiality text, abstract, and metric values/labels produce valid
+    front matter when they contain quotes, colons, Unicode, or line breaks.
+  - >-
+    render_report accepts a report slug, a qmd source, or a project directory;
+    resolves the project root correctly; and returns only the files produced for
+    the requested formats rather than stale or unrelated outputs.
+  - >-
+    CLI and engine paths validate format and metric shapes without uncaught
+    tracebacks. An explicit empty metric list disables metrics; omission retains
+    backward-compatible modern-template defaults.
+  - >-
+    list_templates, CLI choices/help, and MCP documentation expose a fifth
+    template named studio without changing existing template names.
+  - >-
+    Studio supports hero and compact title layouts, optional firm/organization,
+    optional eyebrow, optional zero-to-six metrics, configurable accent color,
+    optional confidentiality footer, arbitrary Markdown sections, and no
+    investment-specific default labels or mandatory content sequence.
+  - >-
+    Studio uses a premium editorial visual system: warm-white canvas, dark ink,
+    cobalt-family default accent, asymmetric title composition, generous
+    whitespace, clear typographic hierarchy, refined tables, figures, quotes,
+    headers, and page numbers. Long titles and six metrics must not overflow.
+  - >-
+    Studio renders successfully to HTML, Typst-backed PDF, and DOCX. HTML is
+    checked at desktop and narrow/mobile widths; PDF pages are rasterized and
+    inspected for overflow, clipping, illegible text, broken cross-references,
+    and poor page breaks; DOCX is ZIP-valid and non-empty.
+  - >-
+    The existing standard, memo, whitepaper, and modern templates continue to
+    scaffold and render their configured formats without regression.
+  - >-
+    Tests exercise real behavior and use mocks only at the subprocess boundary;
+    test output contains no unexpected errors or warnings.
+verification:
+  commands:
+    - PYTHONPATH=src uv run --offline --no-project --with pytest python -m pytest -q
+    - PYTHONPATH=src uv run --offline --no-project --with pytest python -m pytest -q tests/test_engine.py tests/test_cli.py
+    - .venv/bin/python -m compileall -q src tests
+    - .venv/bin/reportforge templates
+    - .venv/bin/reportforge render reports/studio-showcase/index.qmd --formats html,pdf,docx
+    - git diff --check
+  required_artifacts:
+    - tests/test_engine.py
+    - tests/test_cli.py
+    - reports/studio-showcase/index.qmd
+    - reports/studio-showcase/_quarto.yml
+    - reports/studio-showcase/styles.scss
+    - reports/studio-showcase/assets/typst-template.typ
+    - reports/studio-showcase/assets/typst-show.typ
+    - reports/studio-showcase/output/index.html
+    - reports/studio-showcase/output/index.pdf
+    - reports/studio-showcase/output/index.docx
+    - .agent/evidence/implementation.md
+routing:
+  implementer_role: main_implementer
+  reviewer_role: independent_reviewer
+  final_auditor_role: architect_orchestrator
+permissions:
+  profile: worktree_write
+  network: denied
+  external_writes: denied
+timeouts:
+  hard_seconds: 7200
+  stall_seconds: 900
+retry:
+  max_attempts: 2
+  retryable_classes:
+    - rate_limit
+    - transient_network
+    - timeout
+escalation:
+  silent_fallback: false
