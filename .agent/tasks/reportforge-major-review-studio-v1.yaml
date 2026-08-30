@@ -64,6 +64,10 @@ acceptance_criteria:
     resolves the project root correctly; and returns only the files produced for
     the requested formats rather than stale or unrelated outputs.
   - >-
+    REPORTFORGE_REPORTS_DIR can select an explicit report root for isolated
+    worktrees and tests while the existing home-directory location remains the
+    backward-compatible default.
+  - >-
     CLI and engine paths validate format and metric shapes without uncaught
     tracebacks. An explicit empty metric list disables metrics; omission retains
     backward-compatible modern-template defaults.
@@ -93,11 +97,11 @@ acceptance_criteria:
     test output contains no unexpected errors or warnings.
 verification:
   commands:
-    - PYTHONPATH=src uv run --offline --no-project --with pytest python -m pytest -q
-    - PYTHONPATH=src uv run --offline --no-project --with pytest python -m pytest -q tests/test_engine.py tests/test_cli.py
-    - .venv/bin/python -m compileall -q src tests
-    - .venv/bin/reportforge templates
-    - .venv/bin/reportforge render reports/studio-showcase/index.qmd --formats html,pdf,docx
+    - uv run --offline --no-project --with-editable . --with pytest python -m pytest -q
+    - uv run --offline --no-project --with-editable . --with pytest python -m pytest -q tests/test_engine.py tests/test_cli.py
+    - PYTHONPATH=src /home/fire/Documents/report-forge/.venv/bin/python -m compileall -q src tests
+    - PYTHONPATH=src /home/fire/Documents/report-forge/.venv/bin/reportforge templates
+    - REPORTFORGE_REPORTS_DIR=$PWD/reports PYTHONPATH=src /home/fire/Documents/report-forge/.venv/bin/reportforge render reports/studio-showcase/index.qmd --formats html,pdf,docx
     - git diff --check
   required_artifacts:
     - tests/test_engine.py
