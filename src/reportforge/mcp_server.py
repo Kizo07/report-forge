@@ -7,7 +7,25 @@ from typing import Any
 
 from fastmcp import FastMCP
 
-from reportforge.engine import list_templates, render_report, save_chart, scaffold_report
+from reportforge.engine import list_templates, render_report, save_chart, scaffold_report, write_report_body
+
+
+def _coerce_list(value: Any) -> Any:
+    """Accept JSON-encoded strings where a list is expected.
+
+    Some models emit tool arguments like formats='["html", "pdf"]' (a JSON
+    string) instead of a real array; fastmcp's strict pydantic validation
+    rejects those, trapping the agent in a retry loop.  Parse such strings
+    back into lists so the call succeeds.
+    """
+    if isinstance(value, str):
+        s = value.strip()
+        if s.startswith("[") or s.startswith("{"):
+            try:
+                return json.loads(s)
+            except json.JSONDecodeError:
+                pass
+    return value
 
 mcp = FastMCP(
     "reportforge",
@@ -69,8 +87,9 @@ def reportforge_scaffold_report(
     Returns paths and the source file to fill with content before rendering.
     """
     return scaffold_report(
-        slug, title or None, subtitle, author, abstract, template, formats, firm,
-        kpis=kpis, confidential_mark=confidential_mark,
+        slug, title or None, subtitle, author, abstract, template,
+        _coerce_list(formats), firm,
+        kpis=_coerce_list(kpis), confidential_mark=confidential_mark,
     )
 
 
@@ -89,7 +108,7 @@ def reportforge_render_report(
 
     Returns ok flag, absolute output file paths, and a log tail on failure.
     """
-    return render_report(source, formats)
+    return render_report(source, _coerce_list(formats))
 
 
 @mcp.tool
@@ -99,18 +118,47 @@ def reportforge_save_chart(
     width: int = 1400,
     height: int = 700,
     scale: int = 2,
+    project: str = "",
 ) -> dict[str, Any]:
     """Export a Plotly figure to static PNG (+ standalone interactive HTML).
 
     Args:
         fig_json: Full plotly figure as JSON string (fig.to_json()).
         out_basename: Output path without extension; writes <base>.png and <base>.html.
+            IMPORTANT: this server runs on the HOST filesystem. Sandbox paths
+            like /mnt/user-data/... do not exist here — they are automatically
+            redirected into the report project's figures/ directory, but you
+            should prefer host paths such as <report dir>/figures/<name>.
         width/height: Pixel dimensions of the static export (pre-scale).
         scale: Resolution multiplier; 2 gives print-quality ~300dpi at width 1400.
+        project: Optional report slug (from reportforge_scaffold_report). When a
+            sandbox path is translated, the chart is anchored to this project's
+            figures/ dir. If omitted, the most recently modified project is used.
 
     Returns png/html paths plus a ready-to-paste Markdown embed snippet.
     """
-    return save_chart(fig_json, out_basename, width, height, scale)
+    return save_chart(fig_json, out_basename, width, height, scale, project=project or None)
+
+
+@mcp.tool
+def reportforge_write_report_body(
+    source: str,
+    content: str,
+) -> dict[str, Any]:
+    """Write the complete .qmd body of a scaffolded report project.
+
+    This is how report content gets populated: after scaffold_report, call
+    this with the full .qmd text (YAML front matter + markdown sections),
+    then render_report.
+
+    Args:
+        source: Report slug (e.g. 'aapl-12m-outlook'), project directory, or
+            path to the index.qmd.
+        content: Complete .qmd text including YAML front matter.
+
+    Returns ok flag, written path, and byte count.
+    """
+    return write_report_body(source, content)
 
 
 def main() -> None:

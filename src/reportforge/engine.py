@@ -220,13 +220,48 @@ def render_report(source: str, formats: list[str] | None = None, project: str | 
     return {"ok": True, "outputs": outputs, "log_tail": "\n".join(tails)[-600:]}
 
 
-def save_chart(fig_json: str, out_basename: str, width: int = 1400, height: int = 700, scale: int = 2) -> dict:
+def write_report_body(source: str, content: str) -> dict:
+    """Write/overwrite the .qmd body of a previously scaffolded report project.
+
+    Scoped to projects under REPORTS_DIR. Resolves slugs like render_report
+    does. The caller supplies the complete .qmd text including YAML front
+    matter.
+    """
+    src = Path(source).expanduser()
+    if not src.is_absolute():
+        candidate = REPORTS_DIR / source.strip("/") / "index.qmd"
+        if candidate.exists():
+            src = candidate
+        else:
+            src = REPORTS_DIR / source.strip("/")
+    try:
+        src_resolved = src.resolve()
+        root = _project_root_of(src_resolved) or src_resolved.parent
+        if REPORTS_DIR.resolve() not in root.parents and root != REPORTS_DIR.resolve():
+            return {"ok": False, "error": f"target is not inside the report-forge projects directory ({REPORTS_DIR})"}
+    except Exception as exc:
+        return {"ok": False, "error": f"cannot resolve target: {exc}"}
+    target = src_resolved if src_resolved.suffix == ".qmd" else src_resolved / "index.qmd"
+    try:
+        target.write_text(content)
+    except Exception as exc:
+        return {"ok": False, "error": f"write failed: {exc}"}
+    return {"ok": True, "source": str(target), "bytes": len(content.encode("utf-8"))}
+
+
+def save_chart(fig_json: str, out_basename: str, width: int = 1400, height: int = 700, scale: int = 2, project: str | None = None) -> dict:
     try:
         import plotly.io as pio
 
         fig = pio.from_json(fig_json)
     except Exception as exc:
         return {"ok": False, "error": f"invalid plotly figure JSON: {exc}"}
+    # Sandbox-path translation (lesson of AAPL run 1, 2026-09-01): the agent's
+    # sandbox exposes /mnt/user-data/... while this MCP server runs on the
+    # host filesystem. Sandbox paths written here would fail silently from the
+    # agent's perspective. Translate them into the project's figures/ dir so
+    # the rendered qmd can actually find them.
+    out_basename = _translate_sandbox_path(out_basename, project)
     out = Path(out_basename).expanduser()
     out.parent.mkdir(parents=True, exist_ok=True)
     png = out.with_suffix(".png")
@@ -244,6 +279,38 @@ def _project_root_of(src: Path) -> Path | None:
         if (parent / "_quarto.yml").exists():
             return parent
     return None
+
+
+def _translate_sandbox_path(path_str: str, project: str | None) -> str:
+    """Translate agent-sandbox paths to host paths.
+
+    The deer-flow agent sandbox exposes /mnt/user-data/{workspace,outputs,uploads},
+    but reportforge runs on the host filesystem — those paths don't exist here.
+    Redirect them into a report project's figures/ directory (resolved from the
+    `project` slug when given, else the most recently modified project) so
+    charts land where the qmd render will actually find them.
+    """
+    p = Path(path_str)
+    sandbox_prefixes = ("/mnt/user-data",)
+    if not any(str(p) == s or str(p).startswith(s + "/") for s in sandbox_prefixes):
+        return path_str
+    root: Path | None = None
+    if project:
+        candidate = REPORTS_DIR / project.strip("/")
+        if candidate.is_dir():
+            root = candidate
+    if root is None:
+        # Fall back to the most recently modified project directory.
+        projects = [d for d in REPORTS_DIR.iterdir() if d.is_dir()] if REPORTS_DIR.is_dir() else []
+        if projects:
+            root = max(projects, key=lambda d: d.stat().st_mtime)
+    if root is None:
+        # No project to anchor to — leave the path alone and let the write fail
+        # loudly with a clear error rather than guessing.
+        return path_str
+    figures = root / "figures"
+    figures.mkdir(parents=True, exist_ok=True)
+    return str(figures / p.name)
 
 
 def _declares_typst_format(workdir: Path) -> bool:
