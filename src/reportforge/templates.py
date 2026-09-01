@@ -6,7 +6,7 @@ project:
   output-dir: output
 
 execute:
-  jupyter: reportforge
+  jupyter: <% jupyter_kernel %>
   echo: false
   warning: false
   message: false
@@ -138,17 +138,16 @@ div.callout-title-container {
 
 INDEX_QMD = """\
 ---
-title: "<% title %>"
+title: <% title_yaml %>
 <%% if subtitle%%>
-subtitle: "<% subtitle %>"
+subtitle: <% subtitle_yaml %>
 <%% endif%%>
 <%% if author%%>
-author: "<% author %>"
+author: <% author_yaml %>
 <%% endif%%>
-date: <% date %>
+date: <% date_yaml %>
 date-format: long
-abstract: |
-  <% abstract %>
+abstract: <% abstract_yaml %>
 ---
 
 # Executive summary
@@ -212,11 +211,11 @@ fig
 
 MEMO_QMD = """\
 ---
-title: "<% title %>"
+title: <% title_yaml %>
 <%% if author%%>
-author: "<% author %>"
+author: <% author_yaml %>
 <%% endif%%>
-date: <% date %>
+date: <% date_yaml %>
 date-format: long
 ---
 
@@ -236,17 +235,16 @@ Short sections. No table of contents, no numbered sections.
 
 WHITEPAPER_QMD = """\
 ---
-title: "<% title %>"
+title: <% title_yaml %>
 <%% if subtitle%%>
-subtitle: "<% subtitle %>"
+subtitle: <% subtitle_yaml %>
 <%% endif%%>
 <%% if author%%>
-author: "<% author %>"
+author: <% author_yaml %>
 <%% endif%%>
-date: <% date %>
+date: <% date_yaml %>
 date-format: long
-abstract: |
-  <% abstract %>
+abstract: <% abstract_yaml %>
 ---
 
 <%% if firm%%>
@@ -380,7 +378,7 @@ project:
   output-dir: output
 
 execute:
-  jupyter: reportforge
+  jupyter: <% jupyter_kernel %>
   echo: false
   warning: false
   message: false
@@ -595,7 +593,7 @@ $if(firm)$
   firm: [$firm$],
 $endif$
 $if(confidential-mark)$
-  confidential-mark: "$confidential-mark$",
+  confidential-mark: [$confidential-mark$],
 $endif$
 $if(kpis)$
   kpis: (
@@ -623,23 +621,22 @@ $endif$
 
 MODERN_QMD = """\
 ---
-title: "<% title %>"
+title: <% title_yaml %>
 <%% if subtitle%%>
-subtitle: "<% subtitle %>"
+subtitle: <% subtitle_yaml %>
 <%% endif%%>
 <%% if author%%>
-author: "<% author %>"
+author: <% author_yaml %>
 <%% endif%%>
 <%% if firm%%>
-firm: "<% firm %>"
+firm: <% firm_yaml %>
 <%% endif%%>
 <%% if confidential_mark%%>
-confidential-mark: "<% confidential_mark %>"
+confidential-mark: <% confidential_mark_yaml %>
 <%% endif%%>
-date: <% date %>
+date: <% date_yaml %>
 date-format: long
-abstract: |
-  <% abstract %>
+abstract: <% abstract_yaml %>
 <%% if kpis_yaml%%>
 <% kpis_yaml %>
 <%% endif%%>
@@ -731,5 +728,732 @@ blockquote {
 .figure-caption,
 caption {
   text-align: left;
+}
+"""
+
+# ---------------------------------------------------------------------------
+# "studio" template — premium, content-neutral editorial system.
+#
+# Studio deliberately separates visual identity from document purpose. Its
+# optional metadata controls composition, while the Markdown body remains free
+# to use any section sequence. PDF uses a custom Typst partial; HTML gets a
+# generated semantic header plus responsive CSS; DOCX keeps clean native
+# structure through the reference document.
+# ---------------------------------------------------------------------------
+
+STUDIO_YML = """\
+project:
+  type: default
+  output-dir: output
+
+execute:
+  jupyter: <% jupyter_kernel %>
+  echo: false
+  warning: false
+  message: false
+  fig-dpi: 300
+  freeze: auto
+
+number-sections: false
+
+crossref:
+  fig-title: Figure
+  tbl-title: Table
+  fig-prefix: Figure
+  tbl-prefix: Table
+  sec-prefix: Section
+
+format:
+  html:
+    toc: <% toc %>
+    toc-depth: 3
+    theme:
+      - brand
+      - styles.scss
+    include-before-body: assets/studio-header.html
+    title-block-style: none
+    code-fold: true
+    code-tools: false
+    link-external-newwindow: true
+  typst:
+    papersize: <% papersize %>
+    mainfont: Inter
+    fontsize: 10.5pt
+    template-partials:
+      - assets/typst-template.typ
+      - assets/typst-show.typ
+  docx:
+    reference-doc: assets/reference-doc.docx
+    toc: <% toc %>
+"""
+
+STUDIO_HTML_HEADER = """\
+<header class="rf-studio-header rf-layout-<% title_layout %>" style="--rf-accent: <% accent %>" role="banner">
+  <div class="rf-title-frame">
+<%% if eyebrow %%>
+    <p class="rf-eyebrow"><% eyebrow_html %></p>
+<%% endif %%>
+    <h1 class="rf-display-title"><% title_html %></h1>
+<%% if subtitle %%>
+    <p class="rf-display-subtitle"><% subtitle_html %></p>
+<%% endif %%>
+    <div class="rf-title-meta">
+<%% if organization %%>
+      <span class="rf-organization"><% organization_html %></span>
+<%% endif %%>
+<%% if author %%>
+      <span><% author_html %></span>
+<%% endif %%>
+      <time><% date_html %></time>
+    </div>
+<%% if abstract %%>
+    <p class="rf-deck"><% abstract_html %></p>
+<%% endif %%>
+  </div>
+<%% if metrics_html %%>
+  <div class="rf-metric-grid rf-metrics-<% metrics_count %>" aria-label="Key metrics">
+<% metrics_html %>
+  </div>
+<%% endif %%>
+</header>
+"""
+
+STUDIO_TYPT_TEMPLATE = r"""// report-forge "studio" — flexible editorial Typst template
+#let studio(
+  title: none, subtitle: none, authors: (), keywords: (),
+  date: none, abstract: none, abstract-title: none, thanks: none,
+  metrics: (), organization: none, eyebrow: none,
+  title-layout: "hero", accent: "#4f46e5", confidential-mark: none,
+  cols: 1, margin: (x: 0.82in, top: 0.72in, bottom: 0.9in),
+  paper: "us-letter", lang: "en", region: "US",
+  font: none, fontsize: 10.5pt, mathfont: none, codefont: none,
+  linestretch: 1.15, sectionnumbering: none, linkcolor: none,
+  citecolor: none, filecolor: none, pagenumbering: "1", doc,
+) = {
+  let paper-tone = rgb("#f8f7f3")
+  let ink = rgb("#171923")
+  let muted = rgb("#62697a")
+  let hairline = rgb("#dfe1e7")
+  let panel = rgb("#ffffff")
+  let accent-color = rgb(accent)
+
+  set document(title: title, keywords: keywords)
+  set page(
+    paper: paper,
+    margin: margin,
+    fill: paper-tone,
+    numbering: pagenumbering,
+    header: context {
+      let num = counter(page).at(here()).first()
+      if num >= 2 {
+        block(width: 100%)[
+          #set text(size: 7.8pt, fill: muted, font: "Space Grotesk")
+          #grid(columns: (1fr, auto), align: horizon)[
+            #if organization != none [#upper[#organization]] else if eyebrow != none [#upper[#eyebrow]] else [STUDIO REPORT]
+          ][#date]
+          #line(length: 100%, stroke: 0.55pt + hairline)
+        ]
+      }
+    },
+    footer: context {
+      let num = counter(page).at(here()).first()
+      block(width: 100%)[
+        #line(length: 100%, stroke: 0.55pt + hairline)
+        #set text(size: 7.8pt, fill: muted, font: "Space Grotesk")
+        #grid(columns: (1fr, auto), align: horizon)[
+          #if confidential-mark != none [#upper[#confidential-mark]] else []
+        ][#num]
+      ]
+    },
+  )
+  set par(justify: true, leading: 0.74em, first-line-indent: 0em)
+  set text(lang: lang, region: region, size: fontsize, fill: ink)
+  set text(font: font) if font != none
+  set heading(numbering: sectionnumbering)
+  show link: set text(fill: accent-color)
+
+  show heading.where(level: 1): it => block(above: 1.7em, below: 0.62em)[
+    #grid(columns: (18pt, 1fr), column-gutter: 9pt, align: horizon)[
+      #line(length: 18pt, stroke: 2.5pt + accent-color)
+    ][
+      #set text(font: "Space Grotesk", size: 15pt, weight: "bold", fill: ink)
+      #it.body
+    ]
+  ]
+  show heading.where(level: 2): it => block(above: 1.1em, below: 0.42em)[
+    #set text(font: "Space Grotesk", size: 11.5pt, weight: "bold", fill: ink)
+    #it.body
+  ]
+  show heading.where(level: 3): set text(font: "Space Grotesk", size: 10pt, weight: "bold", fill: muted)
+
+  show figure.caption: set text(size: 8.7pt, fill: muted)
+  show figure.caption: set align(left)
+  show quote: it => block(
+    width: 100%,
+    fill: panel,
+    radius: 6pt,
+    inset: (left: 16pt, right: 14pt, y: 10pt),
+    stroke: (left: 3pt + accent-color),
+  )[
+    #set text(size: 10.5pt, style: "italic", fill: ink)
+    #it
+  ]
+  show table: set table(stroke: 0.5pt + hairline, inset: 6pt)
+  show table.cell.where(y: 0): set text(weight: "bold", fill: ink)
+
+  if title != none {
+    if title-layout == "compact" {
+      block(
+        width: 100%,
+        inset: (left: 18pt, y: 15pt),
+        stroke: (left: 4pt + accent-color),
+      )[
+        #set par(justify: false)
+        #if eyebrow != none {
+          set text(font: "Space Grotesk", size: 8pt, weight: "medium", fill: accent-color)
+          upper[#eyebrow]
+          v(0.45em)
+        }
+        #set text(font: "Space Grotesk", size: 23pt, weight: "bold", fill: ink, hyphenate: false)
+        #title
+        #if subtitle != none {
+          v(0.35em)
+          set text(size: 11pt, fill: muted)
+          subtitle
+        }
+        #v(0.75em)
+        #set text(size: 8.5pt, fill: muted)
+        #grid(columns: (1fr, auto), align: horizon)[
+          #if organization != none [#organization] else if authors != () [#authors.map(a => a.name).join(", ")] else []
+        ][#date]
+      ]
+      v(1.0em)
+    } else {
+      block(
+        width: 100%,
+        fill: panel,
+        radius: 10pt,
+        inset: (left: 26pt, right: 24pt, top: 32pt, bottom: 28pt),
+        stroke: (left: 7pt + accent-color, rest: 0.6pt + hairline),
+      )[
+        #set par(justify: false)
+        #if eyebrow != none {
+          set text(font: "Space Grotesk", size: 8.5pt, weight: "medium", fill: accent-color)
+          upper[#eyebrow]
+          v(0.7em)
+        }
+        #set text(font: "Space Grotesk", size: 29pt, weight: "bold", fill: ink, hyphenate: false)
+        #title
+        #if subtitle != none {
+          v(0.5em)
+          set text(size: 12pt, fill: muted)
+          subtitle
+        }
+        #v(1.25em)
+        #line(length: 46pt, stroke: 2.2pt + accent-color)
+        #v(0.7em)
+        #set text(size: 8.8pt, fill: muted)
+        #grid(columns: (1fr, auto), align: horizon)[
+          #if organization != none [#organization] else if authors != () [#authors.map(a => a.name).join(", ")] else []
+        ][#date]
+      ]
+      v(1.15em)
+    }
+  }
+
+  if metrics != () and metrics.len() > 0 {
+    let n = metrics.len()
+    let metric-cols = if n == 1 {
+      (1fr,)
+    } else if n == 2 or n == 4 {
+      (1fr, 1fr)
+    } else {
+      (1fr, 1fr, 1fr)
+    }
+    grid(
+      columns: metric-cols,
+      column-gutter: 9pt,
+      row-gutter: 9pt,
+      ..metrics.map(metric => block(
+        fill: panel,
+        radius: 6pt,
+        inset: (x: 12pt, y: 10pt),
+        stroke: 0.55pt + hairline,
+      )[
+        #set text(font: "Space Grotesk", size: 15pt, weight: "bold", fill: ink)
+        #metric.value
+        #linebreak()
+        #set text(size: 7.7pt, fill: muted)
+        #upper[#metric.label]
+      ])
+    )
+    v(0.85em)
+  }
+
+  if abstract != none {
+    block(
+      width: 100%,
+      fill: rgb("#efefff"),
+      radius: 7pt,
+      inset: (x: 15pt, y: 12pt),
+    )[
+      #set text(size: 9.6pt, fill: muted)
+      #abstract
+    ]
+    v(0.9em)
+  }
+
+  doc
+}
+"""
+
+STUDIO_TYPT_SHOW = """\
+#show: doc => studio(
+$if(title)$
+  title: [$title$],
+$endif$
+$if(subtitle)$
+  subtitle: [$subtitle$],
+$endif$
+$if(by-author)$
+  authors: (
+$for(by-author)$
+$if(it.name.literal)$
+    ( name: [$it.name.literal$] ),
+$endif$
+$endfor$
+  ),
+$endif$
+$if(date)$
+  date: [$date$],
+$endif$
+$if(abstract)$
+  abstract: [$abstract$],
+$endif$
+$if(organization)$
+  organization: [$organization$],
+$endif$
+$if(eyebrow)$
+  eyebrow: [$eyebrow$],
+$endif$
+$if(title-layout)$
+  title-layout: "$title-layout$",
+$endif$
+$if(accent-typst)$
+  accent: "#$accent-typst$",
+$endif$
+$if(confidential-mark)$
+  confidential-mark: [$confidential-mark$],
+$endif$
+$if(metrics)$
+  metrics: (
+$for(metrics)$
+    ( value: [$it.value$], label: [$it.label$] ),
+$endfor$
+  ),
+$endif$
+$if(papersize)$
+  paper: "$papersize$",
+$endif$
+$if(mainfont)$
+  font: ("$mainfont$",),
+$endif$
+$if(fontsize)$
+  fontsize: $fontsize$,
+$endif$
+$if(section-numbering)$
+  sectionnumbering: "$section-numbering$",
+$endif$
+  pagenumbering: $if(page-numbering)$"$page-numbering$"$else$none$endif$,
+  doc,
+)
+"""
+
+STUDIO_QMD = """\
+---
+title: <% title_yaml %>
+<%% if subtitle%%>
+subtitle: <% subtitle_yaml %>
+<%% endif%%>
+<%% if author%%>
+author: <% author_yaml %>
+<%% endif%%>
+<%% if organization%%>
+organization: <% organization_yaml %>
+<%% endif%%>
+<%% if eyebrow%%>
+eyebrow: <% eyebrow_yaml %>
+<%% endif%%>
+title-layout: <% title_layout_yaml %>
+accent: <% accent_yaml %>
+accent-typst: <% accent_typst_yaml %>
+<%% if confidential_mark%%>
+confidential-mark: <% confidential_mark_yaml %>
+<%% endif%%>
+date: <% date_yaml %>
+date-format: long
+abstract: <% abstract_yaml %>
+<%% if metrics_yaml%%>
+<% metrics_yaml %>
+<%% endif%%>
+title-block-style: none
+---
+
+# Overview
+
+Open with the idea, decision, or story this document exists to communicate.
+Studio does not prescribe a domain or section order—rename, reorder, add, or
+remove any section to fit the work.
+
+> **Lead with meaning.** Use a short pull quote for the sentence readers should
+> remember after they close the report.
+
+# Highlights
+
+::: {.studio-grid}
+::: {.studio-card}
+## One clear point
+
+Summarize a finding, principle, or outcome in a compact card.
+:::
+
+::: {.studio-card}
+## Another perspective
+
+Pair complementary ideas without forcing the rest of the report into columns.
+:::
+:::
+
+# Evidence
+
+Use figures and tables when they clarify the argument. Captions remain
+consistent across HTML, PDF, and DOCX.
+
+![Example figure caption.](assets/example-chart.png){#fig-example width=80%}
+
+As @fig-example shows, the template supports ordinary Quarto cross-references.
+
+| Measure | Current | Previous |
+|:--------|--------:|---------:|
+| Example A | 42 | 38 |
+| Example B | 17 | 21 |
+
+: Example table caption. {#tbl-example}
+
+**Interpretation.** Explain what the evidence means, where uncertainty remains,
+and which assumptions matter. Ordinary Markdown—not a fixed template
+vocabulary—drives the document.
+
+# Next steps
+
+1. State the next action or decision.
+2. Name its owner or trigger when useful.
+3. Remove this section entirely when the report does not need recommendations.
+
+**Notes.** Sources, methods, definitions, and reproducibility details can live
+here or anywhere else the document requires.
+
+```{python}
+# Generate the neutral print-quality example used by @fig-example.
+# Keep cross-reference metadata on the Markdown image, not this executable
+# chunk, for compatibility with Quarto's Typst path.
+import pandas as pd
+import plotly.express as px
+
+df = pd.DataFrame({
+    "period": list(range(12)),
+    "value": [18, 22, 21, 27, 31, 29, 36, 41, 39, 46, 52, 57],
+})
+fig = px.line(df, x="period", y="value", markers=True)
+fig.update_layout(
+    template="plotly_white",
+    title="Example trend",
+    font=dict(size=16),
+    margin=dict(l=55, r=30, t=70, b=50),
+)
+fig.update_traces(line_color="<% accent %>", marker_color="<% accent %>", marker_size=6)
+fig.write_image("assets/example-chart.png", width=900, height=360, scale=3)
+```
+"""
+
+STUDIO_STYLES_EXTRA = """
+/* Studio: responsive editorial system. */
+:root {
+  --rf-accent: <% accent %>;
+  --rf-paper: #f8f7f3;
+  --rf-panel: #ffffff;
+  --rf-ink: #171923;
+  --rf-muted: #62697a;
+  --rf-line: #dfe1e7;
+}
+
+body {
+  background: var(--rf-paper);
+  color: var(--rf-ink);
+}
+
+#title-block-header {
+  display: none;
+}
+
+.rf-studio-header {
+  --rf-accent: #4f46e5;
+  position: relative;
+  width: min(1120px, calc(100% - 3rem));
+  margin: 2rem auto 3.5rem;
+  overflow: hidden;
+  border: 1px solid var(--rf-line);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 88% 8%, rgba(79, 70, 229, 0.16), transparent 30%),
+    linear-gradient(145deg, #ffffff 0%, #f4f3ee 100%);
+  box-shadow: 0 24px 70px rgba(23, 25, 35, 0.09);
+}
+
+.rf-studio-header::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 8px;
+  background: var(--rf-accent);
+}
+
+.rf-title-frame {
+  padding: 4.6rem 5rem 2.6rem;
+}
+
+.rf-layout-compact .rf-title-frame {
+  padding: 2.4rem 3rem 1.9rem;
+}
+
+.rf-eyebrow {
+  margin: 0 0 1rem;
+  color: var(--rf-accent);
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.rf-display-title {
+  max-width: 900px;
+  margin: 0;
+  color: var(--rf-ink);
+  font-family: "Space Grotesk", sans-serif;
+  font-size: clamp(2.5rem, 6vw, 5.1rem);
+  font-weight: 700;
+  letter-spacing: -0.055em;
+  line-height: 0.98;
+  overflow-wrap: anywhere;
+}
+
+.rf-layout-compact .rf-display-title {
+  font-size: clamp(2rem, 4.5vw, 3.45rem);
+  line-height: 1.02;
+}
+
+.rf-display-subtitle {
+  max-width: 760px;
+  margin: 1.25rem 0 0;
+  color: var(--rf-muted);
+  font-size: clamp(1.05rem, 2vw, 1.35rem);
+  line-height: 1.45;
+}
+
+.rf-title-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 1.25rem;
+  align-items: center;
+  margin-top: 2rem;
+  color: var(--rf-muted);
+  font-size: 0.82rem;
+}
+
+.rf-title-meta span + span::before,
+.rf-title-meta span + time::before,
+.rf-title-meta time::before {
+  content: "·";
+  margin-right: 1.25rem;
+  color: var(--rf-line);
+}
+
+.rf-organization {
+  color: var(--rf-ink);
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 700;
+}
+
+.rf-deck {
+  max-width: 800px;
+  margin: 2rem 0 0;
+  padding-top: 1.35rem;
+  border-top: 1px solid var(--rf-line);
+  color: var(--rf-muted);
+  font-size: 1rem;
+  line-height: 1.65;
+}
+
+.rf-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  border-top: 1px solid var(--rf-line);
+  background: var(--rf-line);
+}
+
+.rf-metrics-1 {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.rf-metrics-2,
+.rf-metrics-4 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.rf-metric {
+  min-width: 0;
+  padding: 1.35rem 1.65rem;
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.rf-metric-value {
+  color: var(--rf-ink);
+  font-family: "Space Grotesk", sans-serif;
+  font-size: clamp(1.35rem, 3vw, 2rem);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  overflow-wrap: anywhere;
+}
+
+.rf-metric-label {
+  margin-top: 0.2rem;
+  color: var(--rf-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+main.content {
+  max-width: 880px;
+}
+
+main.content section.level1 > h1 {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  gap: 0.7rem;
+  align-items: center;
+  margin-top: 3.25rem;
+  padding: 0;
+  border: 0;
+  color: var(--rf-ink);
+  font-size: clamp(1.65rem, 3vw, 2.2rem);
+  letter-spacing: -0.035em;
+}
+
+main.content section.level1 > h1::before {
+  content: "";
+  width: 30px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--rf-accent, #4f46e5);
+}
+
+main.content h2 {
+  color: var(--rf-ink);
+  letter-spacing: -0.025em;
+}
+
+.studio-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+.studio-card {
+  padding: 1.35rem 1.45rem;
+  border: 1px solid var(--rf-line);
+  border-radius: 14px;
+  background: var(--rf-panel);
+}
+
+.studio-card h2 {
+  margin-top: 0;
+  font-size: 1rem;
+}
+
+blockquote {
+  margin: 1.6rem 0;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--rf-line);
+  border-left: 5px solid var(--rf-accent, #4f46e5);
+  border-radius: 0 12px 12px 0;
+  background: var(--rf-panel);
+  color: var(--rf-ink);
+  font-style: normal;
+}
+
+table {
+  overflow: hidden;
+  border: 1px solid var(--rf-line);
+  border-radius: 10px;
+  background: var(--rf-panel);
+}
+
+thead {
+  background: #efefff;
+}
+
+.figure-caption,
+caption {
+  color: var(--rf-muted);
+  text-align: left;
+}
+
+@media (max-width: 720px) {
+  .rf-studio-header {
+    width: min(100% - 1rem, 1120px);
+    margin-top: 0.5rem;
+    border-radius: 16px;
+  }
+
+  .rf-title-frame,
+  .rf-layout-compact .rf-title-frame {
+    padding: 2.3rem 1.5rem 1.7rem 1.8rem;
+  }
+
+  .rf-display-title {
+    font-size: clamp(2.15rem, 12vw, 3.4rem);
+  }
+
+  .rf-title-meta {
+    display: grid;
+    gap: 0.35rem;
+  }
+
+  .rf-title-meta span + span::before,
+  .rf-title-meta span + time::before,
+  .rf-title-meta time::before {
+    content: none;
+  }
+
+  .rf-metric-grid,
+  .studio-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .rf-metric {
+    padding: 1rem 1.5rem;
+  }
+}
+
+@media print {
+  .rf-studio-header {
+    box-shadow: none;
+    break-inside: avoid;
+  }
 }
 """

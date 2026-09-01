@@ -39,6 +39,11 @@ def reportforge_scaffold_report(
     firm: str = "",
     kpis: list[dict[str, str]] | None = None,
     confidential_mark: str = "",
+    organization: str = "",
+    eyebrow: str = "",
+    title_layout: str = "hero",
+    accent: str = "#4f46e5",
+    metrics: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     """Create a new branded report project under ~/Documents/report-forge/reports/<slug>/.
 
@@ -57,7 +62,10 @@ def reportforge_scaffold_report(
             (modern branded research brief: full-bleed dark masthead, KPI stat
             strip, accent-tick headings, running header/footer with firm +
             confidentiality mark, exhibit-driven short sections; custom typst
-            PDF template; html/pdf/docx).
+            PDF template; html/pdf/docx), or 'studio' (premium,
+            content-neutral editorial layout with hero/compact title,
+            optional organization, eyebrow, metrics, accent, and footer;
+            flexible Markdown sections; html/pdf/docx).
         formats: Subset of ['html', 'pdf', 'docx'] to configure; defaults per template.
         firm: Firm or institution name (whitepaper title page / modern masthead + header).
         kpis: Optional KPI stat strip for the modern template, a list of
@@ -65,12 +73,19 @@ def reportforge_scaffold_report(
             placeholders when omitted for 'modern'.
         confidential_mark: Optional confidentiality text for the modern template
             footer, e.g. "Confidential — For Discussion Purposes Only".
+        organization: Generic organization or brand name for studio.
+        eyebrow: Short studio kicker above the title.
+        title_layout: Studio title composition, either "hero" or "compact".
+        accent: Studio accent as a six-digit hex color.
+        metrics: Optional studio metric strip, a list of 0-6 value/label objects.
 
     Returns paths and the source file to fill with content before rendering.
     """
     return scaffold_report(
         slug, title or None, subtitle, author, abstract, template, formats, firm,
         kpis=kpis, confidential_mark=confidential_mark,
+        organization=organization, eyebrow=eyebrow, title_layout=title_layout,
+        accent=accent, metrics=metrics,
     )
 
 
