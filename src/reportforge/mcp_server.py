@@ -7,7 +7,7 @@ from typing import Any
 
 from fastmcp import FastMCP
 
-from reportforge.engine import list_templates, render_report, save_chart, scaffold_report, write_report_body
+from reportforge.engine import list_templates, publish_report, render_report, save_chart, scaffold_report, write_report_body
 
 
 def _coerce_list(value: Any, allowed_tokens: set[str] | None = None) -> Any:
@@ -48,7 +48,9 @@ mcp = FastMCP(
         "Quarto .qmd sources with unified branding. Workflow: scaffold_report to create "
         "a report project, edit the index.qmd (or have the calling agent write content "
         "into it), optionally save_chart for plotly figures, then render_report to "
-        "produce final documents."
+        "produce final documents, then publish_report to deliver the rendered files "
+        "into the run's thread outputs (follow its next_step and call present_files "
+        "with the returned present_paths — never substitute a manifest for the real files)."
     ),
 )
 
@@ -196,6 +198,36 @@ def reportforge_write_report_body(
     Returns ok flag, written path, and byte count.
     """
     return write_report_body(source, content)
+
+
+@mcp.tool
+def reportforge_publish_report(
+    project: str,
+    dest_dir: str | None = None,
+) -> dict[str, Any]:
+    """Publish a rendered report project's artifacts into the run's thread outputs.
+
+    Report-forge renders on the host filesystem, which the agent sandbox cannot
+    read — so the sandbox's present_files gate cannot serve those bytes and the
+    run's delivery gate has nothing real to match. This tool bridges that gap:
+    it copies the rendered deliverables (index.pdf/docx/html + companion asset
+    dirs) into the thread's outputs directory, which IS mounted in the sandbox,
+    and returns sandbox-virtual paths ready for present_files.
+
+    Call this after a successful render_report. Then call present_files with the
+    returned ``present_paths`` so the real artifacts — not a manifest — satisfy
+    the delivery gate.
+
+    Args:
+        project: Report slug (e.g. 'aapl-12m-studio') whose output/ to publish.
+        dest_dir: Optional explicit host destination dir. When omitted, uses the
+            DEERFLOW_THREAD_OUTPUTS_HOST env var that deer-flow injects into
+            stdio MCP sessions (the thread's host outputs dir).
+
+    Returns ok flag, host_dir, published file names, present_paths (sandbox
+    virtual paths), and next_step.
+    """
+    return publish_report(project, dest_dir)
 
 
 def main() -> None:

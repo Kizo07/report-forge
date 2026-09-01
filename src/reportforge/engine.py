@@ -407,6 +407,77 @@ def save_chart(fig_json: str, out_basename: str, width: int = 1400, height: int 
     return {"ok": True, "png": str(png), "html": str(html_path), "embed_snippet": f"![caption.]({png.name}){{width=90%}}"}
 
 
+def publish_report(project: str, dest_dir: str | None = None) -> dict:
+    """Copy a rendered report project's deliverables into the run's thread outputs.
+
+    Report-forge renders on the host (REPORTS_DIR/<project>/output/), which is
+    outside the agent sandbox namespace: the sandbox cannot read those bytes,
+    so `present_files` cannot serve them and the delivery gate has nothing to
+    match. This bridge copies the rendered artifacts into the thread's outputs
+    directory — inside the sandbox's /mnt/user-data mount — where the agent can
+    then present the actual files.
+
+    The destination is resolved from:
+    1. explicit `dest_dir` (host path), else
+    2. the DEERFLOW_THREAD_OUTPUTS_HOST env var injected by deer-flow into
+       stdio MCP sessions (host-side thread outputs dir).
+
+    Returns sandbox-virtual paths (/mnt/user-data/outputs/...) ready for
+    present_files, plus host paths for operator inspection.
+    """
+    root = REPORTS_DIR / project.strip("/")
+    if not root.is_dir():
+        return {"ok": False, "error": f"project not found: {project}"}
+    out_dir = _output_dir_of(root)
+    if out_dir == root and (root / "output").is_dir():
+        # No output-dir configured (or it resolves to the project root):
+        # prefer the conventional output/ subdir when present.
+        out_dir = root / "output"
+    if not out_dir.is_dir():
+        return {"ok": False, "error": f"project has no rendered output dir: {out_dir}"}
+
+    dest = Path(dest_dir).expanduser() if dest_dir else None
+    if dest is None:
+        env_dest = os.environ.get("DEERFLOW_THREAD_OUTPUTS_HOST", "").strip()
+        dest = Path(env_dest).expanduser() if env_dest else None
+    if dest is None:
+        return {
+            "ok": False,
+            "error": "no thread outputs dir available: pass dest_dir or run inside a deer-flow stdio session (DEERFLOW_THREAD_OUTPUTS_HOST)",
+        }
+
+    # Deliverables: rendered top-level files + any companion asset dirs
+    # (Quarto's <stem>_files for self-contained html when embed-resources
+    # is off, figures referenced relatively).
+    deliverables: list[Path] = [p for p in sorted(out_dir.iterdir()) if p.is_file()]
+    asset_dirs = [p for p in sorted(out_dir.iterdir()) if p.is_dir() and p.name.endswith("_files")]
+    if not deliverables:
+        return {"ok": False, "error": f"no rendered artifacts found in {out_dir}"}
+
+    target_root = dest / project.strip("/")
+    try:
+        target_root.mkdir(parents=True, exist_ok=True)
+        copied: list[str] = []
+        for item in deliverables:
+            shutil.copy2(item, target_root / item.name)
+            copied.append(item.name)
+        for adir in asset_dirs:
+            shutil.copytree(adir, target_root / adir.name, dirs_exist_ok=True)
+            copied.append(adir.name + "/")
+    except OSError as exc:
+        return {"ok": False, "error": f"publish copy failed: {exc}"}
+
+    virtual = sorted(f"/mnt/user-data/outputs/{project.strip('/')}/{name}" for name in copied)
+    return {
+        "ok": True,
+        "project": project.strip("/"),
+        "host_dir": str(target_root),
+        "published": copied,
+        "present_paths": virtual,
+        "next_step": "call present_files with present_paths",
+    }
+
+
 def _project_root_of(src: Path) -> Path | None:
     start = src if src.is_dir() else src.parent
     for parent in [start, *start.parents]:

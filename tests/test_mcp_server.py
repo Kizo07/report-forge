@@ -117,3 +117,53 @@ def test_scaffold_accepts_csv_formats(isolated_reports: Path) -> None:
     assert result["ok"] is True
     config = yaml.safe_load((Path(result["path"]) / "_quarto.yml").read_text())
     assert set(config["format"]) == {"html", "docx"}
+
+
+# --- WS-C: publish_report delivery bridge --------------------------------
+
+def test_publish_report_copies_outputs_into_dest(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """publish_report bridges host renders into the thread outputs dir."""
+    project_dir = engine.REPORTS_DIR / "wsc-publish-test"
+    out = project_dir / "output"
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "index.pdf").write_bytes(b"%PDF-fake")
+    (out / "index.html").write_text("<html>ok</html>")
+    (out / "index_files" / "lib").mkdir(parents=True, exist_ok=True)
+    (out / "index_files" / "lib" / "asset.js").write_text("//js")
+    try:
+        dest = tmp_path / "thread-outputs"
+        result = engine.publish_report("wsc-publish-test", dest_dir=str(dest))
+        assert result["ok"] is True
+        assert set(result["published"]) == {"index.pdf", "index.html", "index_files/"}
+        assert (dest / "wsc-publish-test" / "index.pdf").is_file()
+        assert (dest / "wsc-publish-test" / "index_files" / "lib" / "asset.js").is_file()
+        assert result["present_paths"] == [
+            "/mnt/user-data/outputs/wsc-publish-test/index.html",
+            "/mnt/user-data/outputs/wsc-publish-test/index.pdf",
+            "/mnt/user-data/outputs/wsc-publish-test/index_files/",
+        ]
+        # env fallback: no dest_dir, DEERFLOW_THREAD_OUTPUTS_HOST set
+        env_dest = tmp_path / "env-outputs"
+        monkeypatch.setenv("DEERFLOW_THREAD_OUTPUTS_HOST", str(env_dest))
+        result2 = engine.publish_report("wsc-publish-test")
+        assert result2["ok"] is True
+        assert result2["host_dir"] == str(env_dest / "wsc-publish-test")
+        # no dest at all -> clean error, not a crash
+        monkeypatch.delenv("DEERFLOW_THREAD_OUTPUTS_HOST", raising=False)
+        result3 = engine.publish_report("wsc-publish-test")
+        assert result3["ok"] is False
+        assert "no thread outputs dir" in result3["error"]
+        # unknown project -> clean error
+        result4 = engine.publish_report("does-not-exist", dest_dir=str(dest))
+        assert result4["ok"] is False and "project not found" in result4["error"]
+    finally:
+        import shutil as _shutil
+
+        _shutil.rmtree(project_dir, ignore_errors=True)
+
+
+def test_publish_report_mcp_tool_registered() -> None:
+    tools = {t.name: t for t in asyncio.run(mcp.list_tools())}
+    assert "reportforge_publish_report" in tools
+    props = tools["reportforge_publish_report"].parameters["properties"]
+    assert "project" in props and "dest_dir" in props
