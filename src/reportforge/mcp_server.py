@@ -10,13 +10,23 @@ from fastmcp import FastMCP
 from reportforge.engine import list_templates, render_report, save_chart, scaffold_report, write_report_body
 
 
-def _coerce_list(value: Any) -> Any:
-    """Accept JSON-encoded strings where a list is expected.
+def _coerce_list(value: Any, allowed_tokens: set[str] | None = None) -> Any:
+    """Accept JSON-encoded strings (and CSV for known-token lists) where a
+    list is expected.
 
     Some models emit tool arguments like formats='["html", "pdf"]' (a JSON
     string) instead of a real array; fastmcp's strict pydantic validation
     rejects those, trapping the agent in a retry loop.  Parse such strings
     back into lists so the call succeeds.
+
+    NOTE: list-typed tool parameters must be annotated ``list[...] | str |
+    None`` at the MCP boundary — fastmcp validates args BEFORE the tool body
+    runs, so a bare ``list[...]`` annotation rejects the string and this
+    coercion never executes (verified: run d1f6a9b5 burned two scaffold
+    attempts this way).
+
+    When ``allowed_tokens`` is given, a bracket-less CSV string like
+    "html,pdf,docx" whose parts all match is also split into a list.
     """
     if isinstance(value, str):
         s = value.strip()
@@ -25,6 +35,10 @@ def _coerce_list(value: Any) -> Any:
                 return json.loads(s)
             except json.JSONDecodeError:
                 pass
+        elif allowed_tokens is not None and s:
+            parts = [p.strip().lower() for p in s.split(",") if p.strip()]
+            if parts and all(p in allowed_tokens for p in parts):
+                return parts
     return value
 
 mcp = FastMCP(
@@ -37,6 +51,9 @@ mcp = FastMCP(
         "produce final documents."
     ),
 )
+
+
+_FORMAT_TOKENS = {"html", "pdf", "docx"}
 
 
 @mcp.tool
@@ -53,15 +70,15 @@ def reportforge_scaffold_report(
     author: str = "",
     abstract: str = "Add a short abstract here.",
     template: str = "standard",
-    formats: list[str] | None = None,
+    formats: list[str] | str | None = None,
     firm: str = "",
-    kpis: list[dict[str, str]] | None = None,
+    kpis: list[dict[str, str]] | str | None = None,
     confidential_mark: str = "",
     organization: str = "",
     eyebrow: str = "",
     title_layout: str = "hero",
     accent: str = "#4f46e5",
-    metrics: list[dict[str, str]] | None = None,
+    metrics: list[dict[str, str]] | str | None = None,
 ) -> dict[str, Any]:
     """Create a new branded report project under ~/Documents/report-forge/reports/<slug>/.
 
@@ -84,24 +101,28 @@ def reportforge_scaffold_report(
             content-neutral editorial layout with hero/compact title,
             optional organization, eyebrow, metrics, accent, and footer;
             flexible Markdown sections; html/pdf/docx).
-        formats: Subset of ['html', 'pdf', 'docx'] to configure; defaults per template.
+        formats: Subset of ['html', 'pdf', 'docx'] to configure; defaults per
+            template. Pass a real JSON list when possible; a JSON-encoded
+            string or a CSV like "html,pdf,docx" is also accepted.
         firm: Firm or institution name (whitepaper title page / modern masthead + header).
         kpis: Optional KPI stat strip for the modern template, a list of
             {"value": ..., "label": ...} dicts (2-4 items ideal). Defaults to
-            placeholders when omitted for 'modern'.
+            placeholders when omitted for 'modern'. A JSON-encoded string of
+            the list is also accepted.
         confidential_mark: Optional confidentiality text for the modern template
             footer, e.g. "Confidential — For Discussion Purposes Only".
         organization: Generic organization or brand name for studio.
         eyebrow: Short studio kicker above the title.
         title_layout: Studio title composition, either "hero" or "compact".
         accent: Studio accent as a six-digit hex color.
-        metrics: Optional studio metric strip, a list of 0-6 value/label objects.
+        metrics: Optional studio metric strip, a list of 0-6 value/label
+            objects. A JSON-encoded string of the list is also accepted.
 
     Returns paths and the source file to fill with content before rendering.
     """
     return scaffold_report(
         slug, title or None, subtitle, author, abstract, template,
-        _coerce_list(formats), firm,
+        _coerce_list(formats, _FORMAT_TOKENS), firm,
         kpis=_coerce_list(kpis), confidential_mark=confidential_mark,
         organization=organization, eyebrow=eyebrow, title_layout=title_layout,
         accent=accent, metrics=_coerce_list(metrics),
@@ -111,7 +132,7 @@ def reportforge_scaffold_report(
 @mcp.tool
 def reportforge_render_report(
     source: str,
-    formats: list[str] | None = None,
+    formats: list[str] | str | None = None,
 ) -> dict[str, Any]:
     """Render a .qmd report to one or more output formats.
 
@@ -119,11 +140,12 @@ def reportforge_render_report(
         source: Path to a .qmd file, a project _quarto.yml directory, or a report
             slug previously created by reportforge_scaffold_report.
         formats: Formats to render this run, e.g. ['html', 'pdf'] or ['docx'].
+            A JSON-encoded string or a CSV like "html,pdf" is also accepted.
             Omit to render every format configured in _quarto.yml.
 
     Returns ok flag, absolute output file paths, and a log tail on failure.
     """
-    return render_report(source, _coerce_list(formats))
+    return render_report(source, _coerce_list(formats, _FORMAT_TOKENS))
 
 
 @mcp.tool
