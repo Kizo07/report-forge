@@ -2,17 +2,20 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import re
 import shutil
 import subprocess
 import sys
+import time
 from html import escape as html_escape
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
+import yaml
 from jinja2 import Template
 
 from reportforge import templates
@@ -24,7 +27,25 @@ REPORTS_DIR = Path(
     )
 ).expanduser()
 QUARTO_TIMEOUT_S = 900
-PUBLIC_FORMATS = ("html", "pdf", "docx")
+# pdf-web is not a Quarto format: it post-processes the rendered html with
+# headless Chromium (print-to-pdf) so JS-rendered/plotly visuals survive.
+PUBLIC_FORMATS = ("html", "pdf", "docx", "pdf-web")
+RENDER_LOG_TAIL_CHARS = 8000
+EXEC_OUTPUT_TAIL = 8192
+
+
+def _tpl(source: str) -> Template:
+    """Jinja template with report-forge's custom delimiters (so YAML/Quarto
+    syntax like {# } or $ doesn't collide with Jinja defaults)."""
+    return Template(
+        source,
+        variable_start_string="<%",
+        variable_end_string="%>",
+        block_start_string="<%%",
+        block_end_string="%%>",
+        comment_start_string="<##",
+        comment_end_string="##>",
+    )
 
 
 @dataclass
@@ -41,6 +62,7 @@ def list_templates() -> list[dict]:
         {"name": "whitepaper", "description": "Hedge-fund-style institutional white paper: key takeaways, investment thesis, framework, exhibit-driven analysis, portfolio implications, risk factors. Figures/tables labeled 'Exhibit N' with unified numbering; title page, TOC + numbered sections; html/pdf/docx.", "toc": True, "number_sections": True, "exhibit_labels": True, "papersize": "us-letter", "formats": ["html", "pdf", "docx"]},
         {"name": "modern", "description": "Modern branded research brief: full-bleed dark masthead with firm + subtitle, KPI stat strip, accent-tick headings, running header/footer with confidentiality mark, exhibit-driven short sections (executive summary → signal → actions → risks). Custom typst PDF template; figures/tables labeled 'Exhibit N'; html/pdf/docx.", "toc": False, "number_sections": False, "exhibit_labels": True, "papersize": "us-letter", "formats": ["html", "pdf", "docx"]},
         {"name": "studio", "description": "Premium content-neutral editorial report: hero or compact title, optional organization/eyebrow/metrics/footer, configurable accent, flexible Markdown sections, refined figures and tables. Custom Typst PDF and responsive HTML; html/pdf/docx.", "toc": False, "number_sections": False, "exhibit_labels": True, "papersize": "us-letter", "formats": ["html", "pdf", "docx"], "content_neutral": True, "title_layouts": ["hero", "compact"], "max_metrics": 6},
+        {"name": "bespoke", "description": "Minimal project, no template opinions: you supply the full .qmd frontmatter and body (via write_report_body / append_section). Use for custom layouts, html-first designs, or the pdf-web (headless-Chromium print) path. html/pdf/docx/pdf-web.", "toc": False, "number_sections": False, "formats": ["html", "pdf", "docx", "pdf-web"], "content_neutral": True},
     ]
 
 
@@ -60,6 +82,8 @@ def scaffold_report(
     title_layout: str = "hero",
     accent: str = "#4f46e5",
     metrics: list[dict] | None = None,
+    frontmatter_yaml: str | None = None,
+    body: str | None = None,
 ) -> dict:
     specs = {t["name"]: t for t in list_templates()}
     if template not in specs:
@@ -84,6 +108,13 @@ def scaffold_report(
             ),
         }
     formats = requested_formats
+    # pdf-web is not a Quarto format — it post-processes the html render with
+    # headless Chromium. Extract it here; html is its prerequisite input.
+    pdf_web_requested = "pdf-web" in formats
+    if pdf_web_requested:
+        formats = [f for f in formats if f != "pdf-web"]
+        if "html" not in formats:
+            formats.insert(0, "html")
 
     if metrics is not None and kpis is not None:
         return {"ok": False, "error": "use either metrics or kpis, not both"}
@@ -106,6 +137,57 @@ def scaffold_report(
     assets = root / "assets"
     assets.mkdir(parents=True)
     kernel = _ensure_reportforge_kernel()
+
+    if template == "bespoke":
+        # No template opinions: project plumbing only. The caller owns the
+        # frontmatter and body (write_report_body / append_section). Formats
+        # in _quarto.yml follow the `formats` parameter; a document-level
+        # `format:` block in the caller's frontmatter overrides them.
+        yml_text = _tpl(templates.BESPOKE_YML).render(
+            {"jupyter_kernel": kernel, "pdf_web": pdf_web_requested}
+        )
+        kept_formats = [f for f in ("html", "pdf", "docx") if f in formats]
+        for fmt in ("html", "pdf", "docx"):
+            if fmt not in kept_formats:
+                yml_text = _drop_yaml_block(yml_text, fmt)
+        (root / "_quarto.yml").write_text(yml_text)
+        fm_text = ""
+        if frontmatter_yaml is not None and frontmatter_yaml.strip():
+            try:
+                parsed = yaml.safe_load(frontmatter_yaml)
+            except yaml.YAMLError as exc:
+                shutil.rmtree(root, ignore_errors=True)
+                return {"ok": False, "error": f"frontmatter_yaml is not valid YAML: {exc}"}
+            if parsed is None:
+                shutil.rmtree(root, ignore_errors=True)
+                return {"ok": False, "error": "frontmatter_yaml is empty"}
+            if not isinstance(parsed, dict):
+                shutil.rmtree(root, ignore_errors=True)
+                return {"ok": False, "error": "frontmatter_yaml must be a YAML mapping"}
+            fm_text = frontmatter_yaml.strip()
+        body_text = (body or "").strip()
+        if fm_text:
+            qmd = f"---\n{fm_text}\n---\n\n{body_text}\n"
+        elif body_text:
+            qmd = body_text + "\n"
+        else:
+            qmd = (
+                "---\ntitle: \"Untitled\"\n---\n\n"
+                "<!-- Write content with reportforge_write_report_body or "
+                "reportforge_append_section, then render_report. -->\n"
+            )
+        (root / "index.qmd").write_text(qmd)
+        ref = _default_reference_docx()
+        if ref is not None and "docx" in kept_formats:
+            shutil.copy(ref, root / "assets" / "reference-doc.docx")
+        return {
+            "ok": True,
+            "path": str(root),
+            "source": str(root / "index.qmd"),
+            "formats": kept_formats + (["pdf-web"] if pdf_web_requested else []),
+            "jupyter_kernel": kernel,
+            "template": "bespoke",
+        }
 
     kpis = normalized_kpis
     kpis_yaml = ""
@@ -170,16 +252,6 @@ def scaffold_report(
         )
         for metric in ctx["metrics"]
     )
-    def _tpl(source: str) -> Template:
-        return Template(
-            source,
-            variable_start_string="<%",
-            variable_end_string="%>",
-            block_start_string="<%%",
-            block_end_string="%%>",
-            comment_start_string="<##",
-            comment_end_string="##>",
-        )
     if template == "modern":
         # Modern briefs use a custom typst template for the PDF path —
         # `format: pdf` rejects template-partials, so the yml declares
@@ -303,6 +375,14 @@ def render_report(source: str, formats: list[str] | None = None, project: str | 
                 "error": f"unsupported format(s): {', '.join(unsupported)}; available: {list(PUBLIC_FORMATS)}",
             }
     wanted = requested
+    pdf_web_requested = False
+    if wanted is not None and "pdf-web" in wanted:
+        # pdf-web = headless-Chromium print of the html render. Requires html
+        # as input (rendered first if not also requested).
+        pdf_web_requested = True
+        wanted = [f for f in wanted if f != "pdf-web"]
+        if "html" not in wanted:
+            wanted.insert(0, "html")
     if wanted is None:
         wanted = ["html", "pdf", "docx"] if not _declares_typst_format(workdir) else ["html", "typst", "docx"]
         # restrict to formats configured in _quarto.yml
@@ -320,6 +400,7 @@ def render_report(source: str, formats: list[str] | None = None, project: str | 
     tails: list[str] = []
     rendered_outputs: list[str] = []
     out_dir = _output_dir_of(workdir)
+    out_dir.mkdir(parents=True, exist_ok=True)
     for fmt in wanted:
         cmd = ["quarto", "render", str(src), "--to", fmt]
         try:
@@ -333,10 +414,23 @@ def render_report(source: str, formats: list[str] | None = None, project: str | 
             )
         except subprocess.TimeoutExpired:
             return {"ok": False, "error": f"quarto render ({fmt}) timed out after {QUARTO_TIMEOUT_S}s"}
-        tail = "\n".join((proc.stdout + proc.stderr).splitlines()[-15:])
+        full_log = proc.stdout + proc.stderr
+        # WS-3: persist the full render log — Typst/PDF failures are the #1
+        # iteration blocker; the agent must be able to read the actual error
+        # (reportforge_read_project_file output/.render-log-<fmt>.txt).
+        try:
+            (out_dir / f".render-log-{fmt}.txt").write_text(full_log)
+        except OSError:
+            pass
+        tail = "\n".join(full_log.splitlines()[-15:])
         tails.append(f"--- {fmt} ---\n{tail}")
         if proc.returncode != 0:
-            return {"ok": False, "error": f"quarto render failed for format '{fmt}'", "log_tail": tail}
+            return {
+                "ok": False,
+                "error": f"quarto render failed for format '{fmt}'",
+                "log_tail": tail,
+                "render_log": str(out_dir / f".render-log-{fmt}.txt"),
+            }
         extension = "pdf" if fmt == "typst" else fmt
         expected = out_dir / f"{src.stem}.{extension}"
         if not expected.is_file():
@@ -346,11 +440,43 @@ def render_report(source: str, formats: list[str] | None = None, project: str | 
                 "log_tail": tail,
             }
         rendered_outputs.append(str(expected))
-    return {
+
+    pdf_web_note = None
+    if pdf_web_requested:
+        html_path = out_dir / f"{src.stem}.html"
+        if not html_path.is_file():
+            return {"ok": False, "error": "pdf-web requires an html render, but none was produced"}
+        result_pw = _render_pdf_web(workdir, html_path, out_dir, src.stem)
+        if not result_pw["ok"]:
+            return {
+                "ok": False,
+                "error": result_pw["error"],
+                "log_tail": result_pw.get("log_tail", ""),
+                "outputs": sorted(rendered_outputs),
+            }
+        rendered_outputs.append(result_pw["pdf"])
+        pdf_web_note = result_pw["note"]
+
+    # WS-3: machine-readable project state for reportforge_project_status.
+    try:
+        state = {
+            "last_render": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            "formats": wanted + (["pdf-web"] if pdf_web_requested else []),
+            "outputs": sorted(rendered_outputs),
+            "source": str(src),
+        }
+        (workdir / ".reportforge-state.json").write_text(json.dumps(state, indent=2))
+    except OSError:
+        pass
+
+    result = {
         "ok": True,
         "outputs": sorted(rendered_outputs),
-        "log_tail": "\n".join(tails)[-600:],
+        "log_tail": "\n".join(tails)[-RENDER_LOG_TAIL_CHARS:],
     }
+    if pdf_web_note:
+        result["pdf_web_note"] = pdf_web_note
+    return result
 
 
 def write_report_body(source: str, content: str) -> dict:
@@ -405,6 +531,403 @@ def save_chart(fig_json: str, out_basename: str, width: int = 1400, height: int 
     except Exception as exc:
         return {"ok": False, "error": f"chart export failed: {exc}", "partial": {"png": str(png)}}
     return {"ok": True, "png": str(png), "html": str(html_path), "embed_snippet": f"![caption.]({png.name}){{width=90%}}"}
+
+
+# --- WS-2: arbitrary asset ingestion --------------------------------------
+
+def save_asset(
+    project: str,
+    dest_relpath: str,
+    content_text: str | None = None,
+    content_b64: str | None = None,
+) -> dict:
+    """Write arbitrary text or base64 binary into a report project.
+
+    Generalizes save_chart beyond plotly: matplotlib PNGs, CSVs, raw HTML
+    partials, anything. Confined to the project root (dest may not escape it).
+    Exactly one of content_text / content_b64 must be given.
+    """
+    if not project or not project.strip():
+        return {"ok": False, "error": "project is required"}
+    root = REPORTS_DIR / project.strip("/")
+    if not root.is_dir():
+        return {"ok": False, "error": f"project not found: {project}"}
+    if (content_text is None) == (content_b64 is None):
+        return {"ok": False, "error": "provide exactly one of content_text or content_b64"}
+    rel = dest_relpath.strip().lstrip("/")
+    if not rel or rel.startswith(".."):
+        return {"ok": False, "error": "dest_relpath must be a non-empty relative path"}
+    target = (root / rel).resolve()
+    try:
+        target.relative_to(root.resolve())
+    except ValueError:
+        return {"ok": False, "error": f"dest_relpath escapes the project root: {dest_relpath}"}
+    if content_text is not None:
+        data: bytes = content_text.encode("utf-8")
+    elif content_b64 is not None:
+        try:
+            data = base64.b64decode(content_b64, validate=True)
+        except (ValueError, TypeError) as exc:
+            return {"ok": False, "error": f"content_b64 is not valid base64: {exc}"}
+    else:  # unreachable: XOR checked above
+        return {"ok": False, "error": "provide exactly one of content_text or content_b64"}
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+    except OSError as exc:
+        return {"ok": False, "error": f"write failed: {exc}"}
+    rel_out = str(target.relative_to(root.resolve()))
+    return {
+        "ok": True,
+        "project": project.strip("/"),
+        "path": str(target),
+        "relpath": rel_out,
+        "bytes": len(data),
+        "embed_snippet": f"![{target.stem}.]({rel_out})",
+    }
+
+
+# --- WS-1: host-side code execution ----------------------------------------
+
+def _exec_enabled() -> bool:
+    flag = os.environ.get("REPORTFORGE_EXEC", "").strip().lower()
+    return flag not in {"off", "0", "false", "no"}
+
+
+def _project_optional() -> bool:
+    return os.environ.get("REPORTFORGE_PROJECT_OPTIONAL", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _resolve_project_root(project: str | None, require: bool) -> tuple[Path | None, dict | None]:
+    if project and project.strip():
+        root = REPORTS_DIR / project.strip("/")
+        if not root.is_dir():
+            return None, {"ok": False, "error": f"project not found: {project}"}
+        return root, None
+    if not require:
+        return None, None
+    return None, {"ok": False, "error": "project is required for execution (set REPORTFORGE_PROJECT_OPTIONAL=1 to allow project-less runs)"}
+
+
+def _snapshot_project(root: Path) -> dict[Path, float]:
+    snap: dict[Path, float] = {}
+    for p in root.rglob("*"):
+        if p.is_file():
+            snap[p] = p.stat().st_mtime
+    return snap
+
+
+def _diff_snapshot(root: Path, before: dict[Path, float]) -> tuple[list[str], list[str]]:
+    created: list[str] = []
+    modified: list[str] = []
+    for p in sorted(root.rglob("*")):
+        if not p.is_file():
+            continue
+        rel = str(p.relative_to(root))
+        mt = p.stat().st_mtime
+        if p not in before:
+            created.append(rel)
+        elif mt != before[p]:
+            modified.append(rel)
+    return created, modified
+
+
+def _tail(text: str, limit: int = EXEC_OUTPUT_TAIL) -> str:
+    if len(text) <= limit:
+        return text
+    return "…[truncated]…\n" + text[-limit:]
+
+
+def run_code(code: str, project: str | None = None, timeout: int = 300) -> dict:
+    """Execute Python code on the HOST with the reportforge interpreter.
+
+    Permission model (explicit, accepted by operator): this runs with the host
+    user's permissions. cwd is pinned to the project root so relative paths
+    land inside the project, but the code CAN reach the full host filesystem —
+    this scoping is ergonomic, not a security boundary. Disable with
+    REPORTFORGE_EXEC=off.
+
+    Uses the same interpreter as Quarto's jupyter kernel (_venv_python:
+    REPORTFORGE_PYTHON > active venv > repo .venv), so run_code and code
+    chunks share one environment (pandas/pyarrow/statsmodels available).
+    """
+    if not _exec_enabled():
+        return {"ok": False, "error": "code execution is disabled (REPORTFORGE_EXEC=off)"}
+    root, err = _resolve_project_root(project, require=not _project_optional())
+    if err:
+        return err
+    interpreter = _venv_python()
+    if interpreter is None:
+        return {"ok": False, "error": "no reportforge python interpreter found (REPORTFORGE_PYTHON / venv)"}
+    if root is not None:
+        cwd: str | None = str(root)
+        before = _snapshot_project(root)
+    else:
+        cwd = None
+        before = {}
+    started = time.monotonic()
+    try:
+        proc = subprocess.run(
+            [str(interpreter), "-c", code],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "error": f"run_code timed out after {timeout}s"}
+    except OSError as exc:
+        return {"ok": False, "error": f"interpreter launch failed: {exc}"}
+    duration = round(time.monotonic() - started, 3)
+    if root is not None:
+        created, modified = _diff_snapshot(root, before)
+    else:
+        created, modified = [], []
+    return {
+        "ok": proc.returncode == 0,
+        "exit_code": proc.returncode,
+        "stdout_tail": _tail(proc.stdout),
+        "stderr_tail": _tail(proc.stderr),
+        "created": created,
+        "modified": modified,
+        "duration_s": duration,
+        "cwd": cwd,
+        "note": "host execution with user permissions; stdout/stderr are ground truth — never report results you did not capture" if proc.returncode == 0 else None,
+    }
+
+
+def run_file(path: str, project: str, args: list[str] | None = None, timeout: int = 300) -> dict:
+    """Run a script that already lives inside a report project.
+
+    Extension dispatch: .py → reportforge interpreter, .sh/.R via bash/Rscript.
+    The file must exist inside the project root. Same permission model and
+    capture semantics as run_code.
+    """
+    if not _exec_enabled():
+        return {"ok": False, "error": "code execution is disabled (REPORTFORGE_EXEC=off)"}
+    root, err = _resolve_project_root(project, require=True)
+    if err:
+        return err
+    if root is None:  # unreachable with require=True, but satisfies the type checker
+        return {"ok": False, "error": "project is required for execution"}
+    script = (root / path.lstrip("/")).resolve()
+    try:
+        script.relative_to(root.resolve())
+    except ValueError:
+        return {"ok": False, "error": f"script path escapes the project root: {path}"}
+    if not script.is_file():
+        return {"ok": False, "error": f"script not found in project: {path}"}
+    ext = script.suffix.lower()
+    interpreter = _venv_python()
+    if ext == ".py":
+        if interpreter is None:
+            return {"ok": False, "error": "no reportforge python interpreter found"}
+        cmd = [str(interpreter), str(script)]
+    elif ext == ".sh":
+        cmd = ["bash", str(script)]
+    elif ext == ".r":
+        rscript = shutil.which("Rscript")
+        if not rscript:
+            return {"ok": False, "error": "Rscript not found on PATH"}
+        cmd = [rscript, str(script)]
+    else:
+        return {"ok": False, "error": f"unsupported script type: {ext} (use .py, .sh, or .R)"}
+    cmd += list(args or [])
+    before = _snapshot_project(root)
+    started = time.monotonic()
+    try:
+        proc = subprocess.run(cmd, cwd=str(root), capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "error": f"run_file timed out after {timeout}s"}
+    except OSError as exc:
+        return {"ok": False, "error": f"script launch failed: {exc}"}
+    created, modified = _diff_snapshot(root, before)
+    return {
+        "ok": proc.returncode == 0,
+        "exit_code": proc.returncode,
+        "stdout_tail": _tail(proc.stdout),
+        "stderr_tail": _tail(proc.stderr),
+        "created": created,
+        "modified": modified,
+        "duration_s": round(time.monotonic() - started, 3),
+        "cwd": str(root),
+    }
+
+
+# --- WS-3: inspection & iteration -------------------------------------------
+
+def project_status(project: str) -> dict:
+    """Summarize a report project: files, configured formats, render state."""
+    root = REPORTS_DIR / project.strip("/")
+    if not root.is_dir():
+        return {"ok": False, "error": f"project not found: {project}"}
+    files: list[dict] = []
+    for p in sorted(root.rglob("*")):
+        if p.is_file():
+            rel = str(p.relative_to(root))
+            files.append({"relpath": rel, "bytes": p.stat().st_size})
+    formats: list[str] = []
+    yml_path = root / "_quarto.yml"
+    if yml_path.exists():
+        try:
+            cfg = yaml.safe_load(yml_path.read_text()) or {}
+            fmt_block = cfg.get("format")
+            if isinstance(fmt_block, dict):
+                formats = list(fmt_block.keys())
+        except yaml.YAMLError:
+            pass
+    state_path = root / ".reportforge-state.json"
+    last_render = None
+    if state_path.exists():
+        try:
+            last_render = json.loads(state_path.read_text())
+        except json.JSONDecodeError:
+            last_render = None
+    out_dir = _output_dir_of(root)
+    render_logs = sorted(p.name for p in out_dir.glob(".render-log-*.txt")) if out_dir.is_dir() else []
+    return {
+        "ok": True,
+        "project": project.strip("/"),
+        "path": str(root),
+        "files": files,
+        "configured_formats": formats,
+        "output_dir": str(out_dir),
+        "render_logs": render_logs,
+        "last_render": last_render,
+    }
+
+
+def read_project_file(project: str, relpath: str, max_bytes: int = 32768) -> dict:
+    """Read a text file from a report project (qmd, render logs, generated data).
+
+    Binary files return size + a mime guess instead of content. Scoped to the
+    project root.
+    """
+    root = REPORTS_DIR / project.strip("/")
+    if not root.is_dir():
+        return {"ok": False, "error": f"project not found: {project}"}
+    target = (root / relpath.lstrip("/")).resolve()
+    try:
+        target.relative_to(root.resolve())
+    except ValueError:
+        return {"ok": False, "error": f"path escapes the project root: {relpath}"}
+    if not target.is_file():
+        return {"ok": False, "error": f"file not found: {relpath}"}
+    size = target.stat().st_size
+    head = target.open("rb").read(8192)
+    if b"\x00" in head:
+        return {
+            "ok": True,
+            "relpath": str(target.relative_to(root.resolve())),
+            "bytes": size,
+            "binary": True,
+            "note": "binary file — content not returned",
+        }
+    data = target.open("r", encoding="utf-8", errors="replace").read(max_bytes + 1)
+    truncated = len(data) > max_bytes
+    return {
+        "ok": True,
+        "relpath": str(target.relative_to(root.resolve())),
+        "bytes": size,
+        "binary": False,
+        "truncated": truncated,
+        "content": data[:max_bytes],
+    }
+
+
+# --- WS-4: incremental composition -------------------------------------------
+
+def append_section(project: str, markdown: str, before: str | None = None) -> dict:
+    """Append a markdown section to index.qmd, or insert before a heading.
+
+    Additive edits without rewriting the whole body: the YAML frontmatter is
+    preserved untouched. With `before` given, the section is inserted above
+    the first heading whose text matches (case-insensitive substring).
+    """
+    root = REPORTS_DIR / project.strip("/")
+    if not root.is_dir():
+        return {"ok": False, "error": f"project not found: {project}"}
+    qmd_path = root / "index.qmd"
+    if not qmd_path.is_file():
+        return {"ok": False, "error": f"project has no index.qmd: {project}"}
+    text = qmd_path.read_text()
+    # Split frontmatter: only when the file opens with a '---' line.
+    fm_end = 0
+    if text.startswith("---"):
+        nl = text.find("\n")
+        if nl != -1:
+            close = text.find("\n---", nl)
+            if close != -1:
+                fence_end = text.find("\n", close + 1)
+                fm_end = fence_end + 1 if fence_end != -1 else len(text)
+    head, body = text[:fm_end], text[fm_end:]
+    section = "\n" + markdown.strip() + "\n"
+    if before:
+        pattern = re.compile(r"^#{1,6}[^\n]*" + re.escape(before) + r"[^\n]*$", re.IGNORECASE | re.MULTILINE)
+        m = pattern.search(body)
+        if not m:
+            return {"ok": False, "error": f"no heading matching {before!r} found in index.qmd"}
+        insert_at = m.start()
+        body = body[:insert_at] + section.lstrip("\n") + "\n" + body[insert_at:]
+        action = f"inserted before heading {before!r}"
+    else:
+        body = body.rstrip("\n") + section
+        action = "appended to end of body"
+    qmd_path.write_text(head + body)
+    return {
+        "ok": True,
+        "source": str(qmd_path),
+        "action": action,
+        "bytes": qmd_path.stat().st_size,
+        "next_step": "render_report to verify the composition",
+    }
+
+
+# --- WS-5: pdf-web (headless Chromium print of the html render) --------------
+
+def _chromium_binary() -> str | None:
+    if configured := os.environ.get("REPORTFORGE_CHROMIUM"):
+        candidate = Path(configured).expanduser()
+        return str(candidate) if candidate.is_file() else None
+    for name in ("chromium", "chromium-browser", "google-chrome", "google-chrome-stable"):
+        if found := shutil.which(name):
+            return found
+    return None
+
+
+def _render_pdf_web(workdir: Path, html_path: Path, out_dir: Path, stem: str) -> dict:
+    chromium = _chromium_binary()
+    if not chromium:
+        return {
+            "ok": False,
+            "error": "pdf-web needs headless Chromium: install it or set REPORTFORGE_CHROMIUM to the binary path",
+        }
+    pdf_out = out_dir / f"{stem}.pdf"
+    # If a typst/latex pdf already claimed the conventional name, suffix the
+    # web-print variant so both can coexist.
+    if pdf_out.exists():
+        pdf_out = out_dir / f"{stem}-web.pdf"
+    cmd = [
+        chromium,
+        "--headless=new",
+        "--no-sandbox",
+        "--disable-gpu",
+        "--no-pdf-header-footer",
+        f"--print-to-pdf={pdf_out}",
+        html_path.as_uri(),
+    ]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=QUARTO_TIMEOUT_S)
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "error": f"chromium print-to-pdf timed out after {QUARTO_TIMEOUT_S}s"}
+    if proc.returncode != 0 or not pdf_out.is_file():
+        tail = "\n".join((proc.stdout + proc.stderr).splitlines()[-15:])
+        return {"ok": False, "error": "chromium print-to-pdf failed", "log_tail": tail}
+    return {
+        "ok": True,
+        "pdf": str(pdf_out),
+        "note": "pdf-web is a print snapshot of the html render; interactive JS/plotly content lives in the html artifact",
+    }
 
 
 def publish_report(project: str, dest_dir: str | None = None) -> dict:

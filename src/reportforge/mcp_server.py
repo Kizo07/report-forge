@@ -7,7 +7,20 @@ from typing import Any
 
 from fastmcp import FastMCP
 
-from reportforge.engine import list_templates, publish_report, render_report, save_chart, scaffold_report, write_report_body
+from reportforge.engine import (
+    append_section,
+    list_templates,
+    project_status,
+    publish_report,
+    read_project_file,
+    render_report,
+    run_code,
+    run_file,
+    save_asset,
+    save_chart,
+    scaffold_report,
+    write_report_body,
+)
 
 
 def _coerce_list(value: Any, allowed_tokens: set[str] | None = None) -> Any:
@@ -44,18 +57,24 @@ def _coerce_list(value: Any, allowed_tokens: set[str] | None = None) -> Any:
 mcp = FastMCP(
     "reportforge",
     instructions=(
-        "Generate beautiful multi-format reports (HTML, PDF via Typst, DOCX) from "
-        "Quarto .qmd sources with unified branding. Workflow: scaffold_report to create "
-        "a report project, edit the index.qmd (or have the calling agent write content "
-        "into it), optionally save_chart for plotly figures, then render_report to "
-        "produce final documents, then publish_report to deliver the rendered files "
-        "into the run's thread outputs (follow its next_step and call present_files "
-        "with the returned present_paths — never substitute a manifest for the real files)."
+        "Generate beautiful multi-format reports (HTML, PDF via Typst, DOCX, and pdf-web "
+        "via headless-Chromium print of the HTML) from Quarto .qmd sources with unified "
+        "branding. Workflow: scaffold_report to create a report project, edit the index.qmd "
+        "(write_report_body for the full body, append_section for additive edits), optionally "
+        "save_chart for plotly figures or save_asset for arbitrary files (matplotlib PNGs, "
+        "CSVs, HTML partials), then render_report to produce final documents, then "
+        "publish_report to deliver the rendered files into the run's thread outputs (follow "
+        "its next_step and call present_files with the returned present_paths — never "
+        "substitute a manifest for the real files). For compute-heavy reports use run_code / "
+        "run_file to execute Python on the host (same interpreter as the report kernel: "
+        "pandas/pyarrow/statsmodels available) and inspect results with project_status / "
+        "read_project_file before iterating. The 'bespoke' template removes all layout "
+        "opinions for custom designs."
     ),
 )
 
 
-_FORMAT_TOKENS = {"html", "pdf", "docx"}
+_FORMAT_TOKENS = {"html", "pdf", "docx", "pdf-web"}
 
 
 @mcp.tool
@@ -81,6 +100,8 @@ def reportforge_scaffold_report(
     title_layout: str = "hero",
     accent: str = "#4f46e5",
     metrics: list[dict[str, str]] | str | None = None,
+    frontmatter_yaml: str | None = None,
+    body: str | None = None,
 ) -> dict[str, Any]:
     """Create a new branded report project under ~/Documents/report-forge/reports/<slug>/.
 
@@ -119,6 +140,11 @@ def reportforge_scaffold_report(
         accent: Studio accent as a six-digit hex color.
         metrics: Optional studio metric strip, a list of 0-6 value/label
             objects. A JSON-encoded string of the list is also accepted.
+        frontmatter_yaml: For the 'bespoke' template: full YAML front matter for
+            index.qmd (everything between the --- fences), so the caller owns
+            the layout (title, format options, custom css, etc.).
+        body: For the 'bespoke' template: initial Markdown body for index.qmd.
+            If omitted, a placeholder body is written.
 
     Returns paths and the source file to fill with content before rendering.
     """
@@ -128,6 +154,7 @@ def reportforge_scaffold_report(
         kpis=_coerce_list(kpis), confidential_mark=confidential_mark,
         organization=organization, eyebrow=eyebrow, title_layout=title_layout,
         accent=accent, metrics=_coerce_list(metrics),
+        frontmatter_yaml=frontmatter_yaml, body=body,
     )
 
 
@@ -228,6 +255,149 @@ def reportforge_publish_report(
     virtual paths), and next_step.
     """
     return publish_report(project, dest_dir)
+
+
+@mcp.tool
+def reportforge_run_code(
+    code: str,
+    project: str | None = None,
+    timeout: int = 300,
+) -> dict[str, Any]:
+    """Execute Python code on the host inside a report project.
+
+    Runs with the reportforge interpreter (the SAME environment the Quarto
+    jupyter kernel uses — pandas, pyarrow, numpy, statsmodels, plotly,
+    matplotlib are available), with the working directory pinned to the
+    project root, so relative paths land inside the project. This is HOST
+    execution with the user's permissions: use it to compute numbers, fit
+    models, and produce data files that the report then embeds — test-then-
+    write instead of blind authoring.
+
+    Args:
+        code: Python source to execute.
+        project: Report slug whose root becomes the cwd. Required unless the
+            server is configured to allow project-less runs.
+        timeout: Seconds before the run is killed (default 300).
+
+    Returns ok flag, exit_code, stdout_tail, stderr_tail, created/modified
+    file lists (relative to the project), and duration_s. The captured
+    stdout/stderr are ground truth — never report results you did not see.
+    """
+    return run_code(code, project=project, timeout=timeout)
+
+
+@mcp.tool
+def reportforge_run_file(
+    path: str,
+    project: str,
+    args: list[str] | str | None = None,
+    timeout: int = 300,
+) -> dict[str, Any]:
+    """Run a script that already lives inside a report project.
+
+    Dispatch by extension: .py → reportforge interpreter, .sh → bash,
+    .R → Rscript. Same host-permission model and capture semantics as
+    run_code; cwd is the project root.
+
+    Args:
+        path: Path to the script relative to the project root.
+        project: Report slug containing the script.
+        args: Command-line arguments for the script; a JSON-encoded list or a
+            CSV string is also accepted.
+        timeout: Seconds before the run is killed (default 300).
+
+    Returns ok flag, exit_code, stdout_tail, stderr_tail, created/modified
+    file lists, and duration_s.
+    """
+    return run_file(path, project, args=_coerce_list(args), timeout=timeout)
+
+
+@mcp.tool
+def reportforge_save_asset(
+    project: str,
+    dest_relpath: str,
+    content_text: str | None = None,
+    content_b64: str | None = None,
+) -> dict[str, Any]:
+    """Write an arbitrary file (text or base64 binary) into a report project.
+
+    Generalizes save_chart beyond plotly: matplotlib-exported PNGs, CSVs,
+    style.css, HTML partials, anything the template should embed. Confined to
+    the project root.
+
+    Args:
+        project: Report slug (project directory name).
+        dest_relpath: Destination path relative to the project root, e.g.
+            'assets/rebalance.csv' or 'figures/turnover.png'.
+        content_text: UTF-8 text content (for text files).
+        content_b64: Base64-encoded content (for binary files such as PNGs).
+            Provide exactly one of content_text / content_b64.
+
+    Returns ok flag, absolute path, relpath, byte count, and an embed_snippet
+    suitable for .qmd markdown.
+    """
+    return save_asset(project, dest_relpath, content_text=content_text, content_b64=content_b64)
+
+
+@mcp.tool
+def reportforge_project_status(project: str) -> dict[str, Any]:
+    """Summarize a report project for inspection and iteration.
+
+    Returns the file tree (relpath + bytes), the formats configured in
+    _quarto.yml, the output directory, available render logs, and the state
+    of the last render (formats, outputs, timestamp). Use after a failed
+    render to find the render log to read, or to confirm assets landed.
+
+    Args:
+        project: Report slug (project directory name).
+    """
+    return project_status(project)
+
+
+@mcp.tool
+def reportforge_read_project_file(
+    project: str,
+    relpath: str,
+    max_bytes: int = 32768,
+) -> dict[str, Any]:
+    """Read a text file from a report project (source, logs, generated data).
+
+    Use this to read render logs after a failed render (see project_status
+    for log names) and to inspect what a run_code step actually wrote before
+    embedding it. Binary files return size only.
+
+    Args:
+        project: Report slug (project directory name).
+        relpath: Path relative to the project root, e.g.
+            'output/.render-log-typst.txt'.
+        max_bytes: Maximum characters to return (default 32768); longer
+            content is truncated with truncated=True.
+    """
+    return read_project_file(project, relpath, max_bytes=max_bytes)
+
+
+@mcp.tool
+def reportforge_append_section(
+    project: str,
+    markdown: str,
+    before: str | None = None,
+) -> dict[str, Any]:
+    """Append a markdown section to a project's index.qmd without rewriting it.
+
+    Additive composition: the YAML front matter is preserved untouched. With
+    `before` given, the section is inserted above the first heading whose text
+    contains that string (case-insensitive). Use for incremental edits; use
+    write_report_body for full rewrites.
+
+    Args:
+        project: Report slug (project directory name).
+        markdown: Markdown section(s) to add (headings, prose, code chunks,
+            image embeds).
+        before: Optional heading text to insert above.
+
+    Returns ok flag, action taken, new file size, and next_step (render).
+    """
+    return append_section(project, markdown, before=before)
 
 
 def main() -> None:

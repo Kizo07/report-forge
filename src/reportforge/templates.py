@@ -1457,3 +1457,35 @@ caption {
   }
 }
 """
+
+BESPOKE_YML = """\
+project:
+  type: default
+  output-dir: output
+
+execute:
+  jupyter: <% jupyter_kernel %>
+  echo: false
+  warning: false
+  message: false
+  fig-dpi: 300
+  freeze: auto
+
+format:
+  html:
+<%% if pdf_web %%>
+    embed-resources: true
+<%% endif %%>
+    code-fold: true
+  pdf:
+    pdf-engine: typst
+    papersize: us-letter
+    toc: false
+    number-sections: false
+    colorlinks: true
+    linkcolor: "#1a2e4a"
+    urlcolor: "#3d6b9e"
+    citecolor: "#5b6b7f"
+  docx:
+    toc: false
+"""
