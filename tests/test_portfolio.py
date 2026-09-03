@@ -101,11 +101,11 @@ def test_save_chart_auto_dark_for_portfolio_dark(
         project="pf-chartdark",
     )
     assert out["ok"] is True, out
-    assert out["template_applied"] == "plotly_dark"
+    assert out["template_applied"] == "quantflow-dark"
     assert Path(out["png"]).is_file()
 
 
-def test_save_chart_keeps_light_page_light(
+def test_save_chart_auto_light_for_portfolio_light(
     isolated_portfolio: Path,
 ) -> None:
     result = engine.scaffold_report(
@@ -118,7 +118,7 @@ def test_save_chart_keeps_light_page_light(
         project="pf-chartlight",
     )
     assert out["ok"] is True, out
-    assert out["template_applied"] is None
+    assert out["template_applied"] == "quantflow-light"
 
 
 def test_save_chart_explicit_figure_theme_is_never_overridden(
@@ -139,6 +139,24 @@ def test_save_chart_explicit_figure_theme_is_never_overridden(
     )
     assert out["ok"] is True, out
     assert out["template_applied"] is None
+
+
+def test_save_chart_explicit_quantflow_template_wins(
+    isolated_portfolio: Path,
+) -> None:
+    result = engine.scaffold_report(
+        "pf-chartqf", title="Charts", template="portfolio-light", formats=["html"]
+    )
+    assert result["ok"] is True, result
+    out = engine.save_chart(
+        _white_figure_json(),
+        str(isolated_portfolio / "pf-chartqf" / "figures" / "trend"),
+        project="pf-chartqf",
+        template="quantflow-dark",
+    )
+    assert out["ok"] is True, out
+    assert out["template_applied"] == "quantflow-dark"
+    assert Path(out["png"]).is_file()
 
 
 def test_save_chart_explicit_template_wins_over_project_theme(

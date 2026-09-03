@@ -230,11 +230,13 @@ def reportforge_save_chart(
         project: Optional report slug (from reportforge_scaffold_report). When a
             sandbox path is translated, the chart is anchored to this project's
             figures/ dir. If omitted, the most recently modified project is used.
-        template: Optional plotly template name (e.g. "plotly_dark"). When set
-            it wins. When omitted and the figure has no explicit template, the
-            chart matches the project page: "portfolio-dark" projects get
-            "plotly_dark" automatically; everything else keeps the figure as
-            supplied. An explicitly themed figure is never overridden.
+        template: Optional plotly template name ("quantflow-dark",
+            "quantflow-light", or any registered plotly template). When set
+            it wins. When omitted and the figure has no explicit template,
+            the chart matches the project page: portfolio-dark/light projects
+            get the QuantFlow identity automatically; everything else keeps
+            the figure as supplied. An explicitly themed figure (including
+            alpha_engine viz builders with theme=...) is never overridden.
 
     Returns png/html paths plus a ready-to-paste Markdown embed snippet.
     """
