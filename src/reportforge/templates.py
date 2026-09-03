@@ -983,7 +983,7 @@ STUDIO_TYPT_TEMPLATE = r"""// report-forge "studio" — flexible editorial Typst
         width: 100%,
         fill: panel,
         radius: 10pt,
-        inset: (left: 26pt, right: 24pt, top: 32pt, bottom: 28pt),
+        inset: (left: 26pt, right: 24pt, top: 22pt, bottom: 18pt),
         stroke: (left: 7pt + accent-color, rest: 0.6pt + hairline),
       )[
         #set par(justify: false)
@@ -992,14 +992,14 @@ STUDIO_TYPT_TEMPLATE = r"""// report-forge "studio" — flexible editorial Typst
           upper[#eyebrow]
           v(0.7em)
         }
-        #set text(font: "Space Grotesk", size: 29pt, weight: "bold", fill: ink, hyphenate: false)
+        #set text(font: "Space Grotesk", size: 25pt, weight: "bold", fill: ink, hyphenate: false)
         #title
         #if subtitle != none {
           v(0.5em)
           set text(size: 12pt, fill: muted)
           subtitle
         }
-        #v(1.25em)
+        #v(0.8em)
         #line(length: 46pt, stroke: 2.2pt + accent-color)
         #v(0.7em)
         #set text(size: 8.8pt, fill: muted)
@@ -1007,7 +1007,7 @@ STUDIO_TYPT_TEMPLATE = r"""// report-forge "studio" — flexible editorial Typst
           #if organization != none [#organization] else if authors != () [#authors.map(a => a.name).join(", ")] else []
         ][#date]
       ]
-      v(1.15em)
+      v(0.7em)
     }
   }
 
@@ -1027,17 +1027,17 @@ STUDIO_TYPT_TEMPLATE = r"""// report-forge "studio" — flexible editorial Typst
       ..metrics.map(metric => block(
         fill: panel,
         radius: 6pt,
-        inset: (x: 12pt, y: 10pt),
+        inset: (x: 12pt, y: 7pt),
         stroke: 0.55pt + hairline,
       )[
-        #set text(font: "Space Grotesk", size: 15pt, weight: "bold", fill: ink)
+        #set text(font: "Space Grotesk", size: 13pt, weight: "bold", fill: ink)
         #metric.value
         #linebreak()
         #set text(size: 7.7pt, fill: muted)
         #upper[#metric.label]
       ])
     )
-    v(0.85em)
+    v(0.55em)
   }
 
 
@@ -1046,16 +1046,16 @@ STUDIO_TYPT_TEMPLATE = r"""// report-forge "studio" — flexible editorial Typst
       width: 100%,
       fill: rgb("#e9e8fa"),
       radius: 6pt,
-      inset: (x: 14pt, y: 10pt),
+      inset: (x: 14pt, y: 8pt),
       stroke: (left: 3pt + accent-color),
     )[
       #set text(font: "JetBrains Mono", size: 7.7pt, weight: "medium", fill: accent-color)
       CONVICTION CALL
       #linebreak()
-      #set text(size: 11pt, weight: "bold", fill: ink)
+      #set text(size: 10pt, weight: "bold", fill: ink)
       #verdict
     ]
-    v(0.85em)
+    v(0.55em)
   }
 
   if key-points != () and key-points.len() > 0 {
@@ -1066,14 +1066,14 @@ STUDIO_TYPT_TEMPLATE = r"""// report-forge "studio" — flexible editorial Typst
       ..key-points.map(p => block(
         fill: panel,
         radius: 6pt,
-        inset: (x: 12pt, y: 10pt),
+        inset: (x: 12pt, y: 7pt),
         stroke: 0.55pt + hairline,
       )[
-        #set text(size: 9pt, fill: ink)
+        #set text(size: 8.5pt, fill: ink)
         #text(fill: accent-color)[◆ ]#p
       ])
     )
-    v(0.85em)
+    v(0.55em)
   }
 
   if scenarios != () and scenarios.len() > 0 {
@@ -1083,20 +1083,20 @@ STUDIO_TYPT_TEMPLATE = r"""// report-forge "studio" — flexible editorial Typst
       ..scenarios.enumerate().map(((i, s)) => block(
         fill: panel,
         radius: 6pt,
-        inset: (x: 12pt, y: 10pt),
+        inset: (x: 12pt, y: 7pt),
         stroke: if i == 1 { 1pt + accent-color } else { 0.55pt + hairline },
       )[
         #set text(font: "JetBrains Mono", size: 7.7pt, fill: muted)
         #upper[#s.label]
         #linebreak()
-        #set text(size: 14pt, weight: "bold", fill: ink)
+        #set text(size: 12.5pt, weight: "bold", fill: ink)
         #s.value
         #linebreak()
-        #set text(size: 8.2pt, fill: muted)
+        #set text(size: 7.8pt, fill: muted)
         #s.detail
       ])
     )
-    v(0.85em)
+    v(0.55em)
   }
 
   if abstract != none {
@@ -1104,14 +1104,15 @@ STUDIO_TYPT_TEMPLATE = r"""// report-forge "studio" — flexible editorial Typst
       width: 100%,
       fill: rgb("#efefff"),
       radius: 7pt,
-      inset: (x: 15pt, y: 12pt),
+      inset: (x: 15pt, y: 9pt),
     )[
-      #set text(size: 9.6pt, fill: muted)
+      #set text(size: 9pt, fill: muted)
       #abstract
     ]
-    v(0.9em)
+    v(0.55em)
   }
 
+  pagebreak(weak: true)
   doc
 }
 """
@@ -2089,7 +2090,7 @@ PORTFOLIO_LIGHT_TYPT_TEMPLATE = r"""// report-forge "portfolio-light" — studio
         width: 100%,
         fill: panel,
         radius: 10pt,
-        inset: (left: 26pt, right: 24pt, top: 32pt, bottom: 28pt),
+        inset: (left: 26pt, right: 24pt, top: 22pt, bottom: 18pt),
         stroke: (left: 7pt + accent-color, rest: 0.6pt + hairline),
       )[
         #set par(justify: false)
@@ -2100,14 +2101,14 @@ PORTFOLIO_LIGHT_TYPT_TEMPLATE = r"""// report-forge "portfolio-light" — studio
           upper[#eyebrow]
           v(0.7em)
         }
-        #set text(font: "Georgia", size: 29pt, weight: "bold", fill: ink, hyphenate: false)
+        #set text(font: "Georgia", size: 25pt, weight: "bold", fill: ink, hyphenate: false)
         #title
         #if subtitle != none {
           v(0.5em)
           set text(size: 12pt, fill: muted)
           subtitle
         }
-        #v(1.25em)
+        #v(0.8em)
         #line(length: 46pt, stroke: 2.2pt + accent-color)
         #v(0.7em)
         #set text(size: 8.8pt, fill: muted)
@@ -2115,7 +2116,7 @@ PORTFOLIO_LIGHT_TYPT_TEMPLATE = r"""// report-forge "portfolio-light" — studio
           #if organization != none [#organization] else if authors != () [#authors.map(a => a.name).join(", ")] else []
         ][#date]
       ]
-      v(1.15em)
+      v(0.7em)
     }
   }
 
@@ -2135,17 +2136,17 @@ PORTFOLIO_LIGHT_TYPT_TEMPLATE = r"""// report-forge "portfolio-light" — studio
       ..metrics.map(metric => block(
         fill: panel,
         radius: 6pt,
-        inset: (x: 12pt, y: 10pt),
+        inset: (x: 12pt, y: 7pt),
         stroke: 0.55pt + hairline,
       )[
-        #set text(font: "Georgia", size: 15pt, weight: "bold", fill: ink)
+        #set text(font: "Georgia", size: 13pt, weight: "bold", fill: ink)
         #metric.value
         #linebreak()
         #set text(font: "JetBrains Mono", size: 7.7pt, fill: muted)
         #upper[#metric.label]
       ])
     )
-    v(0.85em)
+    v(0.55em)
   }
 
 
@@ -2154,16 +2155,16 @@ PORTFOLIO_LIGHT_TYPT_TEMPLATE = r"""// report-forge "portfolio-light" — studio
       width: 100%,
       fill: rgb("#e2d3ac"),
       radius: 6pt,
-      inset: (x: 14pt, y: 10pt),
+      inset: (x: 14pt, y: 8pt),
       stroke: (left: 3pt + accent-color),
     )[
       #set text(font: "JetBrains Mono", size: 7.7pt, weight: "medium", fill: accent-color)
       CONVICTION CALL
       #linebreak()
-      #set text(size: 11pt, weight: "bold", fill: ink)
+      #set text(size: 10pt, weight: "bold", fill: ink)
       #verdict
     ]
-    v(0.85em)
+    v(0.55em)
   }
 
   if key-points != () and key-points.len() > 0 {
@@ -2174,14 +2175,14 @@ PORTFOLIO_LIGHT_TYPT_TEMPLATE = r"""// report-forge "portfolio-light" — studio
       ..key-points.map(p => block(
         fill: panel,
         radius: 6pt,
-        inset: (x: 12pt, y: 10pt),
+        inset: (x: 12pt, y: 7pt),
         stroke: 0.55pt + hairline,
       )[
-        #set text(size: 9pt, fill: ink)
+        #set text(size: 8.5pt, fill: ink)
         #text(fill: accent-color)[◆ ]#p
       ])
     )
-    v(0.85em)
+    v(0.55em)
   }
 
   if scenarios != () and scenarios.len() > 0 {
@@ -2191,20 +2192,20 @@ PORTFOLIO_LIGHT_TYPT_TEMPLATE = r"""// report-forge "portfolio-light" — studio
       ..scenarios.enumerate().map(((i, s)) => block(
         fill: panel,
         radius: 6pt,
-        inset: (x: 12pt, y: 10pt),
+        inset: (x: 12pt, y: 7pt),
         stroke: if i == 1 { 1pt + accent-color } else { 0.55pt + hairline },
       )[
         #set text(font: "JetBrains Mono", size: 7.7pt, fill: muted)
         #upper[#s.label]
         #linebreak()
-        #set text(size: 14pt, weight: "bold", fill: ink)
+        #set text(size: 12.5pt, weight: "bold", fill: ink)
         #s.value
         #linebreak()
-        #set text(size: 8.2pt, fill: muted)
+        #set text(size: 7.8pt, fill: muted)
         #s.detail
       ])
     )
-    v(0.85em)
+    v(0.55em)
   }
 
   if abstract != none {
@@ -2212,14 +2213,15 @@ PORTFOLIO_LIGHT_TYPT_TEMPLATE = r"""// report-forge "portfolio-light" — studio
       width: 100%,
       fill: rgb("#efe4cb"),
       radius: 7pt,
-      inset: (x: 15pt, y: 12pt),
+      inset: (x: 15pt, y: 9pt),
     )[
-      #set text(size: 9.6pt, fill: muted)
+      #set text(size: 9pt, fill: muted)
       #abstract
     ]
-    v(0.9em)
+    v(0.55em)
   }
 
+  pagebreak(weak: true)
   doc
 }
 """
@@ -2376,7 +2378,7 @@ PORTFOLIO_DARK_TYPT_TEMPLATE = r"""// report-forge "portfolio-dark" — studio s
         width: 100%,
         fill: panel,
         radius: 10pt,
-        inset: (left: 26pt, right: 24pt, top: 32pt, bottom: 28pt),
+        inset: (left: 26pt, right: 24pt, top: 22pt, bottom: 18pt),
         stroke: (left: 7pt + accent-color, rest: 0.6pt + hairline),
       )[
         #set par(justify: false)
@@ -2387,14 +2389,14 @@ PORTFOLIO_DARK_TYPT_TEMPLATE = r"""// report-forge "portfolio-dark" — studio s
           upper[#eyebrow]
           v(0.7em)
         }
-        #set text(font: "Georgia", size: 29pt, weight: "bold", fill: ink, hyphenate: false)
+        #set text(font: "Georgia", size: 25pt, weight: "bold", fill: ink, hyphenate: false)
         #title
         #if subtitle != none {
           v(0.5em)
           set text(size: 12pt, fill: muted)
           subtitle
         }
-        #v(1.25em)
+        #v(0.8em)
         #line(length: 46pt, stroke: 2.2pt + accent-color)
         #v(0.7em)
         #set text(size: 8.8pt, fill: muted)
@@ -2402,7 +2404,7 @@ PORTFOLIO_DARK_TYPT_TEMPLATE = r"""// report-forge "portfolio-dark" — studio s
           #if organization != none [#organization] else if authors != () [#authors.map(a => a.name).join(", ")] else []
         ][#date]
       ]
-      v(1.15em)
+      v(0.7em)
     }
   }
 
@@ -2422,17 +2424,17 @@ PORTFOLIO_DARK_TYPT_TEMPLATE = r"""// report-forge "portfolio-dark" — studio s
       ..metrics.map(metric => block(
         fill: panel,
         radius: 6pt,
-        inset: (x: 12pt, y: 10pt),
+        inset: (x: 12pt, y: 7pt),
         stroke: 0.55pt + hairline,
       )[
-        #set text(font: "Georgia", size: 15pt, weight: "bold", fill: ink)
+        #set text(font: "Georgia", size: 13pt, weight: "bold", fill: ink)
         #metric.value
         #linebreak()
         #set text(font: "JetBrains Mono", size: 7.7pt, fill: muted)
         #upper[#metric.label]
       ])
     )
-    v(0.85em)
+    v(0.55em)
   }
 
 
@@ -2441,16 +2443,16 @@ PORTFOLIO_DARK_TYPT_TEMPLATE = r"""// report-forge "portfolio-dark" — studio s
       width: 100%,
       fill: rgb("#1d1a10"),
       radius: 6pt,
-      inset: (x: 14pt, y: 10pt),
+      inset: (x: 14pt, y: 8pt),
       stroke: (left: 3pt + accent-color),
     )[
       #set text(font: "JetBrains Mono", size: 7.7pt, weight: "medium", fill: accent-color)
       CONVICTION CALL
       #linebreak()
-      #set text(size: 11pt, weight: "bold", fill: ink)
+      #set text(size: 10pt, weight: "bold", fill: ink)
       #verdict
     ]
-    v(0.85em)
+    v(0.55em)
   }
 
   if key-points != () and key-points.len() > 0 {
@@ -2461,14 +2463,14 @@ PORTFOLIO_DARK_TYPT_TEMPLATE = r"""// report-forge "portfolio-dark" — studio s
       ..key-points.map(p => block(
         fill: panel,
         radius: 6pt,
-        inset: (x: 12pt, y: 10pt),
+        inset: (x: 12pt, y: 7pt),
         stroke: 0.55pt + hairline,
       )[
-        #set text(size: 9pt, fill: ink)
+        #set text(size: 8.5pt, fill: ink)
         #text(fill: accent-color)[◆ ]#p
       ])
     )
-    v(0.85em)
+    v(0.55em)
   }
 
   if scenarios != () and scenarios.len() > 0 {
@@ -2478,20 +2480,20 @@ PORTFOLIO_DARK_TYPT_TEMPLATE = r"""// report-forge "portfolio-dark" — studio s
       ..scenarios.enumerate().map(((i, s)) => block(
         fill: panel,
         radius: 6pt,
-        inset: (x: 12pt, y: 10pt),
+        inset: (x: 12pt, y: 7pt),
         stroke: if i == 1 { 1pt + accent-color } else { 0.55pt + hairline },
       )[
         #set text(font: "JetBrains Mono", size: 7.7pt, fill: muted)
         #upper[#s.label]
         #linebreak()
-        #set text(size: 14pt, weight: "bold", fill: ink)
+        #set text(size: 12.5pt, weight: "bold", fill: ink)
         #s.value
         #linebreak()
-        #set text(size: 8.2pt, fill: muted)
+        #set text(size: 7.8pt, fill: muted)
         #s.detail
       ])
     )
-    v(0.85em)
+    v(0.55em)
   }
 
   if abstract != none {
@@ -2499,14 +2501,15 @@ PORTFOLIO_DARK_TYPT_TEMPLATE = r"""// report-forge "portfolio-dark" — studio s
       width: 100%,
       fill: rgb("#151b25"),
       radius: 7pt,
-      inset: (x: 15pt, y: 12pt),
+      inset: (x: 15pt, y: 9pt),
     )[
-      #set text(size: 9.6pt, fill: muted)
+      #set text(size: 9pt, fill: muted)
       #abstract
     ]
-    v(0.9em)
+    v(0.55em)
   }
 
+  pagebreak(weak: true)
   doc
 }
 """
