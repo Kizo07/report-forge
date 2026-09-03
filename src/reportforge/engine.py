@@ -70,9 +70,9 @@ def list_templates() -> list[dict]:
         {"name": "memo", "description": "Single-purpose memo: purpose, key points, details. No TOC; html/pdf.", "toc": False, "number_sections": False, "formats": ["html", "pdf"]},
         {"name": "whitepaper", "description": "Hedge-fund-style institutional white paper: key takeaways, investment thesis, framework, exhibit-driven analysis, portfolio implications, risk factors. Figures/tables labeled 'Exhibit N' with unified numbering; title page, TOC + numbered sections; html/pdf/docx.", "toc": True, "number_sections": True, "exhibit_labels": True, "papersize": "us-letter", "formats": ["html", "pdf", "docx"]},
         {"name": "modern", "description": "Modern branded research brief: full-bleed dark masthead with firm + subtitle, KPI stat strip, accent-tick headings, running header/footer with confidentiality mark, exhibit-driven short sections (executive summary → signal → actions → risks). Custom typst PDF template; figures/tables labeled 'Exhibit N'; html/pdf/docx.", "toc": False, "number_sections": False, "exhibit_labels": True, "papersize": "us-letter", "formats": ["html", "pdf", "docx"]},
-        {"name": "studio", "description": "Premium content-neutral editorial report: hero or compact title, optional organization/eyebrow/metrics/footer, configurable accent, flexible Markdown sections, refined figures and tables. Custom Typst PDF and responsive HTML; html/pdf/docx.", "toc": False, "number_sections": False, "exhibit_labels": True, "papersize": "us-letter", "formats": ["html", "pdf", "docx"], "content_neutral": True, "title_layouts": ["hero", "compact"], "max_metrics": 6},
-        {"name": "portfolio-light", "description": "Studio editorial pipeline in the portfolio light theme: warm paper, serif display type, gold kicker. Hero/compact title, eyebrow, organization, 0-6 metrics, accent override, exhibit labels; html/pdf/docx.", "toc": False, "number_sections": False, "exhibit_labels": True, "papersize": "us-letter", "formats": ["html", "pdf", "docx"], "content_neutral": True, "title_layouts": ["hero", "compact"], "max_metrics": 6},
-        {"name": "portfolio-dark", "description": "Studio editorial pipeline in the portfolio dark theme: near-black paper, serif display type, gold kicker. Hero/compact title, eyebrow, organization, 0-6 metrics, accent override, exhibit labels; html/pdf/docx.", "toc": False, "number_sections": False, "exhibit_labels": True, "papersize": "us-letter", "formats": ["html", "pdf", "docx"], "content_neutral": True, "title_layouts": ["hero", "compact"], "max_metrics": 6},
+        {"name": "studio", "description": "Premium content-neutral editorial report: hero, compact, or minimal title, optional organization/eyebrow/metrics/footer, configurable accent, flexible Markdown sections, refined figures and tables. Custom Typst PDF and responsive HTML; html/pdf/docx.", "toc": False, "number_sections": False, "exhibit_labels": True, "papersize": "us-letter", "formats": ["html", "pdf", "docx"], "content_neutral": True, "title_layouts": ["hero", "compact", "minimal"], "max_metrics": 6},
+        {"name": "portfolio-light", "description": "Studio editorial pipeline in the portfolio light theme: warm paper, serif display type, gold kicker. Hero/compact/minimal title, eyebrow, organization, 0-6 metrics, accent override, exhibit labels; html/pdf/docx.", "toc": False, "number_sections": False, "exhibit_labels": True, "papersize": "us-letter", "formats": ["html", "pdf", "docx"], "content_neutral": True, "title_layouts": ["hero", "compact", "minimal"], "max_metrics": 6},
+        {"name": "portfolio-dark", "description": "Studio editorial pipeline in the portfolio dark theme: near-black paper, serif display type, gold kicker. Hero/compact/minimal title, eyebrow, organization, 0-6 metrics, accent override, exhibit labels; html/pdf/docx.", "toc": False, "number_sections": False, "exhibit_labels": True, "papersize": "us-letter", "formats": ["html", "pdf", "docx"], "content_neutral": True, "title_layouts": ["hero", "compact", "minimal"], "max_metrics": 6},
         {"name": "bespoke", "description": "Minimal project, no template opinions: you supply the full .qmd frontmatter and body (via write_report_body / append_section). Use for custom layouts, html-first designs, or the pdf-web (headless-Chromium print) path. html/pdf/docx/pdf-web.", "toc": False, "number_sections": False, "formats": ["html", "pdf", "docx", "pdf-web"], "content_neutral": True},
     ]
 
@@ -134,8 +134,8 @@ def scaffold_report(
     if kpi_error:
         return {"ok": False, "error": kpi_error}
     if template in _EDITORIAL_TEMPLATES:
-        if title_layout not in {"hero", "compact"}:
-            return {"ok": False, "error": "title layout must be 'hero' or 'compact'"}
+        if title_layout not in {"hero", "compact", "minimal"}:
+            return {"ok": False, "error": "title layout must be 'hero', 'compact' or 'minimal'"}
         if not re.fullmatch(r"#[0-9a-fA-F]{6}", accent):
             return {"ok": False, "error": "accent must be a six-digit hex color such as #4f46e5"}
     if template in _PORTFOLIO_TEMPLATES and accent.lower() == "#4f46e5":
@@ -233,6 +233,12 @@ def scaffold_report(
         "accent": accent.lower(),
         "metrics": kpis if template in _EDITORIAL_TEMPLATES else [],
         "metrics_count": len(kpis) if template in _EDITORIAL_TEMPLATES else 0,
+        # Starter-body figure default: dark figures for the dark theme so the
+        # example chart (and any inline chunks) match the page.
+        "plotly_default": "plotly_dark" if template == "portfolio-dark" else "plotly_white",
+        # Recorded into the scaffolded frontmatter so tools (chart theming)
+        # and humans can tell which template a project was built from.
+        "template_name": template,
         "jupyter_kernel": kernel,
     }
     for field in (
@@ -546,13 +552,81 @@ def write_report_body(source: str, content: str) -> dict:
     return {"ok": True, "source": str(target), "bytes": len(content.encode("utf-8"))}
 
 
-def save_chart(fig_json: str, out_basename: str, width: int = 1400, height: int = 700, scale: int = 2, project: str | None = None) -> dict:
+def _figure_template_is_stock_default(fig) -> bool:
+    """True when the figure carries no deliberate theme.
+
+    Covers both a missing template and plotly's stock "plotly" default
+    (which plotly-express bakes in at creation): only a theme that differs
+    from stock counts as an explicit agent choice worth preserving.
+    """
+    current = fig.layout.template
+    if current is None:
+        return True
+    try:
+        import plotly.io as pio
+
+        return current.to_plotly_json() == pio.templates["plotly"].to_plotly_json()
+    except Exception:
+        return False
+
+
+def _project_template_name(project: str | None, out: Path) -> str | None:
+    """Best-effort read of a report project's scaffold `template:` value.
+
+    Used for theme-sensitive defaults (dark figures on dark pages). Returns
+    None when the project or its frontmatter can't be read — callers then
+    keep the figure as supplied.
+    """
+    root: Path | None = None
+    if project and project.strip():
+        candidate = REPORTS_DIR / project.strip("/")
+        if candidate.is_dir():
+            root = candidate
+    if root is None:
+        try:
+            rel = out.resolve().relative_to(REPORTS_DIR.resolve())
+            if len(rel.parts) >= 1 and (REPORTS_DIR / rel.parts[0]).is_dir():
+                root = REPORTS_DIR / rel.parts[0]
+        except (ValueError, OSError):
+            root = None
+    if root is None:
+        return None
+    try:
+        text = (root / "index.qmd").read_text()
+        head = text.split("---", 2)
+        if len(head) < 3:
+            return None
+        front_matter = yaml.safe_load(head[1]) or {}
+        # Namespaced key: a bare `template:` is a real Quarto option (custom
+        # template path) and must not be hijacked.
+        name = front_matter.get("reportforge-template")
+        return str(name) if name else None
+    except Exception:
+        return None
+
+
+def save_chart(fig_json: str, out_basename: str, width: int = 1400, height: int = 700, scale: int = 2, project: str | None = None, template: str | None = None) -> dict:
     try:
         import plotly.io as pio
 
         fig = pio.from_json(fig_json)
     except Exception as exc:
         return {"ok": False, "error": f"invalid plotly figure JSON: {exc}"}
+    template_applied: str | None = None
+    try:
+        if template:
+            if template not in pio.templates:
+                return {"ok": False, "error": f"unknown plotly template: {template}"}
+            fig.update_layout(template=template)
+            template_applied = template
+        elif _figure_template_is_stock_default(fig):
+            # No deliberate figure theme: match the page. Dark reports get
+            # dark figures so charts don't glow white on a dark page.
+            if _project_template_name(project, Path(out_basename).expanduser()) == "portfolio-dark":
+                fig.update_layout(template="plotly_dark")
+                template_applied = "plotly_dark"
+    except Exception as exc:
+        return {"ok": False, "error": f"chart theming failed: {exc}"}
     # Sandbox-path translation (lesson of AAPL run 1, 2026-09-01): the agent's
     # sandbox exposes /mnt/user-data/... while this MCP server runs on the
     # host filesystem. Sandbox paths written here would fail silently from the
@@ -568,7 +642,7 @@ def save_chart(fig_json: str, out_basename: str, width: int = 1400, height: int 
         fig.write_html(str(html_path), include_plotlyjs="cdn", full_html=True)
     except Exception as exc:
         return {"ok": False, "error": f"chart export failed: {exc}", "partial": {"png": str(png)}}
-    return {"ok": True, "png": str(png), "html": str(html_path), "embed_snippet": f"![caption.]({png.name}){{width=90%}}"}
+    return {"ok": True, "png": str(png), "html": str(html_path), "embed_snippet": f"![caption.]({png.name}){{width=90%}}", "template_applied": template_applied}
 
 
 # --- WS-2: arbitrary asset ingestion --------------------------------------

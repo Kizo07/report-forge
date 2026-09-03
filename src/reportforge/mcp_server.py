@@ -139,7 +139,8 @@ def reportforge_scaffold_report(
             footer, e.g. "Confidential — For Discussion Purposes Only".
         organization: Generic organization or brand name for studio.
         eyebrow: Short studio kicker above the title.
-        title_layout: Studio title composition, either "hero" or "compact".
+        title_layout: Studio title composition: "hero", "compact", or "minimal"
+            (plain title block without the card).
         accent: Studio accent as a six-digit hex color.
         metrics: Optional studio metric strip, a list of 0-6 value/label
             objects. A JSON-encoded string of the list is also accepted.
@@ -188,6 +189,7 @@ def reportforge_save_chart(
     height: int = 700,
     scale: int = 2,
     project: str = "",
+    template: str = "",
 ) -> dict[str, Any]:
     """Export a Plotly figure to static PNG (+ standalone interactive HTML).
 
@@ -203,10 +205,15 @@ def reportforge_save_chart(
         project: Optional report slug (from reportforge_scaffold_report). When a
             sandbox path is translated, the chart is anchored to this project's
             figures/ dir. If omitted, the most recently modified project is used.
+        template: Optional plotly template name (e.g. "plotly_dark"). When set
+            it wins. When omitted and the figure has no explicit template, the
+            chart matches the project page: "portfolio-dark" projects get
+            "plotly_dark" automatically; everything else keeps the figure as
+            supplied. An explicitly themed figure is never overridden.
 
     Returns png/html paths plus a ready-to-paste Markdown embed snippet.
     """
-    return save_chart(fig_json, out_basename, width, height, scale, project=project or None)
+    return save_chart(fig_json, out_basename, width, height, scale, project=project or None, template=template or None)
 
 
 @mcp.tool

@@ -25,7 +25,7 @@ def test_template_catalog_exposes_portfolio_variants() -> None:
         spec = specs[name]
         assert spec["formats"] == ["html", "pdf", "docx"]
         assert spec["content_neutral"] is True
-        assert spec["title_layouts"] == ["hero", "compact"]
+        assert spec["title_layouts"] == ["hero", "compact", "minimal"]
         assert spec["max_metrics"] == 6
 
 
@@ -80,6 +80,123 @@ def test_portfolio_explicit_accent_overrides_site_gold(
         (Path(result["path"]) / "index.qmd").read_text().split("---", 2)[1]
     )
     assert front_matter["accent"] == "#14756c"
+
+
+def _white_figure_json() -> str:
+    import plotly.express as px
+
+    return px.line(x=[1, 2], y=[3, 4]).to_json()
+
+
+def test_save_chart_auto_dark_for_portfolio_dark(
+    isolated_portfolio: Path,
+) -> None:
+    result = engine.scaffold_report(
+        "pf-chartdark", title="Charts", template="portfolio-dark", formats=["html"]
+    )
+    assert result["ok"] is True, result
+    out = engine.save_chart(
+        _white_figure_json(),
+        str(isolated_portfolio / "pf-chartdark" / "figures" / "trend"),
+        project="pf-chartdark",
+    )
+    assert out["ok"] is True, out
+    assert out["template_applied"] == "plotly_dark"
+    assert Path(out["png"]).is_file()
+
+
+def test_save_chart_keeps_light_page_light(
+    isolated_portfolio: Path,
+) -> None:
+    result = engine.scaffold_report(
+        "pf-chartlight", title="Charts", template="portfolio-light", formats=["html"]
+    )
+    assert result["ok"] is True, result
+    out = engine.save_chart(
+        _white_figure_json(),
+        str(isolated_portfolio / "pf-chartlight" / "figures" / "trend"),
+        project="pf-chartlight",
+    )
+    assert out["ok"] is True, out
+    assert out["template_applied"] is None
+
+
+def test_save_chart_explicit_figure_theme_is_never_overridden(
+    isolated_portfolio: Path,
+) -> None:
+    import plotly.express as px
+
+    result = engine.scaffold_report(
+        "pf-chartfig", title="Charts", template="portfolio-dark", formats=["html"]
+    )
+    assert result["ok"] is True, result
+    fig = px.line(x=[1, 2], y=[3, 4])
+    fig.update_layout(template="plotly_white")
+    out = engine.save_chart(
+        fig.to_json(),
+        str(isolated_portfolio / "pf-chartfig" / "figures" / "trend"),
+        project="pf-chartfig",
+    )
+    assert out["ok"] is True, out
+    assert out["template_applied"] is None
+
+
+def test_save_chart_explicit_template_wins_over_project_theme(
+    isolated_portfolio: Path,
+) -> None:
+    result = engine.scaffold_report(
+        "pf-chartexp", title="Charts", template="portfolio-dark", formats=["html"]
+    )
+    assert result["ok"] is True, result
+    out = engine.save_chart(
+        _white_figure_json(),
+        str(isolated_portfolio / "pf-chartexp" / "figures" / "trend"),
+        project="pf-chartexp",
+        template="plotly_white",
+    )
+    assert out["ok"] is True, out
+    assert out["template_applied"] == "plotly_white"
+
+
+def test_save_chart_rejects_unknown_template(
+    isolated_portfolio: Path,
+) -> None:
+    out = engine.save_chart(_white_figure_json(), "whatever/trend", template="nope")
+    assert out["ok"] is False
+    assert "unknown plotly template" in out["error"]
+
+
+def test_portfolio_minimal_layout_scaffolds_without_card(
+    isolated_portfolio: Path,
+) -> None:
+    result = engine.scaffold_report(
+        "pf-min",
+        title="Minimal Brief",
+        template="portfolio-dark",
+        formats=["html", "pdf"],
+        title_layout="minimal",
+        eyebrow="Briefing",
+    )
+    assert result["ok"] is True, result
+    project = Path(result["path"])
+    front_matter = yaml.safe_load(
+        (project / "index.qmd").read_text().split("---", 2)[1]
+    )
+    assert front_matter["title-layout"] == "minimal"
+    header = (project / "assets" / "portfolio-header.html").read_text()
+    assert "rf-layout-minimal" in header
+
+
+def test_studio_minimal_layout_shares_editorial_pipeline(
+    isolated_portfolio: Path,
+) -> None:
+    result = engine.scaffold_report(
+        "st-min", title="Minimal Studio", template="studio", title_layout="minimal"
+    )
+    assert result["ok"] is True, result
+    assert "rf-layout-minimal" in (
+        Path(result["path"]) / "assets" / "studio-header.html"
+    ).read_text()
 
 
 def test_portfolio_rejects_invalid_visual_options_before_creating_project(

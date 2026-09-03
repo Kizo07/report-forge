@@ -902,7 +902,34 @@ STUDIO_TYPT_TEMPLATE = r"""// report-forge "studio" — flexible editorial Typst
   show table.cell.where(y: 0): set text(weight: "bold", fill: ink)
 
   if title != none {
-    if title-layout == "compact" {
+    if title-layout == "minimal" {
+      // Plain title block: no card, no panel — kicker, title, rule, meta.
+      block(width: 100%)[
+        #set par(justify: false)
+        #if eyebrow != none {
+          line(length: 26pt, stroke: 1.4pt + accent-color)
+          v(0.35em)
+          set text(font: "Space Grotesk", size: 8pt, weight: "medium", fill: accent-color)
+          upper[#eyebrow]
+          v(0.5em)
+        }
+        #set text(font: "Space Grotesk", size: 24pt, weight: "bold", fill: ink, hyphenate: false)
+        #title
+        #if subtitle != none {
+          v(0.3em)
+          set text(size: 11pt, fill: muted)
+          subtitle
+        }
+        #v(0.6em)
+        #line(length: 40pt, stroke: 2pt + accent-color)
+        #v(0.5em)
+        #set text(size: 8.5pt, fill: muted)
+        #grid(columns: (1fr, auto), align: horizon)[
+          #if organization != none [#organization] else if authors != () [#authors.map(a => a.name).join(", ")] else []
+        ][#date]
+      ]
+      v(0.9em)
+    } else if title-layout == "compact" {
       block(
         width: 100%,
         inset: (left: 18pt, y: 15pt),
@@ -1072,6 +1099,7 @@ $endif$
 STUDIO_QMD = """\
 ---
 title: <% title_yaml %>
+reportforge-template: "<% template_name %>"
 <%% if subtitle%%>
 subtitle: <% subtitle_yaml %>
 <%% endif%%>
@@ -1102,29 +1130,17 @@ title-block-style: none
 # Overview
 
 Open with the idea, decision, or story this document exists to communicate.
-Studio does not prescribe a domain or section order—rename, reorder, add, or
-remove any section to fit the work.
+Nothing below this line is required structure—rename, reorder, add, or remove
+any section to fit the work.
 
 > **Lead with meaning.** Use a short pull quote for the sentence readers should
 > remember after they close the report.
 
-# Highlights
+<!-- Sketch only: replace with the sections this brief needs (findings,
+     methods, evidence, risks, recommendations, appendix, …) and delete
+     whatever does not fit. HTML comments never render in any format. -->
 
-::: {.studio-grid}
-::: {.studio-card}
-## One clear point
-
-Summarize a finding, principle, or outcome in a compact card.
-:::
-
-::: {.studio-card}
-## Another perspective
-
-Pair complementary ideas without forcing the rest of the report into columns.
-:::
-:::
-
-# Evidence
+# Figures and tables
 
 Use figures and tables when they clarify the argument. Captions remain
 consistent across HTML, PDF, and DOCX.
@@ -1144,13 +1160,9 @@ As @fig-example shows, the template supports ordinary Quarto cross-references.
 and which assumptions matter. Ordinary Markdown—not a fixed template
 vocabulary—drives the document.
 
-# Next steps
+# Notes
 
-1. State the next action or decision.
-2. Name its owner or trigger when useful.
-3. Remove this section entirely when the report does not need recommendations.
-
-**Notes.** Sources, methods, definitions, and reproducibility details can live
+Sources, methods, definitions, and reproducibility details can live
 here or anywhere else the document requires.
 
 ```{python}
@@ -1166,7 +1178,7 @@ df = pd.DataFrame({
 })
 fig = px.line(df, x="period", y="value", markers=True)
 fig.update_layout(
-    template="plotly_white",
+    template="<% plotly_default %>",
     title="Example trend",
     font=dict(size=16),
     margin=dict(l=55, r=30, t=70, b=50),
@@ -1383,6 +1395,29 @@ main.content h2 {
 .studio-card h2 {
   margin-top: 0;
   font-size: 1rem;
+}
+
+/* Minimal title layout: no card chrome — plain themed title block. */
+.rf-layout-minimal {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.rf-layout-minimal .rf-title-frame {
+  padding: 1.5rem 0 0;
+}
+
+.rf-layout-minimal .rf-display-title {
+  font-size: clamp(2rem, 4.5vw, 3.1rem);
+}
+
+.rf-layout-minimal .rf-metric-grid {
+  background: transparent;
+}
+
+.rf-layout-minimal .rf-metric {
+  background: transparent;
 }
 
 blockquote {
@@ -1740,7 +1775,34 @@ PORTFOLIO_LIGHT_TYPT_TEMPLATE = r"""// report-forge "portfolio-light" — studio
   show table.cell.where(y: 0): set text(weight: "bold", fill: ink)
 
   if title != none {
-    if title-layout == "compact" {
+    if title-layout == "minimal" {
+      // Plain title block: no card, no panel — kicker, title, rule, meta.
+      block(width: 100%)[
+        #set par(justify: false)
+        #if eyebrow != none {
+          line(length: 26pt, stroke: 1.4pt + accent-color)
+          v(0.35em)
+          set text(font: "JetBrains Mono", size: 8pt, weight: "medium", fill: accent-color)
+          upper[#eyebrow]
+          v(0.5em)
+        }
+        #set text(font: "Georgia", size: 24pt, weight: "bold", fill: ink, hyphenate: false)
+        #title
+        #if subtitle != none {
+          v(0.3em)
+          set text(size: 11pt, fill: muted)
+          subtitle
+        }
+        #v(0.6em)
+        #line(length: 40pt, stroke: 2pt + accent-color)
+        #v(0.5em)
+        #set text(size: 8.5pt, fill: muted)
+        #grid(columns: (1fr, auto), align: horizon)[
+          #if organization != none [#organization] else if authors != () [#authors.map(a => a.name).join(", ")] else []
+        ][#date]
+      ]
+      v(0.9em)
+    } else if title-layout == "compact" {
       block(
         width: 100%,
         inset: (left: 18pt, y: 15pt),
@@ -1934,7 +1996,34 @@ PORTFOLIO_DARK_TYPT_TEMPLATE = r"""// report-forge "portfolio-dark" — studio s
   show table.cell.where(y: 0): set text(weight: "bold", fill: ink)
 
   if title != none {
-    if title-layout == "compact" {
+    if title-layout == "minimal" {
+      // Plain title block: no card, no panel — kicker, title, rule, meta.
+      block(width: 100%)[
+        #set par(justify: false)
+        #if eyebrow != none {
+          line(length: 26pt, stroke: 1.4pt + accent-color)
+          v(0.35em)
+          set text(font: "JetBrains Mono", size: 8pt, weight: "medium", fill: accent-color)
+          upper[#eyebrow]
+          v(0.5em)
+        }
+        #set text(font: "Georgia", size: 24pt, weight: "bold", fill: ink, hyphenate: false)
+        #title
+        #if subtitle != none {
+          v(0.3em)
+          set text(size: 11pt, fill: muted)
+          subtitle
+        }
+        #v(0.6em)
+        #line(length: 40pt, stroke: 2pt + accent-color)
+        #v(0.5em)
+        #set text(size: 8.5pt, fill: muted)
+        #grid(columns: (1fr, auto), align: horizon)[
+          #if organization != none [#organization] else if authors != () [#authors.map(a => a.name).join(", ")] else []
+        ][#date]
+      ]
+      v(0.9em)
+    } else if title-layout == "compact" {
       block(
         width: 100%,
         inset: (left: 18pt, y: 15pt),
@@ -2308,6 +2397,29 @@ main.content h2 {
   font-size: 1.1rem;
 }
 
+/* Minimal title layout: no card chrome — plain themed title block. */
+.rf-layout-minimal {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.rf-layout-minimal .rf-title-frame {
+  padding: 1.5rem 0 0;
+}
+
+.rf-layout-minimal .rf-display-title {
+  font-size: clamp(2rem, 4.5vw, 3.1rem);
+}
+
+.rf-layout-minimal .rf-metric-grid {
+  background: transparent;
+}
+
+.rf-layout-minimal .rf-metric {
+  background: transparent;
+}
+
 blockquote {
   margin: 1.6rem 0;
   padding: 1rem 1.25rem;
@@ -2592,6 +2704,29 @@ main.content h2 {
 .studio-card h2 {
   margin-top: 0;
   font-size: 1.1rem;
+}
+
+/* Minimal title layout: no card chrome — plain themed title block. */
+.rf-layout-minimal {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.rf-layout-minimal .rf-title-frame {
+  padding: 1.5rem 0 0;
+}
+
+.rf-layout-minimal .rf-display-title {
+  font-size: clamp(2rem, 4.5vw, 3.1rem);
+}
+
+.rf-layout-minimal .rf-metric-grid {
+  background: transparent;
+}
+
+.rf-layout-minimal .rf-metric {
+  background: transparent;
 }
 
 blockquote {

@@ -22,7 +22,7 @@ def test_template_catalog_exposes_content_neutral_studio() -> None:
 
     assert studio["formats"] == ["html", "pdf", "docx"]
     assert studio["content_neutral"] is True
-    assert studio["title_layouts"] == ["hero", "compact"]
+    assert studio["title_layouts"] == ["hero", "compact", "minimal"]
     assert studio["max_metrics"] == 6
 
 
