@@ -924,6 +924,7 @@ STUDIO_TYPT_TEMPLATE = r"""// report-forge "studio" — flexible editorial Typst
   show table.cell.where(y: 0): set text(weight: "bold", fill: ink)
   show table.cell.where(x: 0): set text(weight: "bold")
 
+  set page(margin: (x: margin.x, top: 0.5in, bottom: 0.6in))
   if title != none {
     if title-layout == "minimal" {
       // Plain title block: no card, no panel — kicker, title, rule, meta.
@@ -983,7 +984,7 @@ STUDIO_TYPT_TEMPLATE = r"""// report-forge "studio" — flexible editorial Typst
         width: 100%,
         fill: panel,
         radius: 10pt,
-        inset: (left: 26pt, right: 24pt, top: 22pt, bottom: 18pt),
+        inset: (left: 26pt, right: 24pt, top: 18pt, bottom: 15pt),
         stroke: (left: 7pt + accent-color, rest: 0.6pt + hairline),
       )[
         #set par(justify: false)
@@ -992,14 +993,14 @@ STUDIO_TYPT_TEMPLATE = r"""// report-forge "studio" — flexible editorial Typst
           upper[#eyebrow]
           v(0.7em)
         }
-        #set text(font: "Space Grotesk", size: 25pt, weight: "bold", fill: ink, hyphenate: false)
+        #set text(font: "Space Grotesk", size: 22pt, weight: "bold", fill: ink, hyphenate: false)
         #title
         #if subtitle != none {
           v(0.5em)
-          set text(size: 12pt, fill: muted)
+          set text(size: 11pt, fill: muted)
           subtitle
         }
-        #v(0.8em)
+        #v(0.6em)
         #line(length: 46pt, stroke: 2.2pt + accent-color)
         #v(0.7em)
         #set text(size: 8.8pt, fill: muted)
@@ -1027,10 +1028,10 @@ STUDIO_TYPT_TEMPLATE = r"""// report-forge "studio" — flexible editorial Typst
       ..metrics.map(metric => block(
         fill: panel,
         radius: 6pt,
-        inset: (x: 12pt, y: 7pt),
+        inset: (x: 12pt, y: 6pt),
         stroke: 0.55pt + hairline,
       )[
-        #set text(font: "Space Grotesk", size: 13pt, weight: "bold", fill: ink)
+        #set text(font: "Space Grotesk", size: 12pt, weight: "bold", fill: ink)
         #metric.value
         #linebreak()
         #set text(size: 7.7pt, fill: muted)
@@ -1046,13 +1047,13 @@ STUDIO_TYPT_TEMPLATE = r"""// report-forge "studio" — flexible editorial Typst
       width: 100%,
       fill: rgb("#e9e8fa"),
       radius: 6pt,
-      inset: (x: 14pt, y: 8pt),
+      inset: (x: 14pt, y: 7pt),
       stroke: (left: 3pt + accent-color),
     )[
       #set text(font: "JetBrains Mono", size: 7.7pt, weight: "medium", fill: accent-color)
       CONVICTION CALL
       #linebreak()
-      #set text(size: 10pt, weight: "bold", fill: ink)
+      #set text(size: 9.5pt, weight: "bold", fill: ink)
       #verdict
     ]
     v(0.55em)
@@ -1066,10 +1067,10 @@ STUDIO_TYPT_TEMPLATE = r"""// report-forge "studio" — flexible editorial Typst
       ..key-points.map(p => block(
         fill: panel,
         radius: 6pt,
-        inset: (x: 12pt, y: 7pt),
+        inset: (x: 12pt, y: 6pt),
         stroke: 0.55pt + hairline,
       )[
-        #set text(size: 8.5pt, fill: ink)
+        #set text(size: 8pt, fill: ink)
         #text(fill: accent-color)[◆ ]#p
       ])
     )
@@ -1083,16 +1084,16 @@ STUDIO_TYPT_TEMPLATE = r"""// report-forge "studio" — flexible editorial Typst
       ..scenarios.enumerate().map(((i, s)) => block(
         fill: panel,
         radius: 6pt,
-        inset: (x: 12pt, y: 7pt),
+        inset: (x: 12pt, y: 6pt),
         stroke: if i == 1 { 1pt + accent-color } else { 0.55pt + hairline },
       )[
         #set text(font: "JetBrains Mono", size: 7.7pt, fill: muted)
         #upper[#s.label]
         #linebreak()
-        #set text(size: 12.5pt, weight: "bold", fill: ink)
+        #set text(size: 12pt, weight: "bold", fill: ink)
         #s.value
         #linebreak()
-        #set text(size: 7.8pt, fill: muted)
+        #set text(size: 7.5pt, fill: muted)
         #s.detail
       ])
     )
@@ -1104,15 +1105,16 @@ STUDIO_TYPT_TEMPLATE = r"""// report-forge "studio" — flexible editorial Typst
       width: 100%,
       fill: rgb("#efefff"),
       radius: 7pt,
-      inset: (x: 15pt, y: 9pt),
+      inset: (x: 15pt, y: 8pt),
     )[
-      #set text(size: 9pt, fill: muted)
+      #set text(size: 8.5pt, fill: muted)
       #abstract
     ]
     v(0.55em)
   }
 
   pagebreak(weak: true)
+  set page(margin: margin)
   doc
 }
 """
@@ -2029,6 +2031,7 @@ PORTFOLIO_LIGHT_TYPT_TEMPLATE = r"""// report-forge "portfolio-light" — studio
   show table.cell.where(y: 0): set text(weight: "bold", fill: ink)
   show table.cell.where(x: 0): set text(weight: "bold")
 
+  set page(margin: (x: margin.x, top: 0.5in, bottom: 0.6in))
   if title != none {
     if title-layout == "minimal" {
       // Plain title block: no card, no panel — kicker, title, rule, meta.
@@ -2090,7 +2093,7 @@ PORTFOLIO_LIGHT_TYPT_TEMPLATE = r"""// report-forge "portfolio-light" — studio
         width: 100%,
         fill: panel,
         radius: 10pt,
-        inset: (left: 26pt, right: 24pt, top: 22pt, bottom: 18pt),
+        inset: (left: 26pt, right: 24pt, top: 18pt, bottom: 15pt),
         stroke: (left: 7pt + accent-color, rest: 0.6pt + hairline),
       )[
         #set par(justify: false)
@@ -2101,14 +2104,14 @@ PORTFOLIO_LIGHT_TYPT_TEMPLATE = r"""// report-forge "portfolio-light" — studio
           upper[#eyebrow]
           v(0.7em)
         }
-        #set text(font: "Georgia", size: 25pt, weight: "bold", fill: ink, hyphenate: false)
+        #set text(font: "Georgia", size: 22pt, weight: "bold", fill: ink, hyphenate: false)
         #title
         #if subtitle != none {
           v(0.5em)
-          set text(size: 12pt, fill: muted)
+          set text(size: 11pt, fill: muted)
           subtitle
         }
-        #v(0.8em)
+        #v(0.6em)
         #line(length: 46pt, stroke: 2.2pt + accent-color)
         #v(0.7em)
         #set text(size: 8.8pt, fill: muted)
@@ -2136,10 +2139,10 @@ PORTFOLIO_LIGHT_TYPT_TEMPLATE = r"""// report-forge "portfolio-light" — studio
       ..metrics.map(metric => block(
         fill: panel,
         radius: 6pt,
-        inset: (x: 12pt, y: 7pt),
+        inset: (x: 12pt, y: 6pt),
         stroke: 0.55pt + hairline,
       )[
-        #set text(font: "Georgia", size: 13pt, weight: "bold", fill: ink)
+        #set text(font: "Georgia", size: 12pt, weight: "bold", fill: ink)
         #metric.value
         #linebreak()
         #set text(font: "JetBrains Mono", size: 7.7pt, fill: muted)
@@ -2155,13 +2158,13 @@ PORTFOLIO_LIGHT_TYPT_TEMPLATE = r"""// report-forge "portfolio-light" — studio
       width: 100%,
       fill: rgb("#e2d3ac"),
       radius: 6pt,
-      inset: (x: 14pt, y: 8pt),
+      inset: (x: 14pt, y: 7pt),
       stroke: (left: 3pt + accent-color),
     )[
       #set text(font: "JetBrains Mono", size: 7.7pt, weight: "medium", fill: accent-color)
       CONVICTION CALL
       #linebreak()
-      #set text(size: 10pt, weight: "bold", fill: ink)
+      #set text(size: 9.5pt, weight: "bold", fill: ink)
       #verdict
     ]
     v(0.55em)
@@ -2175,10 +2178,10 @@ PORTFOLIO_LIGHT_TYPT_TEMPLATE = r"""// report-forge "portfolio-light" — studio
       ..key-points.map(p => block(
         fill: panel,
         radius: 6pt,
-        inset: (x: 12pt, y: 7pt),
+        inset: (x: 12pt, y: 6pt),
         stroke: 0.55pt + hairline,
       )[
-        #set text(size: 8.5pt, fill: ink)
+        #set text(size: 8pt, fill: ink)
         #text(fill: accent-color)[◆ ]#p
       ])
     )
@@ -2192,16 +2195,16 @@ PORTFOLIO_LIGHT_TYPT_TEMPLATE = r"""// report-forge "portfolio-light" — studio
       ..scenarios.enumerate().map(((i, s)) => block(
         fill: panel,
         radius: 6pt,
-        inset: (x: 12pt, y: 7pt),
+        inset: (x: 12pt, y: 6pt),
         stroke: if i == 1 { 1pt + accent-color } else { 0.55pt + hairline },
       )[
         #set text(font: "JetBrains Mono", size: 7.7pt, fill: muted)
         #upper[#s.label]
         #linebreak()
-        #set text(size: 12.5pt, weight: "bold", fill: ink)
+        #set text(size: 12pt, weight: "bold", fill: ink)
         #s.value
         #linebreak()
-        #set text(size: 7.8pt, fill: muted)
+        #set text(size: 7.5pt, fill: muted)
         #s.detail
       ])
     )
@@ -2213,15 +2216,16 @@ PORTFOLIO_LIGHT_TYPT_TEMPLATE = r"""// report-forge "portfolio-light" — studio
       width: 100%,
       fill: rgb("#efe4cb"),
       radius: 7pt,
-      inset: (x: 15pt, y: 9pt),
+      inset: (x: 15pt, y: 8pt),
     )[
-      #set text(size: 9pt, fill: muted)
+      #set text(size: 8.5pt, fill: muted)
       #abstract
     ]
     v(0.55em)
   }
 
   pagebreak(weak: true)
+  set page(margin: margin)
   doc
 }
 """
@@ -2317,6 +2321,7 @@ PORTFOLIO_DARK_TYPT_TEMPLATE = r"""// report-forge "portfolio-dark" — studio s
   show table.cell.where(y: 0): set text(weight: "bold", fill: ink)
   show table.cell.where(x: 0): set text(weight: "bold")
 
+  set page(margin: (x: margin.x, top: 0.5in, bottom: 0.6in))
   if title != none {
     if title-layout == "minimal" {
       // Plain title block: no card, no panel — kicker, title, rule, meta.
@@ -2378,7 +2383,7 @@ PORTFOLIO_DARK_TYPT_TEMPLATE = r"""// report-forge "portfolio-dark" — studio s
         width: 100%,
         fill: panel,
         radius: 10pt,
-        inset: (left: 26pt, right: 24pt, top: 22pt, bottom: 18pt),
+        inset: (left: 26pt, right: 24pt, top: 18pt, bottom: 15pt),
         stroke: (left: 7pt + accent-color, rest: 0.6pt + hairline),
       )[
         #set par(justify: false)
@@ -2389,14 +2394,14 @@ PORTFOLIO_DARK_TYPT_TEMPLATE = r"""// report-forge "portfolio-dark" — studio s
           upper[#eyebrow]
           v(0.7em)
         }
-        #set text(font: "Georgia", size: 25pt, weight: "bold", fill: ink, hyphenate: false)
+        #set text(font: "Georgia", size: 22pt, weight: "bold", fill: ink, hyphenate: false)
         #title
         #if subtitle != none {
           v(0.5em)
-          set text(size: 12pt, fill: muted)
+          set text(size: 11pt, fill: muted)
           subtitle
         }
-        #v(0.8em)
+        #v(0.6em)
         #line(length: 46pt, stroke: 2.2pt + accent-color)
         #v(0.7em)
         #set text(size: 8.8pt, fill: muted)
@@ -2424,10 +2429,10 @@ PORTFOLIO_DARK_TYPT_TEMPLATE = r"""// report-forge "portfolio-dark" — studio s
       ..metrics.map(metric => block(
         fill: panel,
         radius: 6pt,
-        inset: (x: 12pt, y: 7pt),
+        inset: (x: 12pt, y: 6pt),
         stroke: 0.55pt + hairline,
       )[
-        #set text(font: "Georgia", size: 13pt, weight: "bold", fill: ink)
+        #set text(font: "Georgia", size: 12pt, weight: "bold", fill: ink)
         #metric.value
         #linebreak()
         #set text(font: "JetBrains Mono", size: 7.7pt, fill: muted)
@@ -2443,13 +2448,13 @@ PORTFOLIO_DARK_TYPT_TEMPLATE = r"""// report-forge "portfolio-dark" — studio s
       width: 100%,
       fill: rgb("#1d1a10"),
       radius: 6pt,
-      inset: (x: 14pt, y: 8pt),
+      inset: (x: 14pt, y: 7pt),
       stroke: (left: 3pt + accent-color),
     )[
       #set text(font: "JetBrains Mono", size: 7.7pt, weight: "medium", fill: accent-color)
       CONVICTION CALL
       #linebreak()
-      #set text(size: 10pt, weight: "bold", fill: ink)
+      #set text(size: 9.5pt, weight: "bold", fill: ink)
       #verdict
     ]
     v(0.55em)
@@ -2463,10 +2468,10 @@ PORTFOLIO_DARK_TYPT_TEMPLATE = r"""// report-forge "portfolio-dark" — studio s
       ..key-points.map(p => block(
         fill: panel,
         radius: 6pt,
-        inset: (x: 12pt, y: 7pt),
+        inset: (x: 12pt, y: 6pt),
         stroke: 0.55pt + hairline,
       )[
-        #set text(size: 8.5pt, fill: ink)
+        #set text(size: 8pt, fill: ink)
         #text(fill: accent-color)[◆ ]#p
       ])
     )
@@ -2480,16 +2485,16 @@ PORTFOLIO_DARK_TYPT_TEMPLATE = r"""// report-forge "portfolio-dark" — studio s
       ..scenarios.enumerate().map(((i, s)) => block(
         fill: panel,
         radius: 6pt,
-        inset: (x: 12pt, y: 7pt),
+        inset: (x: 12pt, y: 6pt),
         stroke: if i == 1 { 1pt + accent-color } else { 0.55pt + hairline },
       )[
         #set text(font: "JetBrains Mono", size: 7.7pt, fill: muted)
         #upper[#s.label]
         #linebreak()
-        #set text(size: 12.5pt, weight: "bold", fill: ink)
+        #set text(size: 12pt, weight: "bold", fill: ink)
         #s.value
         #linebreak()
-        #set text(size: 7.8pt, fill: muted)
+        #set text(size: 7.5pt, fill: muted)
         #s.detail
       ])
     )
@@ -2501,15 +2506,16 @@ PORTFOLIO_DARK_TYPT_TEMPLATE = r"""// report-forge "portfolio-dark" — studio s
       width: 100%,
       fill: rgb("#151b25"),
       radius: 7pt,
-      inset: (x: 15pt, y: 9pt),
+      inset: (x: 15pt, y: 8pt),
     )[
-      #set text(size: 9pt, fill: muted)
+      #set text(size: 8.5pt, fill: muted)
       #abstract
     ]
     v(0.55em)
   }
 
   pagebreak(weak: true)
+  set page(margin: margin)
   doc
 }
 """
