@@ -898,7 +898,9 @@ STUDIO_TYPT_TEMPLATE = r"""// report-forge "studio" — flexible editorial Typst
     #set text(size: 10.5pt, style: "italic", fill: ink)
     #it
   ]
-  show table: set table(stroke: 0.5pt + hairline, inset: 6pt)
+  show table: set table(stroke: 0.5pt + hairline, inset: (x: 6pt, y: 5pt))
+  show table: set text(size: 8.7pt)
+  show table.cell.where(y: 0): set table.cell(fill: panel)
   show table.cell.where(y: 0): set text(weight: "bold", fill: ink)
 
   if title != none {
@@ -1771,7 +1773,9 @@ PORTFOLIO_LIGHT_TYPT_TEMPLATE = r"""// report-forge "portfolio-light" — studio
     #set text(size: 10.5pt, style: "italic", fill: ink)
     #it
   ]
-  show table: set table(stroke: 0.5pt + hairline, inset: 6pt)
+  show table: set table(stroke: 0.5pt + hairline, inset: (x: 6pt, y: 5pt))
+  show table: set text(size: 8.7pt)
+  show table.cell.where(y: 0): set table.cell(fill: panel)
   show table.cell.where(y: 0): set text(weight: "bold", fill: ink)
 
   if title != none {
@@ -1992,7 +1996,9 @@ PORTFOLIO_DARK_TYPT_TEMPLATE = r"""// report-forge "portfolio-dark" — studio s
     #set text(size: 10.5pt, style: "italic", fill: ink)
     #it
   ]
-  show table: set table(stroke: 0.5pt + hairline, inset: 6pt)
+  show table: set table(stroke: 0.5pt + hairline, inset: (x: 6pt, y: 5pt))
+  show table: set text(size: 8.7pt)
+  show table.cell.where(y: 0): set table.cell(fill: panel)
   show table.cell.where(y: 0): set text(weight: "bold", fill: ink)
 
   if title != none {
@@ -2431,16 +2437,44 @@ blockquote {
   font-style: normal;
 }
 
+/* Tables — fixed layout keeps every table inside the content column
+   (columns share the width per pandoc's colgroup, long cells wrap);
+   roomy cells, aligned numerals, striped rows, tinted header. */
 table {
-  overflow: hidden;
+  width: 100%;
+  table-layout: fixed;
   border: 1px solid var(--rf-line);
   border-radius: 10px;
   background: var(--rf-panel);
-  font-size: 0.92em;
+  font-size: 0.88em;
+  font-variant-numeric: tabular-nums;
+  margin: 1.1rem 0;
+  overflow-wrap: break-word;
 }
 
 thead {
   background: var(--rf-panel-2);
+}
+
+th,
+td {
+  padding: 0.55rem 0.8rem;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: break-word;
+  border-bottom: 1px solid var(--rf-line);
+}
+
+th {
+  font-weight: 700;
+}
+
+tbody tr:nth-child(even) {
+  background: rgba(127, 140, 160, 0.09);
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
 }
 
 .figure-caption,
@@ -2740,16 +2774,44 @@ blockquote {
   font-style: normal;
 }
 
+/* Tables — fixed layout keeps every table inside the content column
+   (columns share the width per pandoc's colgroup, long cells wrap);
+   roomy cells, aligned numerals, striped rows, tinted header. */
 table {
-  overflow: hidden;
+  width: 100%;
+  table-layout: fixed;
   border: 1px solid var(--rf-line);
   border-radius: 10px;
   background: var(--rf-panel);
-  font-size: 0.92em;
+  font-size: 0.88em;
+  font-variant-numeric: tabular-nums;
+  margin: 1.1rem 0;
+  overflow-wrap: break-word;
 }
 
 thead {
   background: var(--rf-panel-2);
+}
+
+th,
+td {
+  padding: 0.55rem 0.8rem;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: break-word;
+  border-bottom: 1px solid var(--rf-line);
+}
+
+th {
+  font-weight: 700;
+}
+
+tbody tr:nth-child(even) {
+  background: rgba(127, 140, 160, 0.09);
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
 }
 
 .figure-caption,

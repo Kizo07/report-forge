@@ -227,6 +227,12 @@ def reportforge_write_report_body(
     this with the full .qmd text (YAML front matter + markdown sections),
     then render_report.
 
+    Tables — keep them narrow or they will clutter/overflow in every format:
+    max ~6 columns, short cell text (a few words; numbers over prose), one
+    idea per table (split wide comparisons into two tables or move detail to
+    the appendix), right-align numeric columns with markdown colons. Wide
+    tables scroll in HTML but still paginate badly in PDF/DOCX.
+
     Args:
         source: Report slug (e.g. 'aapl-12m-outlook'), project directory, or
             path to the index.qmd.
@@ -398,6 +404,11 @@ def reportforge_append_section(
     `before` given, the section is inserted above the first heading whose text
     contains that string (case-insensitive). Use for incremental edits; use
     write_report_body for full rewrites.
+
+    Tables — keep them narrow or they will clutter/overflow in every format:
+    max ~6 columns, short cell text (a few words; numbers over prose), one
+    idea per table (split wide comparisons into two tables or move detail to
+    the appendix), right-align numeric columns with markdown colons.
 
     Args:
         project: Report slug (project directory name).
