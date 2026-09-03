@@ -1489,3 +1489,1251 @@ format:
   docx:
     toc: false
 """
+
+# ---------------------------------------------------------------------------
+# "portfolio-light" / "portfolio-dark" templates — studio feature parity
+# dressed in the Kizo07.github.io portfolio system.
+#
+# Architecture mirrors "studio" exactly (same scaffold params: hero/compact
+# title layouts, eyebrow, organization, 0-6 metrics, accent override,
+# exhibit labels, html/pdf/docx; same header markup + body markup + body
+# CSS classes so agent-facing `.studio-grid` / `.studio-card` divs keep
+# working). Only the dressing differs:
+#   - light: warm paper #e5ddcc, ink #362e21, gold #8f621f, cyan #14756c
+#   - dark:  near-black #0a0d12, ink #e7eaf0, gold #d9a54e, cyan #56cfc4
+# Display type is Fraunces (portfolio serif) with Georgia fallback; Typst
+# uses Georgia directly (installed locally — Typst cannot fetch webfonts).
+# Mono is IBM Plex Mono in HTML (browser-fetched) and JetBrains Mono in
+# Typst (installed locally).
+# ---------------------------------------------------------------------------
+
+PORTFOLIO_YML = """\
+project:
+  type: default
+  output-dir: output
+
+execute:
+  jupyter: <% jupyter_kernel %>
+  echo: false
+  warning: false
+  message: false
+  fig-dpi: 300
+  freeze: auto
+
+number-sections: false
+
+crossref:
+  fig-title: Figure
+  tbl-title: Table
+  fig-prefix: Figure
+  tbl-prefix: Table
+  sec-prefix: Section
+
+format:
+  html:
+    toc: <% toc %>
+    toc-depth: 3
+    theme:
+      - brand
+      - styles.scss
+    include-before-body: assets/portfolio-header.html
+    title-block-style: none
+    code-fold: true
+    code-tools: false
+    link-external-newwindow: true
+  typst:
+    papersize: <% papersize %>
+    mainfont: Inter
+    fontsize: 10.5pt
+    template-partials:
+      - assets/typst-template.typ
+      - assets/typst-show.typ
+  docx:
+    reference-doc: assets/reference-doc.docx
+    toc: <% toc %>
+"""
+
+PORTFOLIO_LIGHT_BRAND_YML = """\
+color:
+  palette:
+    paper: "#e5ddcc"
+    panel: "#ebe3d2"
+    ink: "#362e21"
+    muted: "#6d6250"
+    gold: "#8f621f"
+    aqua: "#14756c"
+    line: "#d3c8b0"
+    slate: "#6d6250"
+    mist: "#ebe3d2"
+  foreground: "#362e21"
+  background: "#e5ddcc"
+  primary: "#8f621f"
+  secondary: "#14756c"
+  tertiary: "#6d6250"
+  success: "#2c6e4a"
+  info: "#14756c"
+  warning: "#8f621f"
+  danger: "#a44a44"
+  light: "#ebe3d2"
+
+typography:
+  fonts:
+    - family: Fraunces
+      source: google
+      weight: [400, 600]
+    - family: Inter
+      source: google
+      weight: [400, 500, 600]
+    - family: IBM Plex Mono
+      source: google
+  base:
+    family: Inter
+    size: 1rem
+  headings:
+    family: Fraunces
+    weight: 600
+    color: "#362e21"
+  monospace: IBM Plex Mono
+  monospace-inline:
+    color: "#14756c"
+    background-color: "#e0d7c4"
+  monospace-block:
+    background-color: panel
+
+meta:
+  name: ReportForge Portfolio Light
+"""
+
+PORTFOLIO_DARK_BRAND_YML = """\
+color:
+  palette:
+    paper: "#0a0d12"
+    panel: "#10151d"
+    ink: "#e7eaf0"
+    muted: "#9aa4b2"
+    gold: "#d9a54e"
+    aqua: "#56cfc4"
+    line: "#1e2632"
+    slate: "#9aa4b2"
+    mist: "#10151d"
+  foreground: "#e7eaf0"
+  background: "#0a0d12"
+  primary: "#d9a54e"
+  secondary: "#56cfc4"
+  tertiary: "#9aa4b2"
+  success: "#3ecf8e"
+  info: "#56cfc4"
+  warning: "#d9a54e"
+  danger: "#ef6a6a"
+  light: "#10151d"
+
+typography:
+  fonts:
+    - family: Fraunces
+      source: google
+      weight: [400, 600]
+    - family: Inter
+      source: google
+      weight: [400, 500, 600]
+    - family: IBM Plex Mono
+      source: google
+  base:
+    family: Inter
+    size: 1rem
+  headings:
+    family: Fraunces
+    weight: 600
+    color: "#e7eaf0"
+  monospace: IBM Plex Mono
+  monospace-inline:
+    color: "#56cfc4"
+    background-color: "#151b25"
+  monospace-block:
+    background-color: panel
+
+meta:
+  name: ReportForge Portfolio Dark
+"""
+
+PORTFOLIO_LIGHT_TYPT_TEMPLATE = r"""// report-forge "portfolio-light" — studio structure, portfolio light palette
+#let portfolio_light(
+  title: none, subtitle: none, authors: (), keywords: (),
+  date: none, abstract: none, abstract-title: none, thanks: none,
+  metrics: (), organization: none, eyebrow: none,
+  title-layout: "hero", accent: "#8f621f", confidential-mark: none,
+  cols: 1, margin: (x: 0.82in, top: 0.72in, bottom: 0.9in),
+  paper: "us-letter", lang: "en", region: "US",
+  font: none, fontsize: 10.5pt, mathfont: none, codefont: none,
+  linestretch: 1.15, sectionnumbering: none, linkcolor: none,
+  citecolor: none, filecolor: none, pagenumbering: "1", doc,
+) = {
+  let paper-tone = rgb("#e5ddcc")
+  let panel = rgb("#ebe3d2")
+  let ink = rgb("#362e21")
+  let muted = rgb("#6d6250")
+  let hairline = rgb("#d3c8b0")
+  let accent-color = rgb(accent)
+  let link-ink = rgb("#14756c")
+
+  set document(title: title, keywords: keywords)
+  set page(
+    paper: paper,
+    margin: margin,
+    fill: paper-tone,
+    numbering: pagenumbering,
+    header: context {
+      let num = counter(page).at(here()).first()
+      if num >= 2 {
+        block(width: 100%)[
+          #set text(size: 7.8pt, fill: muted, font: "JetBrains Mono")
+          #grid(columns: (1fr, auto), align: horizon)[
+            #if organization != none [#upper[#organization]] else if eyebrow != none [#upper[#eyebrow]] else [PORTFOLIO REPORT]
+          ][#date]
+          #line(length: 100%, stroke: 0.55pt + hairline)
+        ]
+      }
+    },
+    footer: context {
+      let num = counter(page).at(here()).first()
+      block(width: 100%)[
+        #line(length: 100%, stroke: 0.55pt + hairline)
+        #set text(size: 7.8pt, fill: muted, font: "JetBrains Mono")
+        #grid(columns: (1fr, auto), align: horizon)[
+          #if confidential-mark != none [#upper[#confidential-mark]] else []
+        ][#num]
+      ]
+    },
+  )
+  set par(justify: true, leading: 0.74em, first-line-indent: 0em)
+  set text(lang: lang, region: region, size: fontsize, fill: ink)
+  set text(font: font) if font != none
+  set heading(numbering: sectionnumbering)
+  show link: set text(fill: link-ink)
+
+  show heading.where(level: 1): it => block(above: 1.7em, below: 0.62em)[
+    #grid(columns: (18pt, 1fr), column-gutter: 9pt, align: horizon)[
+      #line(length: 18pt, stroke: 2.5pt + accent-color)
+    ][
+      #set text(font: "Georgia", size: 15pt, weight: "bold", fill: ink)
+      #it.body
+    ]
+  ]
+  show heading.where(level: 2): it => block(above: 1.1em, below: 0.42em)[
+    #set text(font: "Georgia", size: 11.5pt, weight: "bold", fill: ink)
+    #it.body
+  ]
+  show heading.where(level: 3): set text(font: "Georgia", size: 10pt, weight: "bold", fill: muted)
+
+  show figure.caption: set text(size: 8.7pt, fill: muted)
+  show figure.caption: set align(left)
+  show quote: it => block(
+    width: 100%,
+    fill: panel,
+    radius: 6pt,
+    inset: (left: 16pt, right: 14pt, y: 10pt),
+    stroke: (left: 3pt + accent-color),
+  )[
+    #set text(size: 10.5pt, style: "italic", fill: ink)
+    #it
+  ]
+  show table: set table(stroke: 0.5pt + hairline, inset: 6pt)
+  show table.cell.where(y: 0): set text(weight: "bold", fill: ink)
+
+  if title != none {
+    if title-layout == "compact" {
+      block(
+        width: 100%,
+        inset: (left: 18pt, y: 15pt),
+        stroke: (left: 4pt + accent-color),
+      )[
+        #set par(justify: false)
+        #if eyebrow != none {
+          line(length: 26pt, stroke: 1.4pt + accent-color)
+          v(0.4em)
+          set text(font: "JetBrains Mono", size: 8pt, weight: "medium", fill: accent-color)
+          upper[#eyebrow]
+          v(0.45em)
+        }
+        #set text(font: "Georgia", size: 23pt, weight: "bold", fill: ink, hyphenate: false)
+        #title
+        #if subtitle != none {
+          v(0.35em)
+          set text(size: 11pt, fill: muted)
+          subtitle
+        }
+        #v(0.75em)
+        #set text(size: 8.5pt, fill: muted)
+        #grid(columns: (1fr, auto), align: horizon)[
+          #if organization != none [#organization] else if authors != () [#authors.map(a => a.name).join(", ")] else []
+        ][#date]
+      ]
+      v(1.0em)
+    } else {
+      block(
+        width: 100%,
+        fill: panel,
+        radius: 10pt,
+        inset: (left: 26pt, right: 24pt, top: 32pt, bottom: 28pt),
+        stroke: (left: 7pt + accent-color, rest: 0.6pt + hairline),
+      )[
+        #set par(justify: false)
+        #if eyebrow != none {
+          line(length: 26pt, stroke: 1.4pt + accent-color)
+          v(0.4em)
+          set text(font: "JetBrains Mono", size: 8.5pt, weight: "medium", fill: accent-color)
+          upper[#eyebrow]
+          v(0.7em)
+        }
+        #set text(font: "Georgia", size: 29pt, weight: "bold", fill: ink, hyphenate: false)
+        #title
+        #if subtitle != none {
+          v(0.5em)
+          set text(size: 12pt, fill: muted)
+          subtitle
+        }
+        #v(1.25em)
+        #line(length: 46pt, stroke: 2.2pt + accent-color)
+        #v(0.7em)
+        #set text(size: 8.8pt, fill: muted)
+        #grid(columns: (1fr, auto), align: horizon)[
+          #if organization != none [#organization] else if authors != () [#authors.map(a => a.name).join(", ")] else []
+        ][#date]
+      ]
+      v(1.15em)
+    }
+  }
+
+  if metrics != () and metrics.len() > 0 {
+    let n = metrics.len()
+    let metric-cols = if n == 1 {
+      (1fr,)
+    } else if n == 2 or n == 4 {
+      (1fr, 1fr)
+    } else {
+      (1fr, 1fr, 1fr)
+    }
+    grid(
+      columns: metric-cols,
+      column-gutter: 9pt,
+      row-gutter: 9pt,
+      ..metrics.map(metric => block(
+        fill: panel,
+        radius: 6pt,
+        inset: (x: 12pt, y: 10pt),
+        stroke: 0.55pt + hairline,
+      )[
+        #set text(font: "Georgia", size: 15pt, weight: "bold", fill: ink)
+        #metric.value
+        #linebreak()
+        #set text(font: "JetBrains Mono", size: 7.7pt, fill: muted)
+        #upper[#metric.label]
+      ])
+    )
+    v(0.85em)
+  }
+
+  if abstract != none {
+    block(
+      width: 100%,
+      fill: rgb("#efe4cb"),
+      radius: 7pt,
+      inset: (x: 15pt, y: 12pt),
+    )[
+      #set text(size: 9.6pt, fill: muted)
+      #abstract
+    ]
+    v(0.9em)
+  }
+
+  doc
+}
+"""
+
+PORTFOLIO_DARK_TYPT_TEMPLATE = r"""// report-forge "portfolio-dark" — studio structure, portfolio dark palette
+#let portfolio_dark(
+  title: none, subtitle: none, authors: (), keywords: (),
+  date: none, abstract: none, abstract-title: none, thanks: none,
+  metrics: (), organization: none, eyebrow: none,
+  title-layout: "hero", accent: "#d9a54e", confidential-mark: none,
+  cols: 1, margin: (x: 0.82in, top: 0.72in, bottom: 0.9in),
+  paper: "us-letter", lang: "en", region: "US",
+  font: none, fontsize: 10.5pt, mathfont: none, codefont: none,
+  linestretch: 1.15, sectionnumbering: none, linkcolor: none,
+  citecolor: none, filecolor: none, pagenumbering: "1", doc,
+) = {
+  let paper-tone = rgb("#0a0d12")
+  let panel = rgb("#10151d")
+  let ink = rgb("#e7eaf0")
+  let muted = rgb("#9aa4b2")
+  let hairline = rgb("#1e2632")
+  let accent-color = rgb(accent)
+  let link-ink = rgb("#56cfc4")
+
+  set document(title: title, keywords: keywords)
+  set page(
+    paper: paper,
+    margin: margin,
+    fill: paper-tone,
+    numbering: pagenumbering,
+    header: context {
+      let num = counter(page).at(here()).first()
+      if num >= 2 {
+        block(width: 100%)[
+          #set text(size: 7.8pt, fill: muted, font: "JetBrains Mono")
+          #grid(columns: (1fr, auto), align: horizon)[
+            #if organization != none [#upper[#organization]] else if eyebrow != none [#upper[#eyebrow]] else [PORTFOLIO REPORT]
+          ][#date]
+          #line(length: 100%, stroke: 0.55pt + hairline)
+        ]
+      }
+    },
+    footer: context {
+      let num = counter(page).at(here()).first()
+      block(width: 100%)[
+        #line(length: 100%, stroke: 0.55pt + hairline)
+        #set text(size: 7.8pt, fill: muted, font: "JetBrains Mono")
+        #grid(columns: (1fr, auto), align: horizon)[
+          #if confidential-mark != none [#upper[#confidential-mark]] else []
+        ][#num]
+      ]
+    },
+  )
+  set par(justify: true, leading: 0.74em, first-line-indent: 0em)
+  set text(lang: lang, region: region, size: fontsize, fill: ink)
+  set text(font: font) if font != none
+  set heading(numbering: sectionnumbering)
+  show link: set text(fill: link-ink)
+
+  show heading.where(level: 1): it => block(above: 1.7em, below: 0.62em)[
+    #grid(columns: (18pt, 1fr), column-gutter: 9pt, align: horizon)[
+      #line(length: 18pt, stroke: 2.5pt + accent-color)
+    ][
+      #set text(font: "Georgia", size: 15pt, weight: "bold", fill: ink)
+      #it.body
+    ]
+  ]
+  show heading.where(level: 2): it => block(above: 1.1em, below: 0.42em)[
+    #set text(font: "Georgia", size: 11.5pt, weight: "bold", fill: ink)
+    #it.body
+  ]
+  show heading.where(level: 3): set text(font: "Georgia", size: 10pt, weight: "bold", fill: muted)
+
+  show figure.caption: set text(size: 8.7pt, fill: muted)
+  show figure.caption: set align(left)
+  show quote: it => block(
+    width: 100%,
+    fill: panel,
+    radius: 6pt,
+    inset: (left: 16pt, right: 14pt, y: 10pt),
+    stroke: (left: 3pt + accent-color),
+  )[
+    #set text(size: 10.5pt, style: "italic", fill: ink)
+    #it
+  ]
+  show table: set table(stroke: 0.5pt + hairline, inset: 6pt)
+  show table.cell.where(y: 0): set text(weight: "bold", fill: ink)
+
+  if title != none {
+    if title-layout == "compact" {
+      block(
+        width: 100%,
+        inset: (left: 18pt, y: 15pt),
+        stroke: (left: 4pt + accent-color),
+      )[
+        #set par(justify: false)
+        #if eyebrow != none {
+          line(length: 26pt, stroke: 1.4pt + accent-color)
+          v(0.4em)
+          set text(font: "JetBrains Mono", size: 8pt, weight: "medium", fill: accent-color)
+          upper[#eyebrow]
+          v(0.45em)
+        }
+        #set text(font: "Georgia", size: 23pt, weight: "bold", fill: ink, hyphenate: false)
+        #title
+        #if subtitle != none {
+          v(0.35em)
+          set text(size: 11pt, fill: muted)
+          subtitle
+        }
+        #v(0.75em)
+        #set text(size: 8.5pt, fill: muted)
+        #grid(columns: (1fr, auto), align: horizon)[
+          #if organization != none [#organization] else if authors != () [#authors.map(a => a.name).join(", ")] else []
+        ][#date]
+      ]
+      v(1.0em)
+    } else {
+      block(
+        width: 100%,
+        fill: panel,
+        radius: 10pt,
+        inset: (left: 26pt, right: 24pt, top: 32pt, bottom: 28pt),
+        stroke: (left: 7pt + accent-color, rest: 0.6pt + hairline),
+      )[
+        #set par(justify: false)
+        #if eyebrow != none {
+          line(length: 26pt, stroke: 1.4pt + accent-color)
+          v(0.4em)
+          set text(font: "JetBrains Mono", size: 8.5pt, weight: "medium", fill: accent-color)
+          upper[#eyebrow]
+          v(0.7em)
+        }
+        #set text(font: "Georgia", size: 29pt, weight: "bold", fill: ink, hyphenate: false)
+        #title
+        #if subtitle != none {
+          v(0.5em)
+          set text(size: 12pt, fill: muted)
+          subtitle
+        }
+        #v(1.25em)
+        #line(length: 46pt, stroke: 2.2pt + accent-color)
+        #v(0.7em)
+        #set text(size: 8.8pt, fill: muted)
+        #grid(columns: (1fr, auto), align: horizon)[
+          #if organization != none [#organization] else if authors != () [#authors.map(a => a.name).join(", ")] else []
+        ][#date]
+      ]
+      v(1.15em)
+    }
+  }
+
+  if metrics != () and metrics.len() > 0 {
+    let n = metrics.len()
+    let metric-cols = if n == 1 {
+      (1fr,)
+    } else if n == 2 or n == 4 {
+      (1fr, 1fr)
+    } else {
+      (1fr, 1fr, 1fr)
+    }
+    grid(
+      columns: metric-cols,
+      column-gutter: 9pt,
+      row-gutter: 9pt,
+      ..metrics.map(metric => block(
+        fill: panel,
+        radius: 6pt,
+        inset: (x: 12pt, y: 10pt),
+        stroke: 0.55pt + hairline,
+      )[
+        #set text(font: "Georgia", size: 15pt, weight: "bold", fill: ink)
+        #metric.value
+        #linebreak()
+        #set text(font: "JetBrains Mono", size: 7.7pt, fill: muted)
+        #upper[#metric.label]
+      ])
+    )
+    v(0.85em)
+  }
+
+  if abstract != none {
+    block(
+      width: 100%,
+      fill: rgb("#151b25"),
+      radius: 7pt,
+      inset: (x: 15pt, y: 12pt),
+    )[
+      #set text(size: 9.6pt, fill: muted)
+      #abstract
+    ]
+    v(0.9em)
+  }
+
+  doc
+}
+"""
+
+PORTFOLIO_DARK_TYPT_SHOW = """\
+#show: doc => portfolio_dark(
+$if(title)$
+  title: [$title$],
+$endif$
+$if(subtitle)$
+  subtitle: [$subtitle$],
+$endif$
+$if(by-author)$
+  authors: (
+$for(by-author)$
+$if(it.name.literal)$
+    ( name: [$it.name.literal$] ),
+$endif$
+$endfor$
+  ),
+$endif$
+$if(date)$
+  date: [$date$],
+$endif$
+$if(abstract)$
+  abstract: [$abstract$],
+$endif$
+$if(organization)$
+  organization: [$organization$],
+$endif$
+$if(eyebrow)$
+  eyebrow: [$eyebrow$],
+$endif$
+$if(title-layout)$
+  title-layout: "$title-layout$",
+$endif$
+$if(accent-typst)$
+  accent: "#$accent-typst$",
+$endif$
+$if(confidential-mark)$
+  confidential-mark: [$confidential-mark$],
+$endif$
+$if(metrics)$
+  metrics: (
+$for(metrics)$
+    ( value: [$it.value$], label: [$it.label$] ),
+$endfor$
+  ),
+$endif$
+$if(papersize)$
+  paper: "$papersize$",
+$endif$
+$if(mainfont)$
+  font: ("$mainfont$",),
+$endif$
+$if(fontsize)$
+  fontsize: $fontsize$,
+$endif$
+$if(section-numbering)$
+  sectionnumbering: "$section-numbering$",
+$endif$
+  pagenumbering: $if(page-numbering)$"$page-numbering$"$else$none$endif$,
+  doc,
+)
+"""
+
+PORTFOLIO_LIGHT_STYLES_EXTRA = """
+/* Portfolio light: warm paper, serif display, gold kicker. */
+:root {
+  --rf-accent: <% accent %>;
+  --rf-paper: #e5ddcc;
+  --rf-panel: #ebe3d2;
+  --rf-panel-2: #e0d7c4;
+  --rf-ink: #362e21;
+  --rf-muted: #6d6250;
+  --rf-faint: #7b7060;
+  --rf-gold: #8f621f;
+  --rf-aqua: #14756c;
+  --rf-line: #d3c8b0;
+}
+
+body {
+  background: var(--rf-paper);
+  color: var(--rf-ink);
+}
+
+#title-block-header {
+  display: none;
+}
+
+.rf-studio-header {
+  --rf-accent: #8f621f;
+  width: min(1120px, calc(100% - 3rem));
+  margin: 2rem auto 3.5rem;
+  border: 1px solid var(--rf-line);
+  border-radius: 14px;
+  background: var(--rf-panel);
+  box-shadow: 0 18px 44px rgba(64, 52, 28, 0.16);
+}
+
+.rf-title-frame {
+  padding: 4.2rem 4.5rem 2.4rem;
+}
+
+.rf-layout-compact .rf-title-frame {
+  padding: 2.4rem 3rem 1.9rem;
+}
+
+.rf-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 1rem;
+  color: var(--rf-accent);
+  font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.rf-eyebrow::before {
+  content: "";
+  width: 26px;
+  border-top: 2px solid var(--rf-accent);
+}
+
+.rf-display-title {
+  max-width: 900px;
+  margin: 0;
+  color: var(--rf-ink);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(2.5rem, 6vw, 4.6rem);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.04;
+  overflow-wrap: anywhere;
+}
+
+.rf-layout-compact .rf-display-title {
+  font-size: clamp(2rem, 4.5vw, 3.2rem);
+}
+
+.rf-display-subtitle {
+  max-width: 760px;
+  margin: 1.25rem 0 0;
+  color: var(--rf-muted);
+  font-size: clamp(1.05rem, 2vw, 1.3rem);
+  line-height: 1.5;
+}
+
+.rf-title-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 1.25rem;
+  align-items: center;
+  margin-top: 2rem;
+  color: var(--rf-muted);
+  font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+  font-size: 0.78rem;
+}
+
+.rf-title-meta span + span::before,
+.rf-title-meta span + time::before,
+.rf-title-meta time::before {
+  content: "·";
+  margin-right: 1.25rem;
+  color: var(--rf-line);
+}
+
+.rf-organization {
+  color: var(--rf-ink);
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 600;
+}
+
+.rf-deck {
+  max-width: 800px;
+  margin: 2rem 0 0;
+  padding-top: 1.35rem;
+  border-top: 1px solid var(--rf-line);
+  color: var(--rf-muted);
+  font-size: 1rem;
+  line-height: 1.65;
+}
+
+.rf-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  border-top: 1px solid var(--rf-line);
+  background: var(--rf-line);
+}
+
+.rf-metrics-1 {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.rf-metrics-2,
+.rf-metrics-4 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.rf-metric {
+  min-width: 0;
+  padding: 1.35rem 1.65rem;
+  background: var(--rf-panel);
+}
+
+.rf-metric-value {
+  color: var(--rf-ink);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(1.35rem, 3vw, 2rem);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.rf-metric-label {
+  margin-top: 0.2rem;
+  color: var(--rf-muted);
+  font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+main.content {
+  max-width: 880px;
+}
+
+main.content section.level1 > h1 {
+  margin-top: 3.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--rf-line);
+  color: var(--rf-ink);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(1.75rem, 3vw, 2.4rem);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+main.content h2 {
+  color: var(--rf-ink);
+  font-family: "Fraunces", Georgia, serif;
+  letter-spacing: -0.01em;
+}
+
+.studio-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+.studio-card {
+  padding: 1.35rem 1.45rem;
+  border: 1px solid var(--rf-line);
+  border-radius: 14px;
+  background: var(--rf-panel);
+  box-shadow: 0 18px 44px rgba(64, 52, 28, 0.1);
+}
+
+.studio-card h2 {
+  margin-top: 0;
+  font-size: 1.1rem;
+}
+
+blockquote {
+  margin: 1.6rem 0;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--rf-line);
+  border-left: 5px solid var(--rf-accent, #8f621f);
+  border-radius: 0 12px 12px 0;
+  background: var(--rf-panel);
+  color: var(--rf-ink);
+  font-style: normal;
+}
+
+table {
+  overflow: hidden;
+  border: 1px solid var(--rf-line);
+  border-radius: 10px;
+  background: var(--rf-panel);
+  font-size: 0.92em;
+}
+
+thead {
+  background: var(--rf-panel-2);
+}
+
+.figure-caption,
+caption {
+  color: var(--rf-muted);
+  font-size: 0.85rem;
+  text-align: left;
+}
+
+a {
+  color: var(--rf-aqua);
+}
+
+code {
+  color: var(--rf-aqua);
+}
+
+@media (max-width: 720px) {
+  .rf-studio-header {
+    width: min(100% - 1rem, 1120px);
+    margin-top: 0.5rem;
+  }
+
+  .rf-title-frame,
+  .rf-layout-compact .rf-title-frame {
+    padding: 2.3rem 1.5rem 1.7rem 1.8rem;
+  }
+
+  .rf-display-title {
+    font-size: clamp(2.15rem, 12vw, 3.2rem);
+  }
+
+  .rf-title-meta {
+    display: grid;
+    gap: 0.35rem;
+  }
+
+  .rf-title-meta span + span::before,
+  .rf-title-meta span + time::before,
+  .rf-title-meta time::before {
+    content: none;
+  }
+
+  .rf-metric-grid,
+  .studio-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .rf-metric {
+    padding: 1rem 1.5rem;
+  }
+}
+
+@media print {
+  .rf-studio-header {
+    box-shadow: none;
+    break-inside: avoid;
+  }
+}
+"""
+
+PORTFOLIO_DARK_STYLES_EXTRA = """
+/* Portfolio dark: near-black, serif display, gold kicker. */
+:root {
+  --rf-accent: <% accent %>;
+  --rf-paper: #0a0d12;
+  --rf-panel: #10151d;
+  --rf-panel-2: #151b25;
+  --rf-ink: #e7eaf0;
+  --rf-muted: #9aa4b2;
+  --rf-faint: #7d8795;
+  --rf-gold: #d9a54e;
+  --rf-aqua: #56cfc4;
+  --rf-line: #1e2632;
+  color-scheme: dark;
+}
+
+body {
+  background: var(--rf-paper);
+  color: var(--rf-ink);
+}
+
+#title-block-header {
+  display: none;
+}
+
+.rf-studio-header {
+  --rf-accent: #d9a54e;
+  width: min(1120px, calc(100% - 3rem));
+  margin: 2rem auto 3.5rem;
+  border: 1px solid var(--rf-line);
+  border-radius: 14px;
+  background: var(--rf-panel);
+  box-shadow: 0 18px 50px rgba(2, 6, 12, 0.45);
+}
+
+.rf-title-frame {
+  padding: 4.2rem 4.5rem 2.4rem;
+}
+
+.rf-layout-compact .rf-title-frame {
+  padding: 2.4rem 3rem 1.9rem;
+}
+
+.rf-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 1rem;
+  color: var(--rf-accent);
+  font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.rf-eyebrow::before {
+  content: "";
+  width: 26px;
+  border-top: 2px solid var(--rf-accent);
+}
+
+.rf-display-title {
+  max-width: 900px;
+  margin: 0;
+  color: var(--rf-ink);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(2.5rem, 6vw, 4.6rem);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.04;
+  overflow-wrap: anywhere;
+}
+
+.rf-layout-compact .rf-display-title {
+  font-size: clamp(2rem, 4.5vw, 3.2rem);
+}
+
+.rf-display-subtitle {
+  max-width: 760px;
+  margin: 1.25rem 0 0;
+  color: var(--rf-muted);
+  font-size: clamp(1.05rem, 2vw, 1.3rem);
+  line-height: 1.5;
+}
+
+.rf-title-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 1.25rem;
+  align-items: center;
+  margin-top: 2rem;
+  color: var(--rf-muted);
+  font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+  font-size: 0.78rem;
+}
+
+.rf-title-meta span + span::before,
+.rf-title-meta span + time::before,
+.rf-title-meta time::before {
+  content: "·";
+  margin-right: 1.25rem;
+  color: var(--rf-line);
+}
+
+.rf-organization {
+  color: var(--rf-ink);
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 600;
+}
+
+.rf-deck {
+  max-width: 800px;
+  margin: 2rem 0 0;
+  padding-top: 1.35rem;
+  border-top: 1px solid var(--rf-line);
+  color: var(--rf-muted);
+  font-size: 1rem;
+  line-height: 1.65;
+}
+
+.rf-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  border-top: 1px solid var(--rf-line);
+  background: var(--rf-line);
+}
+
+.rf-metrics-1 {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.rf-metrics-2,
+.rf-metrics-4 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.rf-metric {
+  min-width: 0;
+  padding: 1.35rem 1.65rem;
+  background: var(--rf-panel);
+}
+
+.rf-metric-value {
+  color: var(--rf-ink);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(1.35rem, 3vw, 2rem);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.rf-metric-label {
+  margin-top: 0.2rem;
+  color: var(--rf-muted);
+  font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+main.content {
+  max-width: 880px;
+}
+
+main.content section.level1 > h1 {
+  margin-top: 3.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--rf-line);
+  color: var(--rf-ink);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(1.75rem, 3vw, 2.4rem);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+main.content h2 {
+  color: var(--rf-ink);
+  font-family: "Fraunces", Georgia, serif;
+  letter-spacing: -0.01em;
+}
+
+.studio-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+.studio-card {
+  padding: 1.35rem 1.45rem;
+  border: 1px solid var(--rf-line);
+  border-radius: 14px;
+  background: var(--rf-panel);
+  box-shadow: 0 18px 50px rgba(2, 6, 12, 0.35);
+}
+
+.studio-card h2 {
+  margin-top: 0;
+  font-size: 1.1rem;
+}
+
+blockquote {
+  margin: 1.6rem 0;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--rf-line);
+  border-left: 5px solid var(--rf-accent, #d9a54e);
+  border-radius: 0 12px 12px 0;
+  background: var(--rf-panel);
+  color: var(--rf-ink);
+  font-style: normal;
+}
+
+table {
+  overflow: hidden;
+  border: 1px solid var(--rf-line);
+  border-radius: 10px;
+  background: var(--rf-panel);
+  font-size: 0.92em;
+}
+
+thead {
+  background: var(--rf-panel-2);
+}
+
+.figure-caption,
+caption {
+  color: var(--rf-muted);
+  font-size: 0.85rem;
+  text-align: left;
+}
+
+a {
+  color: var(--rf-aqua);
+}
+
+code {
+  color: var(--rf-aqua);
+}
+
+@media (max-width: 720px) {
+  .rf-studio-header {
+    width: min(100% - 1rem, 1120px);
+    margin-top: 0.5rem;
+  }
+
+  .rf-title-frame,
+  .rf-layout-compact .rf-title-frame {
+    padding: 2.3rem 1.5rem 1.7rem 1.8rem;
+  }
+
+  .rf-display-title {
+    font-size: clamp(2.15rem, 12vw, 3.2rem);
+  }
+
+  .rf-title-meta {
+    display: grid;
+    gap: 0.35rem;
+  }
+
+  .rf-title-meta span + span::before,
+  .rf-title-meta span + time::before,
+  .rf-title-meta time::before {
+    content: none;
+  }
+
+  .rf-metric-grid,
+  .studio-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .rf-metric {
+    padding: 1rem 1.5rem;
+  }
+}
+
+@media print {
+  .rf-studio-header {
+    box-shadow: none;
+    break-inside: avoid;
+  }
+}
+"""
+
+PORTFOLIO_LIGHT_TYPT_SHOW = """\
+#show: doc => portfolio_light(
+$if(title)$
+  title: [$title$],
+$endif$
+$if(subtitle)$
+  subtitle: [$subtitle$],
+$endif$
+$if(by-author)$
+  authors: (
+$for(by-author)$
+$if(it.name.literal)$
+    ( name: [$it.name.literal$] ),
+$endif$
+$endfor$
+  ),
+$endif$
+$if(date)$
+  date: [$date$],
+$endif$
+$if(abstract)$
+  abstract: [$abstract$],
+$endif$
+$if(organization)$
+  organization: [$organization$],
+$endif$
+$if(eyebrow)$
+  eyebrow: [$eyebrow$],
+$endif$
+$if(title-layout)$
+  title-layout: "$title-layout$",
+$endif$
+$if(accent-typst)$
+  accent: "#$accent-typst$",
+$endif$
+$if(confidential-mark)$
+  confidential-mark: [$confidential-mark$],
+$endif$
+$if(metrics)$
+  metrics: (
+$for(metrics)$
+    ( value: [$it.value$], label: [$it.label$] ),
+$endfor$
+  ),
+$endif$
+$if(papersize)$
+  paper: "$papersize$",
+$endif$
+$if(mainfont)$
+  font: ("$mainfont$",),
+$endif$
+$if(fontsize)$
+  fontsize: $fontsize$,
+$endif$
+$if(section-numbering)$
+  sectionnumbering: "$section-numbering$",
+$endif$
+  pagenumbering: $if(page-numbering)$"$page-numbering$"$else$none$endif$,
+  doc,
+)
+"""

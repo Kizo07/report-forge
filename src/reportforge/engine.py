@@ -55,6 +55,15 @@ class RenderResult:
     log_tail: str
 
 
+# Templates sharing the studio editorial pipeline (hero/compact title,
+# eyebrow, organization, 0-6 metrics, accent override, exhibit labels).
+_PORTFOLIO_TEMPLATES = {"portfolio-light", "portfolio-dark"}
+_EDITORIAL_TEMPLATES = {"studio"} | _PORTFOLIO_TEMPLATES
+# Site-gold defaults (Kizo07.github.io); used only when the caller leaves
+# the generic scaffold accent untouched.
+_PORTFOLIO_DEFAULT_ACCENTS = {"portfolio-light": "#8f621f", "portfolio-dark": "#d9a54e"}
+
+
 def list_templates() -> list[dict]:
     return [
         {"name": "standard", "description": "Multi-section business report: executive summary, analysis, recommendations. TOC + numbered sections; html/pdf/docx.", "toc": True, "number_sections": True, "formats": ["html", "pdf", "docx"]},
@@ -62,6 +71,8 @@ def list_templates() -> list[dict]:
         {"name": "whitepaper", "description": "Hedge-fund-style institutional white paper: key takeaways, investment thesis, framework, exhibit-driven analysis, portfolio implications, risk factors. Figures/tables labeled 'Exhibit N' with unified numbering; title page, TOC + numbered sections; html/pdf/docx.", "toc": True, "number_sections": True, "exhibit_labels": True, "papersize": "us-letter", "formats": ["html", "pdf", "docx"]},
         {"name": "modern", "description": "Modern branded research brief: full-bleed dark masthead with firm + subtitle, KPI stat strip, accent-tick headings, running header/footer with confidentiality mark, exhibit-driven short sections (executive summary → signal → actions → risks). Custom typst PDF template; figures/tables labeled 'Exhibit N'; html/pdf/docx.", "toc": False, "number_sections": False, "exhibit_labels": True, "papersize": "us-letter", "formats": ["html", "pdf", "docx"]},
         {"name": "studio", "description": "Premium content-neutral editorial report: hero or compact title, optional organization/eyebrow/metrics/footer, configurable accent, flexible Markdown sections, refined figures and tables. Custom Typst PDF and responsive HTML; html/pdf/docx.", "toc": False, "number_sections": False, "exhibit_labels": True, "papersize": "us-letter", "formats": ["html", "pdf", "docx"], "content_neutral": True, "title_layouts": ["hero", "compact"], "max_metrics": 6},
+        {"name": "portfolio-light", "description": "Studio editorial pipeline in the portfolio light theme: warm paper, serif display type, gold kicker. Hero/compact title, eyebrow, organization, 0-6 metrics, accent override, exhibit labels; html/pdf/docx.", "toc": False, "number_sections": False, "exhibit_labels": True, "papersize": "us-letter", "formats": ["html", "pdf", "docx"], "content_neutral": True, "title_layouts": ["hero", "compact"], "max_metrics": 6},
+        {"name": "portfolio-dark", "description": "Studio editorial pipeline in the portfolio dark theme: near-black paper, serif display type, gold kicker. Hero/compact title, eyebrow, organization, 0-6 metrics, accent override, exhibit labels; html/pdf/docx.", "toc": False, "number_sections": False, "exhibit_labels": True, "papersize": "us-letter", "formats": ["html", "pdf", "docx"], "content_neutral": True, "title_layouts": ["hero", "compact"], "max_metrics": 6},
         {"name": "bespoke", "description": "Minimal project, no template opinions: you supply the full .qmd frontmatter and body (via write_report_body / append_section). Use for custom layouts, html-first designs, or the pdf-web (headless-Chromium print) path. html/pdf/docx/pdf-web.", "toc": False, "number_sections": False, "formats": ["html", "pdf", "docx", "pdf-web"], "content_neutral": True},
     ]
 
@@ -122,11 +133,15 @@ def scaffold_report(
     normalized_kpis, kpi_error = _normalize_kpis(metric_input, template)
     if kpi_error:
         return {"ok": False, "error": kpi_error}
-    if template == "studio":
+    if template in _EDITORIAL_TEMPLATES:
         if title_layout not in {"hero", "compact"}:
             return {"ok": False, "error": "title layout must be 'hero' or 'compact'"}
         if not re.fullmatch(r"#[0-9a-fA-F]{6}", accent):
             return {"ok": False, "error": "accent must be a six-digit hex color such as #4f46e5"}
+    if template in _PORTFOLIO_TEMPLATES and accent.lower() == "#4f46e5":
+        # Portfolio templates default to the site gold unless the caller
+        # passes an explicit accent.
+        accent = _PORTFOLIO_DEFAULT_ACCENTS[template]
 
     slug = "".join(c if c.isalnum() or c in "-_" else "-" for c in slug.strip().lower())
     if not slug:
@@ -212,12 +227,12 @@ def scaffold_report(
         "papersize": spec.get("papersize", "a4"),
         "confidential_mark": confidential_mark,
         "kpis_yaml": kpis_yaml,
-        "organization": organization or (firm if template == "studio" else ""),
+        "organization": organization or (firm if template in _EDITORIAL_TEMPLATES else ""),
         "eyebrow": eyebrow,
         "title_layout": title_layout,
         "accent": accent.lower(),
-        "metrics": kpis if template == "studio" else [],
-        "metrics_count": len(kpis) if template == "studio" else 0,
+        "metrics": kpis if template in _EDITORIAL_TEMPLATES else [],
+        "metrics_count": len(kpis) if template in _EDITORIAL_TEMPLATES else 0,
         "jupyter_kernel": kernel,
     }
     for field in (
@@ -259,30 +274,53 @@ def scaffold_report(
         (root / "_quarto.yml").write_text(_tpl(templates.MODERN_YML).render(ctx))
         (assets / "typst-template.typ").write_text(templates.MODERN_TYPT_TEMPLATE)
         (assets / "typst-show.typ").write_text(templates.MODERN_TYPT_SHOW)
-    elif template == "studio":
-        (root / "_quarto.yml").write_text(_tpl(templates.STUDIO_YML).render(ctx))
-        (assets / "typst-template.typ").write_text(templates.STUDIO_TYPT_TEMPLATE)
-        (assets / "typst-show.typ").write_text(templates.STUDIO_TYPT_SHOW)
-        (assets / "studio-header.html").write_text(
+        brand_tpl = templates.BRAND_YML
+        styles_extra = templates.MODERN_STYLES_EXTRA
+        body_tpl = templates.MODERN_QMD
+    elif template in _EDITORIAL_TEMPLATES:
+        if template == "studio":
+            yml_tpl = templates.STUDIO_YML
+            typt_tpl = templates.STUDIO_TYPT_TEMPLATE
+            show_tpl = templates.STUDIO_TYPT_SHOW
+            header_name = "studio-header.html"
+            brand_tpl = templates.BRAND_YML
+            styles_extra = templates.STUDIO_STYLES_EXTRA
+        elif template == "portfolio-light":
+            yml_tpl = templates.PORTFOLIO_YML
+            typt_tpl = templates.PORTFOLIO_LIGHT_TYPT_TEMPLATE
+            show_tpl = templates.PORTFOLIO_LIGHT_TYPT_SHOW
+            header_name = "portfolio-header.html"
+            brand_tpl = templates.PORTFOLIO_LIGHT_BRAND_YML
+            styles_extra = templates.PORTFOLIO_LIGHT_STYLES_EXTRA
+        else:
+            yml_tpl = templates.PORTFOLIO_YML
+            typt_tpl = templates.PORTFOLIO_DARK_TYPT_TEMPLATE
+            show_tpl = templates.PORTFOLIO_DARK_TYPT_SHOW
+            header_name = "portfolio-header.html"
+            brand_tpl = templates.PORTFOLIO_DARK_BRAND_YML
+            styles_extra = templates.PORTFOLIO_DARK_STYLES_EXTRA
+        (root / "_quarto.yml").write_text(_tpl(yml_tpl).render(ctx))
+        (assets / "typst-template.typ").write_text(typt_tpl)
+        (assets / "typst-show.typ").write_text(show_tpl)
+        # Portfolio variants reuse the studio header markup (same eyebrow /
+        # title / meta / metrics contract); the variant stylesheet dresses it.
+        (assets / header_name).write_text(
             _tpl(templates.STUDIO_HTML_HEADER).render(ctx)
         )
+        body_tpl = templates.STUDIO_QMD
     else:
         (root / "_quarto.yml").write_text(_tpl(templates.QUARTO_YML).render(ctx))
-    (root / "_brand.yml").write_text(templates.BRAND_YML)
-    styles = templates.STYLES_SCSS
-    body_tpl = {
-        "standard": templates.INDEX_QMD,
-        "memo": templates.MEMO_QMD,
-        "whitepaper": templates.WHITEPAPER_QMD,
-        "modern": templates.MODERN_QMD,
-        "studio": templates.STUDIO_QMD,
-    }[template]
-    if template == "whitepaper":
-        styles += templates.WHITEPAPER_STYLES_EXTRA
-    elif template == "modern":
-        styles += templates.MODERN_STYLES_EXTRA
-    elif template == "studio":
-        styles += templates.STUDIO_STYLES_EXTRA
+        brand_tpl = templates.BRAND_YML
+        styles_extra = (
+            templates.WHITEPAPER_STYLES_EXTRA if template == "whitepaper" else ""
+        )
+        body_tpl = {
+            "standard": templates.INDEX_QMD,
+            "memo": templates.MEMO_QMD,
+            "whitepaper": templates.WHITEPAPER_QMD,
+        }[template]
+    (root / "_brand.yml").write_text(brand_tpl)
+    styles = templates.STYLES_SCSS + styles_extra
     (root / "styles.scss").write_text(_tpl(styles).render(ctx))
     body = _tpl(body_tpl).render(ctx)
     kept_formats = [f for f in ("html", "pdf", "docx") if f in formats]
@@ -290,7 +328,7 @@ def scaffold_report(
     # The modern template declares `format: typst` in place of `format: pdf`
     # (format: pdf rejects template-partials). Treat pdf↔typst as one slot
     # for keep/drop decisions.
-    yml_fmt_key = "typst" if template in {"modern", "studio"} else "pdf"
+    yml_fmt_key = "typst" if template in ({"modern"} | _EDITORIAL_TEMPLATES) else "pdf"
     for fmt in ("html", "pdf", "docx"):
         if fmt not in kept_formats:
             yml = _drop_yaml_block(yml, yml_fmt_key if fmt == "pdf" else fmt)
@@ -913,6 +951,10 @@ def _render_pdf_web(workdir: Path, html_path: Path, out_dir: Path, stem: str) ->
         "--no-sandbox",
         "--disable-gpu",
         "--no-pdf-header-footer",
+        # Let JS/plotly visuals settle before the print snapshot: without a
+        # virtual-time budget, heavy pages print before charts finish drawing
+        # and the PDF ships blank figure areas.
+        "--virtual-time-budget=15000",
         f"--print-to-pdf={pdf_out}",
         html_path.as_uri(),
     ]
@@ -971,8 +1013,13 @@ def publish_report(project: str, dest_dir: str | None = None) -> dict:
 
     # Deliverables: rendered top-level files + any companion asset dirs
     # (Quarto's <stem>_files for self-contained html when embed-resources
-    # is off, figures referenced relatively).
-    deliverables: list[Path] = [p for p in sorted(out_dir.iterdir()) if p.is_file()]
+    # is off, figures referenced relatively). Dotfiles are never
+    # deliverables: WS-3 render logs (output/.render-log-<fmt>.txt) stay
+    # readable via read_project_file but must not leak into thread outputs
+    # and present_files.
+    deliverables: list[Path] = [
+        p for p in sorted(out_dir.iterdir()) if p.is_file() and not p.name.startswith(".")
+    ]
     asset_dirs = [p for p in sorted(out_dir.iterdir()) if p.is_dir() and p.name.endswith("_files")]
     if not deliverables:
         return {"ok": False, "error": f"no rendered artifacts found in {out_dir}"}

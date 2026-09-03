@@ -123,7 +123,10 @@ def reportforge_scaffold_report(
             PDF template; html/pdf/docx), or 'studio' (premium,
             content-neutral editorial layout with hero/compact title,
             optional organization, eyebrow, metrics, accent, and footer;
-            flexible Markdown sections; html/pdf/docx).
+            flexible Markdown sections; html/pdf/docx), or 'portfolio-light'
+            / 'portfolio-dark' (same editorial pipeline as 'studio' in the
+            portfolio light/dark themes: warm paper or near-black, serif
+            display type, gold kicker; html/pdf/docx).
         formats: Subset of ['html', 'pdf', 'docx'] to configure; defaults per
             template. Pass a real JSON list when possible; a JSON-encoded
             string or a CSV like "html,pdf,docx" is also accepted.

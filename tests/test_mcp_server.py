@@ -162,6 +162,26 @@ def test_publish_report_copies_outputs_into_dest(tmp_path: Path, monkeypatch: py
         _shutil.rmtree(project_dir, ignore_errors=True)
 
 
+def test_publish_report_skips_dotfiles(tmp_path: Path) -> None:
+    """WS-3 render logs under output/ are diagnosable, never deliverables."""
+    project_dir = engine.REPORTS_DIR / "wsc-publish-dotfiles"
+    out = project_dir / "output"
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "index.pdf").write_bytes(b"%PDF-fake")
+    (out / ".render-log-pdf.txt").write_text("quarto log")
+    (out / ".reportforge-state.json").write_text("{}")
+    try:
+        dest = tmp_path / "thread-outputs"
+        result = engine.publish_report("wsc-publish-dotfiles", dest_dir=str(dest))
+        assert result["ok"] is True
+        assert result["published"] == ["index.pdf"]
+        assert not (dest / "wsc-publish-dotfiles" / ".render-log-pdf.txt").exists()
+    finally:
+        import shutil as _shutil
+
+        _shutil.rmtree(project_dir, ignore_errors=True)
+
+
 def test_publish_report_mcp_tool_registered() -> None:
     tools = {t.name: t for t in asyncio.run(mcp.list_tools())}
     assert "reportforge_publish_report" in tools

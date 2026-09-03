@@ -118,6 +118,26 @@ def test_append_section_inserts_before_matching_heading(isolated_reports: Path) 
     assert text.index("## Inserted") > text.index("# First")
 
 
+def test_append_section_before_matches_first_heading_case_insensitive(
+    isolated_reports: Path,
+) -> None:
+    """`before` is a case-insensitive substring anchored at the FIRST match."""
+    scaffold = engine.scaffold_report(
+        "append-firstmatch",
+        template="bespoke",
+        formats=["html"],
+        frontmatter_yaml='title: "T"',
+        body="# Risk Overview\n\none\n\n# risk details\n\ntwo\n",
+    )
+    assert scaffold["ok"] is True
+
+    result = engine.append_section("append-firstmatch", "## Inserted\n\nmid", before="RISK")
+    assert result["ok"] is True
+    text = (Path(scaffold["path"]) / "index.qmd").read_text()
+    assert text.index("## Inserted") < text.index("# Risk Overview")
+    assert text.index("## Inserted") < text.index("# risk details")
+
+
 def test_append_section_no_matching_heading(isolated_reports: Path) -> None:
     scaffold = engine.scaffold_report("append-nomatch", template="memo", formats=["html"])
     result = engine.append_section("append-nomatch", "x", before="Nonexistent Heading")
