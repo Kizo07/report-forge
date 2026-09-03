@@ -70,9 +70,9 @@ def list_templates() -> list[dict]:
         {"name": "memo", "description": "Single-purpose memo: purpose, key points, details. No TOC; html/pdf.", "toc": False, "number_sections": False, "formats": ["html", "pdf"]},
         {"name": "whitepaper", "description": "Hedge-fund-style institutional white paper: key takeaways, investment thesis, framework, exhibit-driven analysis, portfolio implications, risk factors. Figures/tables labeled 'Exhibit N' with unified numbering; title page, TOC + numbered sections; html/pdf/docx.", "toc": True, "number_sections": True, "exhibit_labels": True, "papersize": "us-letter", "formats": ["html", "pdf", "docx"]},
         {"name": "modern", "description": "Modern branded research brief: full-bleed dark masthead with firm + subtitle, KPI stat strip, accent-tick headings, running header/footer with confidentiality mark, exhibit-driven short sections (executive summary → signal → actions → risks). Custom typst PDF template; figures/tables labeled 'Exhibit N'; html/pdf/docx.", "toc": False, "number_sections": False, "exhibit_labels": True, "papersize": "us-letter", "formats": ["html", "pdf", "docx"]},
-        {"name": "studio", "description": "Premium content-neutral editorial report: hero, compact, or minimal title, optional organization/eyebrow/metrics/footer, configurable accent, flexible Markdown sections, refined figures and tables. Custom Typst PDF and responsive HTML; html/pdf/docx.", "toc": False, "number_sections": False, "exhibit_labels": True, "papersize": "us-letter", "formats": ["html", "pdf", "docx"], "content_neutral": True, "title_layouts": ["hero", "compact", "minimal"], "max_metrics": 6},
-        {"name": "portfolio-light", "description": "Studio editorial pipeline in the portfolio light theme: warm paper, serif display type, gold kicker. Hero/compact/minimal title, eyebrow, organization, 0-6 metrics, accent override, exhibit labels; html/pdf/docx.", "toc": False, "number_sections": False, "exhibit_labels": True, "papersize": "us-letter", "formats": ["html", "pdf", "docx"], "content_neutral": True, "title_layouts": ["hero", "compact", "minimal"], "max_metrics": 6},
-        {"name": "portfolio-dark", "description": "Studio editorial pipeline in the portfolio dark theme: near-black paper, serif display type, gold kicker. Hero/compact/minimal title, eyebrow, organization, 0-6 metrics, accent override, exhibit labels; html/pdf/docx.", "toc": False, "number_sections": False, "exhibit_labels": True, "papersize": "us-letter", "formats": ["html", "pdf", "docx"], "content_neutral": True, "title_layouts": ["hero", "compact", "minimal"], "max_metrics": 6},
+        {"name": "studio", "description": "Premium content-neutral editorial report: hero, compact, or minimal title, optional organization/eyebrow/metrics/verdict/key-points/scenarios cover infographics, accent override, footer, configurable accent, flexible Markdown sections, refined figures and tables. Custom Typst PDF and responsive HTML; html/pdf/docx.", "toc": False, "number_sections": False, "exhibit_labels": True, "papersize": "us-letter", "formats": ["html", "pdf", "docx"], "content_neutral": True, "title_layouts": ["hero", "compact", "minimal"], "max_metrics": 6},
+        {"name": "portfolio-light", "description": "Studio editorial pipeline in the portfolio light theme: warm paper, serif display type, gold kicker. Hero/compact/minimal title, eyebrow, organization, 0-6 metrics, verdict/key-points/scenarios cover infographics, accent override, exhibit labels; html/pdf/docx.", "toc": False, "number_sections": False, "exhibit_labels": True, "papersize": "us-letter", "formats": ["html", "pdf", "docx"], "content_neutral": True, "title_layouts": ["hero", "compact", "minimal"], "max_metrics": 6},
+        {"name": "portfolio-dark", "description": "Studio editorial pipeline in the portfolio dark theme: near-black paper, serif display type, gold kicker. Hero/compact/minimal title, eyebrow, organization, 0-6 metrics, verdict/key-points/scenarios cover infographics, accent override, exhibit labels; html/pdf/docx.", "toc": False, "number_sections": False, "exhibit_labels": True, "papersize": "us-letter", "formats": ["html", "pdf", "docx"], "content_neutral": True, "title_layouts": ["hero", "compact", "minimal"], "max_metrics": 6},
         {"name": "bespoke", "description": "Minimal project, no template opinions: you supply the full .qmd frontmatter and body (via write_report_body / append_section). Use for custom layouts, html-first designs, or the pdf-web (headless-Chromium print) path. html/pdf/docx/pdf-web.", "toc": False, "number_sections": False, "formats": ["html", "pdf", "docx", "pdf-web"], "content_neutral": True},
     ]
 
@@ -93,6 +93,9 @@ def scaffold_report(
     title_layout: str = "hero",
     accent: str = "#4f46e5",
     metrics: list[dict] | None = None,
+    verdict: str = "",
+    key_points: list[str] | None = None,
+    scenarios: list[dict] | None = None,
     frontmatter_yaml: str | None = None,
     body: str | None = None,
 ) -> dict:
@@ -133,6 +136,12 @@ def scaffold_report(
     normalized_kpis, kpi_error = _normalize_kpis(metric_input, template)
     if kpi_error:
         return {"ok": False, "error": kpi_error}
+    normalized_points, points_error = _normalize_key_points(key_points)
+    if points_error:
+        return {"ok": False, "error": points_error}
+    normalized_scenarios, scenarios_error = _normalize_scenarios(scenarios)
+    if scenarios_error:
+        return {"ok": False, "error": scenarios_error}
     if template in _EDITORIAL_TEMPLATES:
         if title_layout not in {"hero", "compact", "minimal"}:
             return {"ok": False, "error": "title layout must be 'hero', 'compact' or 'minimal'"}
@@ -233,6 +242,12 @@ def scaffold_report(
         "accent": accent.lower(),
         "metrics": kpis if template in _EDITORIAL_TEMPLATES else [],
         "metrics_count": len(kpis) if template in _EDITORIAL_TEMPLATES else 0,
+        # Cover infographics (editorial templates only): verdict band,
+        # exec-summary key-point cards, and the 3-scenario strip.
+        "verdict": verdict or "",
+        "key_points": normalized_points if template in _EDITORIAL_TEMPLATES else [],
+        "scenarios": normalized_scenarios if template in _EDITORIAL_TEMPLATES else [],
+        "scenarios_count": len(normalized_scenarios) if template in _EDITORIAL_TEMPLATES else 0,
         # Starter-body figure default: dark figures for the dark theme so the
         # example chart (and any inline chunks) match the page.
         "plotly_default": "plotly_dark" if template == "portfolio-dark" else "plotly_white",
@@ -253,9 +268,12 @@ def scaffold_report(
         "eyebrow",
         "title_layout",
         "accent",
+        "verdict",
     ):
         ctx[f"{field}_yaml"] = _yaml_scalar(ctx[field])
     ctx["metrics_yaml"] = _metric_yaml("metrics", ctx["metrics"])
+    ctx["key_points_yaml"] = _str_list_yaml("key-points", ctx["key_points"])
+    ctx["scenarios_yaml"] = _scenario_yaml(ctx["scenarios"])
     ctx["accent_typst_yaml"] = _yaml_scalar(str(ctx["accent"]).removeprefix("#"))
     ctx["title_html"] = html_escape(str(ctx["title"]))
     ctx["subtitle_html"] = html_escape(str(ctx["subtitle"]))
@@ -272,6 +290,26 @@ def scaffold_report(
             "</div>"
         )
         for metric in ctx["metrics"]
+    )
+    ctx["verdict_html"] = html_escape(str(ctx["verdict"]))
+    ctx["key_points_html"] = "\n".join(
+        (
+            '<div class="rf-key-point">'
+            '<span class="rf-key-point-mark" aria-hidden="true"></span>'
+            f"<p>{html_escape(point)}</p>"
+            "</div>"
+        )
+        for point in ctx["key_points"]
+    )
+    ctx["scenarios_html"] = "\n".join(
+        (
+            f'<div class="rf-scenario{" rf-scenario-base" if idx == 1 else ""}">'
+            f'<div class="rf-scenario-label">{html_escape(scenario["label"])}</div>'
+            f'<div class="rf-scenario-value">{html_escape(scenario["value"])}</div>'
+            f'<div class="rf-scenario-detail">{html_escape(scenario["detail"])}</div>'
+            "</div>"
+        )
+        for idx, scenario in enumerate(ctx["scenarios"])
     )
     if template == "modern":
         # Modern briefs use a custom typst template for the PDF path —
@@ -1255,6 +1293,65 @@ def _metric_yaml(key: str, metrics: list[dict[str, str]]) -> str:
         f"  - value: {json.dumps(metric['value'], ensure_ascii=False)}\n"
         f"    label: {json.dumps(metric['label'], ensure_ascii=False)}"
         for metric in metrics
+    )
+
+
+def _normalize_key_points(
+    key_points: list[str] | None,
+) -> tuple[list[str], str | None]:
+    if key_points is None:
+        return [], None
+    if not isinstance(key_points, list) or not all(
+        isinstance(item, str) for item in key_points
+    ):
+        return [], "key_points must be a list of strings"
+    if len(key_points) > 4:
+        return [], "key_points supports at most 4 items"
+    return [str(item) for item in key_points], None
+
+
+def _normalize_scenarios(
+    scenarios: list[dict] | None,
+) -> tuple[list[dict[str, str]], str | None]:
+    if scenarios is None:
+        return [], None
+    if not isinstance(scenarios, list) or not all(
+        isinstance(item, dict) for item in scenarios
+    ):
+        return [], "scenarios must be a list of objects"
+    if scenarios and len(scenarios) != 3:
+        return [], "scenarios must be empty or exactly 3 items (bear/base/bull)"
+    if any(
+        "label" not in item or "value" not in item or "detail" not in item
+        for item in scenarios
+    ):
+        return [], "scenarios items need label, value, and detail fields"
+    return [
+        {
+            "label": str(item["label"]),
+            "value": str(item["value"]),
+            "detail": str(item["detail"]),
+        }
+        for item in scenarios
+    ], None
+
+
+def _str_list_yaml(key: str, items: list[str]) -> str:
+    if not items:
+        return ""
+    return f"{key}:\n" + "\n".join(
+        f"  - {json.dumps(item, ensure_ascii=False)}" for item in items
+    )
+
+
+def _scenario_yaml(scenarios: list[dict[str, str]]) -> str:
+    if not scenarios:
+        return ""
+    return "scenarios:\n" + "\n".join(
+        f"  - label: {json.dumps(s['label'], ensure_ascii=False)}\n"
+        f"    value: {json.dumps(s['value'], ensure_ascii=False)}\n"
+        f"    detail: {json.dumps(s['detail'], ensure_ascii=False)}"
+        for s in scenarios
     )
 
 

@@ -54,6 +54,19 @@ def _coerce_list(value: Any, allowed_tokens: set[str] | None = None) -> Any:
                 return parts
     return value
 
+
+def _coerce_str_list(value: Any) -> Any:
+    """Coerce a JSON-encoded string of strings to a list (see _coerce_list)."""
+    coerced = _coerce_list(value)
+    if isinstance(coerced, str):
+        s = coerced.strip()
+        if s.startswith("["):
+            try:
+                return json.loads(s)
+            except json.JSONDecodeError:
+                pass
+    return coerced
+
 mcp = FastMCP(
     "reportforge",
     instructions=(
@@ -100,6 +113,9 @@ def reportforge_scaffold_report(
     title_layout: str = "hero",
     accent: str = "#4f46e5",
     metrics: list[dict[str, str]] | str | None = None,
+    verdict: str = "",
+    key_points: list[str] | str | None = None,
+    scenarios: list[dict[str, str]] | str | None = None,
     frontmatter_yaml: str | None = None,
     body: str | None = None,
 ) -> dict[str, Any]:
@@ -144,6 +160,13 @@ def reportforge_scaffold_report(
         accent: Studio accent as a six-digit hex color.
         metrics: Optional studio metric strip, a list of 0-6 value/label
             objects. A JSON-encoded string of the list is also accepted.
+        verdict: Optional conviction-call band on the cover of studio /
+            portfolio reports, e.g. "OVERWEIGHT — $720 base target (+21%)".
+        key_points: Optional exec-summary bullets (max 4 strings) rendered
+            as cover cards. A JSON-encoded string of the list is accepted.
+        scenarios: Optional cover scenario strip — exactly 3 objects with
+            label/value/detail (bear/base/bull order; the middle card is
+            highlighted as the base case). A JSON-encoded string is accepted.
         frontmatter_yaml: For the 'bespoke' template: full YAML front matter for
             index.qmd (everything between the --- fences), so the caller owns
             the layout (title, format options, custom css, etc.).
@@ -158,6 +181,8 @@ def reportforge_scaffold_report(
         kpis=_coerce_list(kpis), confidential_mark=confidential_mark,
         organization=organization, eyebrow=eyebrow, title_layout=title_layout,
         accent=accent, metrics=_coerce_list(metrics),
+        verdict=verdict, key_points=_coerce_str_list(key_points),
+        scenarios=_coerce_list(scenarios),
         frontmatter_yaml=frontmatter_yaml, body=body,
     )
 
@@ -231,7 +256,12 @@ def reportforge_write_report_body(
     max ~6 columns, short cell text (a few words; numbers over prose), one
     idea per table (split wide comparisons into two tables or move detail to
     the appendix), right-align numeric columns with markdown colons. Wide
-    tables scroll in HTML but still paginate badly in PDF/DOCX.
+    tables scroll in HTML but still paginate badly in PDF/DOCX. Showcase
+    tables (scenarios, comps, calendars) get the spreadsheet treatment by
+    wrapping them in ::: {.rf-showtable} ... ::: — banded accent header,
+    zebra rows, semibold label column, tabular numerals. Add .rf-nums-right
+    to the wrapper (::: {.rf-showtable .rf-nums-right}) to right-align all
+    data columns. Same styling renders in PDF via the Typst template.
 
     Args:
         source: Report slug (e.g. 'aapl-12m-outlook'), project directory, or
@@ -409,6 +439,10 @@ def reportforge_append_section(
     max ~6 columns, short cell text (a few words; numbers over prose), one
     idea per table (split wide comparisons into two tables or move detail to
     the appendix), right-align numeric columns with markdown colons.
+    Showcase tables get the spreadsheet treatment: wrap in
+    ::: {.rf-showtable} ... ::: (add .rf-nums-right to right-align data
+    columns) for a banded accent header, zebra rows, and semibold label
+    column in HTML and PDF.
 
     Args:
         project: Report slug (project directory name).

@@ -815,6 +815,22 @@ STUDIO_HTML_HEADER = """\
 <% metrics_html %>
   </div>
 <%% endif %%>
+<%% if verdict %%>
+  <div class="rf-verdict" role="note">
+    <span class="rf-verdict-tag">Conviction call</span>
+    <span class="rf-verdict-text"><% verdict_html %></span>
+  </div>
+<%% endif %%>
+<%% if key_points_html %%>
+  <div class="rf-key-points" aria-label="Executive summary">
+<% key_points_html %>
+  </div>
+<%% endif %%>
+<%% if scenarios_html %%>
+  <div class="rf-scenarios" aria-label="Scenarios">
+<% scenarios_html %>
+  </div>
+<%% endif %%>
 </header>
 """
 
@@ -822,7 +838,8 @@ STUDIO_TYPT_TEMPLATE = r"""// report-forge "studio" — flexible editorial Typst
 #let studio(
   title: none, subtitle: none, authors: (), keywords: (),
   date: none, abstract: none, abstract-title: none, thanks: none,
-  metrics: (), organization: none, eyebrow: none,
+  metrics: (), verdict: none, key-points: (), scenarios: (),
+  organization: none, eyebrow: none,
   title-layout: "hero", accent: "#4f46e5", confidential-mark: none,
   cols: 1, margin: (x: 0.82in, top: 0.72in, bottom: 0.9in),
   paper: "us-letter", lang: "en", region: "US",
@@ -898,10 +915,14 @@ STUDIO_TYPT_TEMPLATE = r"""// report-forge "studio" — flexible editorial Typst
     #set text(size: 10.5pt, style: "italic", fill: ink)
     #it
   ]
-  show table: set table(stroke: 0.5pt + hairline, inset: (x: 6pt, y: 5pt))
+  show table: set table(
+    stroke: 0.5pt + hairline,
+    inset: (x: 6pt, y: 5pt),
+    fill: (x, y) => if y == 0 { rgb("#e7e9f5") } else if calc.rem(y, 2) == 0 { rgb("#f1f2f8") } else { panel },
+  )
   show table: set text(size: 8.7pt)
-  show table.cell.where(y: 0): set table.cell(fill: panel)
   show table.cell.where(y: 0): set text(weight: "bold", fill: ink)
+  show table.cell.where(x: 0): set text(weight: "bold")
 
   if title != none {
     if title-layout == "minimal" {
@@ -1019,6 +1040,65 @@ STUDIO_TYPT_TEMPLATE = r"""// report-forge "studio" — flexible editorial Typst
     v(0.85em)
   }
 
+
+  if verdict != none {
+    block(
+      width: 100%,
+      fill: rgb("#e9e8fa"),
+      radius: 6pt,
+      inset: (x: 14pt, y: 10pt),
+      stroke: (left: 3pt + accent-color),
+    )[
+      #set text(font: "JetBrains Mono", size: 7.7pt, weight: "medium", fill: accent-color)
+      CONVICTION CALL
+      #linebreak()
+      #set text(size: 11pt, weight: "bold", fill: ink)
+      #verdict
+    ]
+    v(0.85em)
+  }
+
+  if key-points != () and key-points.len() > 0 {
+    grid(
+      columns: (1fr, 1fr),
+      column-gutter: 8pt,
+      row-gutter: 8pt,
+      ..key-points.map(p => block(
+        fill: panel,
+        radius: 6pt,
+        inset: (x: 12pt, y: 10pt),
+        stroke: 0.55pt + hairline,
+      )[
+        #set text(size: 9pt, fill: ink)
+        #text(fill: accent-color)[◆ ]#p
+      ])
+    )
+    v(0.85em)
+  }
+
+  if scenarios != () and scenarios.len() > 0 {
+    grid(
+      columns: (1fr, 1fr, 1fr),
+      column-gutter: 8pt,
+      ..scenarios.enumerate().map(((i, s)) => block(
+        fill: panel,
+        radius: 6pt,
+        inset: (x: 12pt, y: 10pt),
+        stroke: if i == 1 { 1pt + accent-color } else { 0.55pt + hairline },
+      )[
+        #set text(font: "JetBrains Mono", size: 7.7pt, fill: muted)
+        #upper[#s.label]
+        #linebreak()
+        #set text(size: 14pt, weight: "bold", fill: ink)
+        #s.value
+        #linebreak()
+        #set text(size: 8.2pt, fill: muted)
+        #s.detail
+      ])
+    )
+    v(0.85em)
+  }
+
   if abstract != none {
     block(
       width: 100%,
@@ -1081,6 +1161,23 @@ $for(metrics)$
 $endfor$
   ),
 $endif$
+$if(verdict)$
+  verdict: [$verdict$],
+$endif$
+$if(key-points)$
+  key-points: (
+$for(key-points)$
+    [$it$],
+$endfor$
+  ),
+$endif$
+$if(scenarios)$
+  scenarios: (
+$for(scenarios)$
+    ( label: [$it.label$], value: [$it.value$], detail: [$it.detail$] ),
+$endfor$
+  ),
+$endif$
 $if(papersize)$
   paper: "$papersize$",
 $endif$
@@ -1125,6 +1222,15 @@ date-format: long
 abstract: <% abstract_yaml %>
 <%% if metrics_yaml%%>
 <% metrics_yaml %>
+<%% endif%%>
+<%% if verdict%%>
+verdict: <% verdict_yaml %>
+<%% endif%%>
+<%% if key_points_yaml%%>
+<% key_points_yaml %>
+<%% endif%%>
+<%% if scenarios_yaml%%>
+<% scenarios_yaml %>
 <%% endif%%>
 title-block-style: none
 ---
@@ -1349,6 +1455,145 @@ body {
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
+/* Cover infographics: verdict band, exec-summary key points, scenarios. */
+.rf-verdict {
+  display: flex;
+  align-items: baseline;
+  gap: 0.9rem;
+  margin: 0;
+  padding: 1.15rem 1.65rem;
+  border-top: 1px solid var(--rf-line);
+  border-left: 4px solid var(--rf-accent);
+  background: color-mix(in srgb, var(--rf-accent) 10%, transparent);
+}
+.rf-verdict-tag {
+  flex: none;
+  color: var(--rf-accent);
+  font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.rf-verdict-text {
+  color: var(--rf-ink);
+  font-family: Fraunces, Georgia, serif;
+  font-size: 1.12rem;
+  font-weight: 600;
+}
+.rf-key-points {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  border-top: 1px solid var(--rf-line);
+  background: var(--rf-line);
+}
+.rf-key-point {
+  display: flex;
+  gap: 0.7rem;
+  align-items: flex-start;
+  background: var(--rf-panel);
+  padding: 1.1rem 1.4rem;
+}
+.rf-key-point-mark::before {
+  content: "◆";
+  color: var(--rf-accent);
+  font-size: 0.8rem;
+  line-height: 1.7;
+}
+.rf-key-point p {
+  margin: 0;
+  color: var(--rf-ink);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+.rf-scenarios {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  border-top: 1px solid var(--rf-line);
+  background: var(--rf-line);
+}
+.rf-scenario {
+  background: var(--rf-panel);
+  padding: 1.1rem 1.4rem;
+}
+.rf-scenario-base {
+  background: color-mix(in srgb, var(--rf-accent) 8%, var(--rf-panel));
+  box-shadow: inset 0 3px 0 var(--rf-accent);
+}
+.rf-scenario-label {
+  color: var(--rf-muted);
+  font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.rf-scenario-value {
+  margin: 0.15rem 0 0.3rem;
+  color: var(--rf-ink);
+  font-family: Fraunces, Georgia, serif;
+  font-size: 1.6rem;
+  font-weight: 600;
+}
+.rf-scenario-detail {
+  color: var(--rf-muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+/* Showcase tables — spreadsheet look: banded header, zebra rows, label
+   column, tabular numerals. Wrap any Markdown table in ::: {.rf-showtable}
+   (add .rf-nums-right to right-align data columns). */
+.rf-showtable {
+  margin: 1.5rem 0;
+  border: 1px solid var(--rf-line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--rf-panel);
+}
+.rf-showtable table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  margin: 0;
+  font-size: 0.86rem;
+}
+.rf-showtable thead th {
+  border-bottom: 2px solid var(--rf-accent);
+  background: color-mix(in srgb, var(--rf-accent) 13%, transparent);
+  color: var(--rf-ink);
+  font-weight: 700;
+  text-align: left;
+  padding: 0.65rem 0.8rem;
+  overflow-wrap: anywhere;
+}
+.rf-showtable tbody td {
+  border-bottom: 1px solid var(--rf-line);
+  color: var(--rf-ink);
+  padding: 0.55rem 0.8rem;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.rf-showtable tbody tr:nth-child(even) td {
+  background: color-mix(in srgb, currentColor 4%, transparent);
+}
+.rf-showtable tbody tr:last-child td {
+  border-bottom: none;
+}
+.rf-showtable tbody tr td:first-child {
+  font-weight: 600;
+}
+.rf-showtable.rf-nums-right th:nth-child(n+2),
+.rf-showtable.rf-nums-right td:nth-child(n+2) {
+  text-align: right;
+}
+@media (max-width: 640px) {
+  .rf-key-points,
+  .rf-scenarios {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 
 main.content {
   max-width: 880px;
@@ -1696,7 +1941,8 @@ PORTFOLIO_LIGHT_TYPT_TEMPLATE = r"""// report-forge "portfolio-light" — studio
 #let portfolio_light(
   title: none, subtitle: none, authors: (), keywords: (),
   date: none, abstract: none, abstract-title: none, thanks: none,
-  metrics: (), organization: none, eyebrow: none,
+  metrics: (), verdict: none, key-points: (), scenarios: (),
+  organization: none, eyebrow: none,
   title-layout: "hero", accent: "#8f621f", confidential-mark: none,
   cols: 1, margin: (x: 0.82in, top: 0.72in, bottom: 0.9in),
   paper: "us-letter", lang: "en", region: "US",
@@ -1773,10 +2019,14 @@ PORTFOLIO_LIGHT_TYPT_TEMPLATE = r"""// report-forge "portfolio-light" — studio
     #set text(size: 10.5pt, style: "italic", fill: ink)
     #it
   ]
-  show table: set table(stroke: 0.5pt + hairline, inset: (x: 6pt, y: 5pt))
+  show table: set table(
+    stroke: 0.5pt + hairline,
+    inset: (x: 6pt, y: 5pt),
+    fill: (x, y) => if y == 0 { rgb("#d9cba6") } else if calc.rem(y, 2) == 0 { rgb("#e0d4ba") } else { panel },
+  )
   show table: set text(size: 8.7pt)
-  show table.cell.where(y: 0): set table.cell(fill: panel)
   show table.cell.where(y: 0): set text(weight: "bold", fill: ink)
+  show table.cell.where(x: 0): set text(weight: "bold")
 
   if title != none {
     if title-layout == "minimal" {
@@ -1898,6 +2148,65 @@ PORTFOLIO_LIGHT_TYPT_TEMPLATE = r"""// report-forge "portfolio-light" — studio
     v(0.85em)
   }
 
+
+  if verdict != none {
+    block(
+      width: 100%,
+      fill: rgb("#e2d3ac"),
+      radius: 6pt,
+      inset: (x: 14pt, y: 10pt),
+      stroke: (left: 3pt + accent-color),
+    )[
+      #set text(font: "JetBrains Mono", size: 7.7pt, weight: "medium", fill: accent-color)
+      CONVICTION CALL
+      #linebreak()
+      #set text(size: 11pt, weight: "bold", fill: ink)
+      #verdict
+    ]
+    v(0.85em)
+  }
+
+  if key-points != () and key-points.len() > 0 {
+    grid(
+      columns: (1fr, 1fr),
+      column-gutter: 8pt,
+      row-gutter: 8pt,
+      ..key-points.map(p => block(
+        fill: panel,
+        radius: 6pt,
+        inset: (x: 12pt, y: 10pt),
+        stroke: 0.55pt + hairline,
+      )[
+        #set text(size: 9pt, fill: ink)
+        #text(fill: accent-color)[◆ ]#p
+      ])
+    )
+    v(0.85em)
+  }
+
+  if scenarios != () and scenarios.len() > 0 {
+    grid(
+      columns: (1fr, 1fr, 1fr),
+      column-gutter: 8pt,
+      ..scenarios.enumerate().map(((i, s)) => block(
+        fill: panel,
+        radius: 6pt,
+        inset: (x: 12pt, y: 10pt),
+        stroke: if i == 1 { 1pt + accent-color } else { 0.55pt + hairline },
+      )[
+        #set text(font: "JetBrains Mono", size: 7.7pt, fill: muted)
+        #upper[#s.label]
+        #linebreak()
+        #set text(size: 14pt, weight: "bold", fill: ink)
+        #s.value
+        #linebreak()
+        #set text(size: 8.2pt, fill: muted)
+        #s.detail
+      ])
+    )
+    v(0.85em)
+  }
+
   if abstract != none {
     block(
       width: 100%,
@@ -1919,7 +2228,8 @@ PORTFOLIO_DARK_TYPT_TEMPLATE = r"""// report-forge "portfolio-dark" — studio s
 #let portfolio_dark(
   title: none, subtitle: none, authors: (), keywords: (),
   date: none, abstract: none, abstract-title: none, thanks: none,
-  metrics: (), organization: none, eyebrow: none,
+  metrics: (), verdict: none, key-points: (), scenarios: (),
+  organization: none, eyebrow: none,
   title-layout: "hero", accent: "#d9a54e", confidential-mark: none,
   cols: 1, margin: (x: 0.82in, top: 0.72in, bottom: 0.9in),
   paper: "us-letter", lang: "en", region: "US",
@@ -1996,10 +2306,14 @@ PORTFOLIO_DARK_TYPT_TEMPLATE = r"""// report-forge "portfolio-dark" — studio s
     #set text(size: 10.5pt, style: "italic", fill: ink)
     #it
   ]
-  show table: set table(stroke: 0.5pt + hairline, inset: (x: 6pt, y: 5pt))
+  show table: set table(
+    stroke: 0.5pt + hairline,
+    inset: (x: 6pt, y: 5pt),
+    fill: (x, y) => if y == 0 { rgb("#1b2230") } else if calc.rem(y, 2) == 0 { rgb("#0d1219") } else { panel },
+  )
   show table: set text(size: 8.7pt)
-  show table.cell.where(y: 0): set table.cell(fill: panel)
   show table.cell.where(y: 0): set text(weight: "bold", fill: ink)
+  show table.cell.where(x: 0): set text(weight: "bold")
 
   if title != none {
     if title-layout == "minimal" {
@@ -2121,6 +2435,65 @@ PORTFOLIO_DARK_TYPT_TEMPLATE = r"""// report-forge "portfolio-dark" — studio s
     v(0.85em)
   }
 
+
+  if verdict != none {
+    block(
+      width: 100%,
+      fill: rgb("#1d1a10"),
+      radius: 6pt,
+      inset: (x: 14pt, y: 10pt),
+      stroke: (left: 3pt + accent-color),
+    )[
+      #set text(font: "JetBrains Mono", size: 7.7pt, weight: "medium", fill: accent-color)
+      CONVICTION CALL
+      #linebreak()
+      #set text(size: 11pt, weight: "bold", fill: ink)
+      #verdict
+    ]
+    v(0.85em)
+  }
+
+  if key-points != () and key-points.len() > 0 {
+    grid(
+      columns: (1fr, 1fr),
+      column-gutter: 8pt,
+      row-gutter: 8pt,
+      ..key-points.map(p => block(
+        fill: panel,
+        radius: 6pt,
+        inset: (x: 12pt, y: 10pt),
+        stroke: 0.55pt + hairline,
+      )[
+        #set text(size: 9pt, fill: ink)
+        #text(fill: accent-color)[◆ ]#p
+      ])
+    )
+    v(0.85em)
+  }
+
+  if scenarios != () and scenarios.len() > 0 {
+    grid(
+      columns: (1fr, 1fr, 1fr),
+      column-gutter: 8pt,
+      ..scenarios.enumerate().map(((i, s)) => block(
+        fill: panel,
+        radius: 6pt,
+        inset: (x: 12pt, y: 10pt),
+        stroke: if i == 1 { 1pt + accent-color } else { 0.55pt + hairline },
+      )[
+        #set text(font: "JetBrains Mono", size: 7.7pt, fill: muted)
+        #upper[#s.label]
+        #linebreak()
+        #set text(size: 14pt, weight: "bold", fill: ink)
+        #s.value
+        #linebreak()
+        #set text(size: 8.2pt, fill: muted)
+        #s.detail
+      ])
+    )
+    v(0.85em)
+  }
+
   if abstract != none {
     block(
       width: 100%,
@@ -2180,6 +2553,23 @@ $if(metrics)$
   metrics: (
 $for(metrics)$
     ( value: [$it.value$], label: [$it.label$] ),
+$endfor$
+  ),
+$endif$
+$if(verdict)$
+  verdict: [$verdict$],
+$endif$
+$if(key-points)$
+  key-points: (
+$for(key-points)$
+    [$it$],
+$endfor$
+  ),
+$endif$
+$if(scenarios)$
+  scenarios: (
+$for(scenarios)$
+    ( label: [$it.label$], value: [$it.value$], detail: [$it.detail$] ),
 $endfor$
   ),
 $endif$
@@ -2361,6 +2751,145 @@ body {
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
+/* Cover infographics: verdict band, exec-summary key points, scenarios. */
+.rf-verdict {
+  display: flex;
+  align-items: baseline;
+  gap: 0.9rem;
+  margin: 0;
+  padding: 1.15rem 1.65rem;
+  border-top: 1px solid var(--rf-line);
+  border-left: 4px solid var(--rf-accent);
+  background: color-mix(in srgb, var(--rf-accent) 10%, transparent);
+}
+.rf-verdict-tag {
+  flex: none;
+  color: var(--rf-accent);
+  font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.rf-verdict-text {
+  color: var(--rf-ink);
+  font-family: Fraunces, Georgia, serif;
+  font-size: 1.12rem;
+  font-weight: 600;
+}
+.rf-key-points {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  border-top: 1px solid var(--rf-line);
+  background: var(--rf-line);
+}
+.rf-key-point {
+  display: flex;
+  gap: 0.7rem;
+  align-items: flex-start;
+  background: var(--rf-panel);
+  padding: 1.1rem 1.4rem;
+}
+.rf-key-point-mark::before {
+  content: "◆";
+  color: var(--rf-accent);
+  font-size: 0.8rem;
+  line-height: 1.7;
+}
+.rf-key-point p {
+  margin: 0;
+  color: var(--rf-ink);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+.rf-scenarios {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  border-top: 1px solid var(--rf-line);
+  background: var(--rf-line);
+}
+.rf-scenario {
+  background: var(--rf-panel);
+  padding: 1.1rem 1.4rem;
+}
+.rf-scenario-base {
+  background: color-mix(in srgb, var(--rf-accent) 8%, var(--rf-panel));
+  box-shadow: inset 0 3px 0 var(--rf-accent);
+}
+.rf-scenario-label {
+  color: var(--rf-muted);
+  font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.rf-scenario-value {
+  margin: 0.15rem 0 0.3rem;
+  color: var(--rf-ink);
+  font-family: Fraunces, Georgia, serif;
+  font-size: 1.6rem;
+  font-weight: 600;
+}
+.rf-scenario-detail {
+  color: var(--rf-muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+/* Showcase tables — spreadsheet look: banded header, zebra rows, label
+   column, tabular numerals. Wrap any Markdown table in ::: {.rf-showtable}
+   (add .rf-nums-right to right-align data columns). */
+.rf-showtable {
+  margin: 1.5rem 0;
+  border: 1px solid var(--rf-line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--rf-panel);
+}
+.rf-showtable table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  margin: 0;
+  font-size: 0.86rem;
+}
+.rf-showtable thead th {
+  border-bottom: 2px solid var(--rf-accent);
+  background: color-mix(in srgb, var(--rf-accent) 13%, transparent);
+  color: var(--rf-ink);
+  font-weight: 700;
+  text-align: left;
+  padding: 0.65rem 0.8rem;
+  overflow-wrap: anywhere;
+}
+.rf-showtable tbody td {
+  border-bottom: 1px solid var(--rf-line);
+  color: var(--rf-ink);
+  padding: 0.55rem 0.8rem;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.rf-showtable tbody tr:nth-child(even) td {
+  background: color-mix(in srgb, currentColor 4%, transparent);
+}
+.rf-showtable tbody tr:last-child td {
+  border-bottom: none;
+}
+.rf-showtable tbody tr td:first-child {
+  font-weight: 600;
+}
+.rf-showtable.rf-nums-right th:nth-child(n+2),
+.rf-showtable.rf-nums-right td:nth-child(n+2) {
+  text-align: right;
+}
+@media (max-width: 640px) {
+  .rf-key-points,
+  .rf-scenarios {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 
 main.content {
   max-width: 880px;
@@ -2698,6 +3227,145 @@ body {
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
+/* Cover infographics: verdict band, exec-summary key points, scenarios. */
+.rf-verdict {
+  display: flex;
+  align-items: baseline;
+  gap: 0.9rem;
+  margin: 0;
+  padding: 1.15rem 1.65rem;
+  border-top: 1px solid var(--rf-line);
+  border-left: 4px solid var(--rf-accent);
+  background: color-mix(in srgb, var(--rf-accent) 10%, transparent);
+}
+.rf-verdict-tag {
+  flex: none;
+  color: var(--rf-accent);
+  font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.rf-verdict-text {
+  color: var(--rf-ink);
+  font-family: Fraunces, Georgia, serif;
+  font-size: 1.12rem;
+  font-weight: 600;
+}
+.rf-key-points {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  border-top: 1px solid var(--rf-line);
+  background: var(--rf-line);
+}
+.rf-key-point {
+  display: flex;
+  gap: 0.7rem;
+  align-items: flex-start;
+  background: var(--rf-panel);
+  padding: 1.1rem 1.4rem;
+}
+.rf-key-point-mark::before {
+  content: "◆";
+  color: var(--rf-accent);
+  font-size: 0.8rem;
+  line-height: 1.7;
+}
+.rf-key-point p {
+  margin: 0;
+  color: var(--rf-ink);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+.rf-scenarios {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  border-top: 1px solid var(--rf-line);
+  background: var(--rf-line);
+}
+.rf-scenario {
+  background: var(--rf-panel);
+  padding: 1.1rem 1.4rem;
+}
+.rf-scenario-base {
+  background: color-mix(in srgb, var(--rf-accent) 8%, var(--rf-panel));
+  box-shadow: inset 0 3px 0 var(--rf-accent);
+}
+.rf-scenario-label {
+  color: var(--rf-muted);
+  font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.rf-scenario-value {
+  margin: 0.15rem 0 0.3rem;
+  color: var(--rf-ink);
+  font-family: Fraunces, Georgia, serif;
+  font-size: 1.6rem;
+  font-weight: 600;
+}
+.rf-scenario-detail {
+  color: var(--rf-muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+/* Showcase tables — spreadsheet look: banded header, zebra rows, label
+   column, tabular numerals. Wrap any Markdown table in ::: {.rf-showtable}
+   (add .rf-nums-right to right-align data columns). */
+.rf-showtable {
+  margin: 1.5rem 0;
+  border: 1px solid var(--rf-line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--rf-panel);
+}
+.rf-showtable table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  margin: 0;
+  font-size: 0.86rem;
+}
+.rf-showtable thead th {
+  border-bottom: 2px solid var(--rf-accent);
+  background: color-mix(in srgb, var(--rf-accent) 13%, transparent);
+  color: var(--rf-ink);
+  font-weight: 700;
+  text-align: left;
+  padding: 0.65rem 0.8rem;
+  overflow-wrap: anywhere;
+}
+.rf-showtable tbody td {
+  border-bottom: 1px solid var(--rf-line);
+  color: var(--rf-ink);
+  padding: 0.55rem 0.8rem;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.rf-showtable tbody tr:nth-child(even) td {
+  background: color-mix(in srgb, currentColor 4%, transparent);
+}
+.rf-showtable tbody tr:last-child td {
+  border-bottom: none;
+}
+.rf-showtable tbody tr td:first-child {
+  font-weight: 600;
+}
+.rf-showtable.rf-nums-right th:nth-child(n+2),
+.rf-showtable.rf-nums-right td:nth-child(n+2) {
+  text-align: right;
+}
+@media (max-width: 640px) {
+  .rf-key-points,
+  .rf-scenarios {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 
 main.content {
   max-width: 880px;
@@ -2915,6 +3583,23 @@ $if(metrics)$
   metrics: (
 $for(metrics)$
     ( value: [$it.value$], label: [$it.label$] ),
+$endfor$
+  ),
+$endif$
+$if(verdict)$
+  verdict: [$verdict$],
+$endif$
+$if(key-points)$
+  key-points: (
+$for(key-points)$
+    [$it$],
+$endfor$
+  ),
+$endif$
+$if(scenarios)$
+  scenarios: (
+$for(scenarios)$
+    ( label: [$it.label$], value: [$it.value$], detail: [$it.detail$] ),
 $endfor$
   ),
 $endif$

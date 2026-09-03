@@ -215,3 +215,75 @@ def test_portfolio_rejects_invalid_visual_options_before_creating_project(
     assert bad_accent["ok"] is False
     assert "accent" in bad_accent["error"]
     assert not (isolated_portfolio / "pf-bad-accent").exists()
+
+
+def test_portfolio_cover_infographics_scaffold(
+    isolated_portfolio: Path,
+) -> None:
+    scenarios = [
+        {"label": "Bear", "value": "$480", "detail": "-19% · 25%"},
+        {"label": "Base", "value": "$720", "detail": "+21% · 50%"},
+        {"label": "Bull", "value": "$950", "detail": "+60% · 25%"},
+    ]
+    result = engine.scaffold_report(
+        "pf-cover",
+        title="Cover Test",
+        template="portfolio-dark",
+        verdict="OVERWEIGHT — $720 base target",
+        key_points=["Ad engine compounding", "Capex fear overdone"],
+        scenarios=scenarios,
+    )
+    assert result["ok"] is True, result
+    project = Path(result["path"])
+    header = (project / "assets" / "portfolio-header.html").read_text()
+    assert "rf-verdict" in header
+    assert "OVERWEIGHT" in header
+    assert header.count("rf-key-point\"") == 2
+    assert header.count("rf-scenario\"") + header.count("rf-scenario ") >= 3
+    assert "rf-scenario-base" in header
+    front_matter = yaml.safe_load(
+        (project / "index.qmd").read_text().split("---", 2)[1]
+    )
+    assert front_matter["verdict"] == "OVERWEIGHT — $720 base target"
+    assert front_matter["key-points"] == [
+        "Ad engine compounding",
+        "Capex fear overdone",
+    ]
+    assert front_matter["scenarios"][1]["value"] == "$720"
+    show = (project / "assets" / "typst-show.typ").read_text()
+    assert "verdict:" in show and "key-points:" in show and "scenarios:" in show
+    template_typ = (project / "assets" / "typst-template.typ").read_text()
+    assert "CONVICTION CALL" in template_typ
+    assert "calc.rem(y, 2)" in template_typ
+
+
+def test_portfolio_cover_validation_rejects_bad_shapes(
+    isolated_portfolio: Path,
+) -> None:
+    too_many = engine.scaffold_report(
+        "pf-bad-kp", title="T", template="portfolio-dark",
+        key_points=["a", "b", "c", "d", "e"],
+    )
+    assert too_many["ok"] is False
+    assert "key_points" in too_many["error"]
+    assert not (isolated_portfolio / "pf-bad-kp").exists()
+
+    two_scen = engine.scaffold_report(
+        "pf-bad-sc", title="T", template="portfolio-dark",
+        scenarios=[{"label": "A", "value": "1", "detail": "x"}],
+    )
+    assert two_scen["ok"] is False
+    assert "scenarios" in two_scen["error"]
+    assert not (isolated_portfolio / "pf-bad-sc").exists()
+
+
+def test_portfolio_showtable_styles_present(isolated_portfolio: Path) -> None:
+    for template in ("portfolio-light", "portfolio-dark"):
+        slug = "pf-show-" + template.replace("portfolio-", "")
+        result = engine.scaffold_report(
+            slug, title="T", template=template, formats=["html"],
+        )
+        assert result["ok"] is True, result
+        styles = (Path(result["path"]) / "styles.scss").read_text()
+        assert ".rf-showtable" in styles
+        assert ".rf-nums-right" in styles
