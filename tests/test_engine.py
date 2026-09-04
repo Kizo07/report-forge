@@ -289,3 +289,45 @@ def test_render_gate_passes_without_flag(isolated_reports: Path) -> None:
     (proj / "charts").mkdir()
     _mpl_png(proj / "charts" / "fallback.png")
     assert engine._engine_charts_violation(proj) is None
+
+
+def _white_png(path: Path) -> None:
+    from PIL import Image
+
+    Image.new("RGB", (120, 60), "white").save(path)
+
+
+def _flag_project(tmp_root: Path, template: str) -> Path:
+    result = engine.scaffold_report(
+        f"flag-{template}", template=template, formats=["html"],
+        engine_charts_only=True,
+    )
+    assert result["ok"] is True
+    proj = Path(result["path"])
+    (proj / "charts").mkdir()
+    return proj
+
+
+def test_render_hard_fails_on_white_paper_charts(isolated_reports: Path) -> None:
+    proj = _flag_project(isolated_reports, "portfolio-light")
+    _white_png(proj / "charts" / "white.png")
+    out = engine.render_report(f"flag-portfolio-light")
+    assert out["ok"] is False
+    assert "white.png" in out["error"]
+
+
+def test_white_paper_gate_skipped_on_dark_template(isolated_reports: Path) -> None:
+    proj = _flag_project(isolated_reports, "portfolio-dark")
+    _white_png(proj / "charts" / "white.png")
+    assert engine._engine_charts_violation(proj) is None
+
+
+def test_white_paper_gate_off_without_flag(isolated_reports: Path) -> None:
+    result = engine.scaffold_report(
+        "light-noflag", template="portfolio-light", formats=["html"]
+    )
+    assert result["ok"] is True
+    proj = Path(result["path"])
+    (proj / "charts").mkdir()
+    _white_png(proj / "charts" / "white.png")
+    assert engine._engine_charts_violation(proj) is None

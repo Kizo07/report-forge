@@ -176,10 +176,11 @@ def reportforge_scaffold_report(
         engine_charts_only: Flagship hard-fail switch. When true the project
             frontmatter records `engine_charts_only: true` and render_report
             REFUSES to render if any chart PNG carries a non-engine Software
-            tag (matplotlib/seaborn fallback) — it returns ok:false naming
-            the files instead of shipping them. Set it on every flagship;
-            matplotlib fallback is forbidden there (quote the export error,
-            stringify scalar Timestamps, retry, escalate — never substitute).
+            tag (matplotlib/seaborn fallback) — or, on light templates, a
+            near-white background (hand-rolled plotly default) — returning
+            ok:false naming the files instead of shipping them. Set it on
+            every flagship; fallback is forbidden there (quote the export
+            error, stringify scalar Timestamps, retry, escalate).
 
     Returns paths and the source file to fill with content before rendering.
     """

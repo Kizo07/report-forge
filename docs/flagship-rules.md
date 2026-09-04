@@ -41,9 +41,12 @@ this file is the committed mirror so a fresh checkout reproduces them.
   standard exhibits.
 - Matplotlib/seaborn fallback is FORBIDDEN on flagships. Scaffold with
   `engine_charts_only=True`: render then hard-fails (ok:false naming the
-  files) instead of shipping a fallback. On export error: quote it
-  verbatim, stringify scalar Timestamps, retry once, escalate — never
-  substitute.
+  files) instead of shipping a fallback — including white-background
+  charts on light templates (hand-rolled plotly defaults), which the gate
+  catches by paper color. Every figure, engine or hand-rolled, carries the
+  page theme (`theme=` on builders, `apply_quantflow()` otherwise).
+  On export error: quote it verbatim, stringify scalar Timestamps, retry
+  once, escalate — never substitute.
 - Captions burned into pixels via
   `save_figure(..., caption_text=caption(asof, source))`.
 

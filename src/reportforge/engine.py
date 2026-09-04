@@ -125,10 +125,64 @@ def _non_engine_charts(workdir: Path) -> list[str]:
     return bad
 
 
+def _project_is_light(workdir: Path) -> bool:
+    qmd = workdir / "index.qmd"
+    if not qmd.is_file():
+        return False
+    text = qmd.read_text()
+    if not text.startswith("---"):
+        return False
+    fence = text.find("\n---", 3)
+    head = text[:fence] if fence != -1 else text[:2000]
+    return "light" in head
+
+
+def _white_paper_charts(workdir: Path) -> list[str]:
+    """Charts with near-white corners on a light-template project.
+
+    Hand-rolled plotly (default/white template) or default-style matplotlib
+    exports pass the Software-tag check but print as white cards on paper
+    pages. Corner sampling avoids chart content; tolerance admits antialiased
+    edges but not a #ffffff background.
+    """
+    bad = []
+    charts = workdir / "charts"
+    if not charts.is_dir():
+        return bad
+    try:
+        from PIL import Image as _Image
+    except ImportError:
+        return bad
+    for png in sorted(charts.glob("*.png")):
+        try:
+            with _Image.open(png) as im:
+                rgb = im.convert("RGB")
+                w, h = rgb.size
+                boxes = (rgb.crop((0, 0, 12, 12)), rgb.crop((w - 12, 0, w, 12)),
+                         rgb.crop((0, h - 12, 12, h)),
+                         rgb.crop((w - 12, h - 12, w, h)))
+                chans = [0, 0, 0]
+                total = 0
+                for box in boxes:
+                    raw = box.tobytes()
+                    n = len(raw) // 3
+                    total += n
+                    for i in range(3):
+                        chans[i] += sum(raw[i::3])
+                paper = tuple(c // total for c in chans)
+        except Exception:
+            continue
+        if all(v > 244 for v in paper):
+            bad.append(png.name)
+    return bad
+
+
 def _engine_charts_violation(workdir: Path) -> str | None:
     if not _frontmatter_flag(workdir, "engine_charts_only"):
         return None
     bad = _non_engine_charts(workdir)
+    if not bad and _project_is_light(workdir):
+        bad = _white_paper_charts(workdir)
     if not bad:
         return None
     return (
