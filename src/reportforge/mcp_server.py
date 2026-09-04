@@ -259,11 +259,31 @@ def reportforge_write_report_body(
     idea per table (split wide comparisons into two tables or move detail to
     the appendix), right-align numeric columns with markdown colons. Wide
     tables scroll in HTML but still paginate badly in PDF/DOCX. Showcase
-    tables (scenarios, comps, calendars) get the spreadsheet treatment by
+    Showcase tables (scenarios, comps, calendars) get the spreadsheet treatment by
     wrapping them in ::: {.rf-showtable} ... ::: — banded accent header,
     zebra rows, semibold label column, tabular numerals. Add .rf-nums-right
     to the wrapper (::: {.rf-showtable .rf-nums-right}) to right-align all
     data columns. Same styling renders in PDF via the Typst template.
+
+    Prose voice — write like a human desk analyst, not a language model:
+    short declarative sentences (one claim each, ~20 words max); never stack
+    three or more subordinate clauses in one sentence. Plain exhibit names
+    from the data ("AMZN 12-month returns vs peers"), never invented labels
+    ("Price Hero", "Momentum Ladder", "Demand-Capacity"). Banned tics:
+    shouty headers ("THESIS IN ONE PARAGRAPH"), "delve/tapestry/landscape",
+    "announces itself/adjudicates", "forensic attention", "honestly labeled",
+    triple-parallel flourishes, non-English slips. Number ladders
+    ("down 8% on 21d, up 2% on 63d...") go in a table, not a sentence —
+    prose states the read, the table carries the digits. Every number needs
+    a unit and an as-of; every paragraph answers "so what" in its last line.
+
+    Figure sizing — match embed width to information content, not a default:
+    hero/technicals/fan width=100%; standard single chart width=85%;
+    simple charts (<=12 bars, pies, single series) width=70% or paired in
+    ::: {layout-ncol=2} at width=100% of the column. Never stack more than
+    two width=100% figures without intervening prose; never leave a lone
+    chart as the only content under a heading — each exhibit gets 2-4 lines
+    saying what it shows and what the reader should conclude.
 
     Args:
         source: Report slug (e.g. 'aapl-12m-outlook'), project directory, or
@@ -445,6 +465,19 @@ def reportforge_append_section(
     ::: {.rf-showtable} ... ::: (add .rf-nums-right to right-align data
     columns) for a banded accent header, zebra rows, and semibold label
     column in HTML and PDF.
+
+    Prose voice — write like a human desk analyst: short declarative
+    sentences (one claim each, ~20 words max), plain exhibit names from the
+    data, never invented labels ("Price Hero", "Momentum Ladder"). Banned:
+    shouty headers, "delve/tapestry/landscape", "announces itself",
+    "forensic attention", triple-parallel flourishes, non-English slips.
+    Number ladders go in a table, not a sentence. Every number needs a unit
+    and an as-of.
+
+    Figure sizing — hero/technicals/fan width=100%; standard width=85%;
+    simple charts (<=12 bars, pies, single series) width=70% or paired in
+    ::: {layout-ncol=2}. Never stack more than two width=100% figures
+    without prose between; every exhibit gets 2-4 lines of read-through.
 
     Args:
         project: Report slug (project directory name).
