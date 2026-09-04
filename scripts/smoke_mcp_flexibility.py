@@ -5,7 +5,7 @@ schema validation included): bespoke scaffold, run_code, save_asset,
 append_section, project_status, read_project_file, render html+pdf+pdf-web,
 publish_report.
 
-Run: /home/fire/Documents/report-forge/.venv/bin/python scripts/smoke_mcp_flexibility.py
+Run: .venv/bin/python scripts/smoke_mcp_flexibility.py
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from pathlib import Path
 from fastmcp import Client
 from fastmcp.client.transports import StdioTransport
 
-REPO = Path("/home/fire/Documents/report-forge")
+REPO = Path(__file__).resolve().parents[1]
 SLUG = "smoke-mcp-flex"
 DEST = Path("/tmp/smoke-mcp-flex-publish")
 
