@@ -285,6 +285,10 @@ def reportforge_write_report_body(
     chart as the only content under a heading — each exhibit gets 2-4 lines
     saying what it shows and what the reader should conclude.
 
+    Before render, run `python scripts/figure_lint.py <project-dir>` from
+    the report-forge checkout — size/caption/voice/palette gate, must be
+    clean. Full rules: docs/flagship-rules.md.
+
     Args:
         source: Report slug (e.g. 'aapl-12m-outlook'), project directory, or
             path to the index.qmd.
@@ -478,6 +482,9 @@ def reportforge_append_section(
     simple charts (<=12 bars, pies, single series) width=70% or paired in
     ::: {layout-ncol=2}. Never stack more than two width=100% figures
     without prose between; every exhibit gets 2-4 lines of read-through.
+
+    Before render, run `python scripts/figure_lint.py <project-dir>` —
+    must be clean. Full rules: docs/flagship-rules.md.
 
     Args:
         project: Report slug (project directory name).

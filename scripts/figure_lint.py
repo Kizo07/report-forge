@@ -1,19 +1,25 @@
 #!/usr/bin/env python3
-"""Figure lint for flagship reports: size, caption, and voice hygiene.
+"""Figure lint for flagship reports: size, caption, voice, palette hygiene.
 
 Usage: figure_lint.py <project-dir>  (expects index.qmd + charts/)
 Exit 1 lists every violation. Run before render; all must pass.
 
 Checks:
   1. No more than 2 width=100% embeds in a row without prose between.
-  2. Simple-chart PNGs (<=12 bars can't be detected — proxy: file with
-     width>=2000px AND height>=850px) flagged as oversized exports.
+  2. Every embed carries an explicit width tier (hero 100 / standard 85 /
+     simple 70); >60% at width=100% fails; exports past the absolute
+     2200x1000 cap fail (retina headroom already allowed).
   3. Every figure has a {#fig-...} crossref (native Exhibit numbering).
   4. Banned caption/prose tics: hero labels, shouty headers, AI filler,
      non-ASCII slips in captions.
+  5. Alt-text mangling (`S and P`-style `&` replacements).
+  6. Palette identity: every chart carries QuantFlow accent pixels
+     (per-theme gold/teal targets), and light-template charts pass a
+     brightness floor (no dark PNGs on light pages).
 """
 
 import re
+import statistics
 import sys
 from pathlib import Path
 
@@ -25,8 +31,26 @@ BANNED = [
     "honestly labeled", "announces itself",
 ]
 
+# Per-theme accent targets (sampled pixels match within TOL).
+ACCENTS = {
+    "light": [(143, 98, 31), (20, 117, 108)],      # gold #8f621f, teal #14756c
+    "dark": [(201, 162, 39), (86, 196, 196)],       # gold #c9a227, teal #56cfc4
+}
+
+# Absolute insanity cap (px @scale=2): retina exports legitimately exceed
+# display size, so per-tier dim checks are meaningless — this catches only
+# unambiguous bloat. The real sizing defect (everything at width=100%) is
+# caught by the FULLWIDTH_SHARE check below.
+ABS_MAX_W, ABS_MAX_H = 2200, 1000
+FULLWIDTH_SHARE = 0.60
+
 MAX_FULLWIDTH_RUN = 2
-MAX_EXPORT_W, MAX_EXPORT_H = 2000, 850
+MIN_ACCENT_PX = 20
+LIGHT_BRIGHTNESS_FLOOR = 150
+
+
+def _matches(px, targets, tol=60):
+    return any(all(abs(a - b) <= tol for a, b in zip(px, t)) for t in targets)
 
 
 def main() -> int:
@@ -47,8 +71,25 @@ def main() -> int:
         elif ln.strip() and not ln.strip().startswith((":::", "#", "|", "!")):
             run = 0
 
-    embeds = re.findall(r"!\[.*?\]\(charts/.*?\)(\{[^}]*\})?", body)
+    # Every embed needs an explicit width tier; count full-width share.
+    fullwidth = 0
+    for m in re.finditer(r"!\[([^\]]*)\]\(charts/([^)]+)\)(\{[^}]*\})?", body):
+        alt, fname, opts = m.group(1), m.group(2), m.group(3) or ""
+        w = re.search(r"width=(\d+)%", opts)
+        if not w:
+            bad.append(f"qmd: {fname} embed has no explicit width "
+                       f"(defaults to 100% — tier it: hero 100/standard "
+                       f"85/simple 70)")
+        else:
+            if w.group(1) == "100":
+                fullwidth += 1
+        if re.search(r"\b([A-Z]) and ([A-Z])\b", alt):
+            bad.append(f"qmd: alt-text mangling ({alt!r}) — use & not 'and'")
+
     figs = re.findall(r"!\[.*?\]\(charts/", body)
+    if figs and fullwidth / len(figs) > FULLWIDTH_SHARE:
+        bad.append(f"qmd: {fullwidth}/{len(figs)} figures at width=100% "
+                   f"(>60%) — tier simple charts to 70%, standard to 85%")
     crossrefs = len(re.findall(r"\{#fig-", body))
     if crossrefs < len(figs):
         bad.append(f"qmd: {len(figs)} figures but only {crossrefs} "
@@ -59,25 +100,44 @@ def main() -> int:
         if tic in low:
             bad.append(f"qmd: banned tic {tic!r} present")
 
+    fm = body.split("---")
+    theme = "light" if len(fm) > 1 and "light" in fm[1] else "dark"
+    accents = ACCENTS[theme]
+
     charts = proj / "charts"
     if charts.is_dir():
         for png in sorted(charts.glob("*.png")):
             try:
-                w, h = Image.open(png).size
+                im = Image.open(png).convert("RGB")
             except Exception as e:  # noqa: BLE001
                 bad.append(f"{png.name}: unreadable ({e})")
                 continue
-            if w >= MAX_EXPORT_W and h >= MAX_EXPORT_H:
-                bad.append(f"{png.name}: oversized export {w}x{h} "
-                           f"(>={MAX_EXPORT_W}x{MAX_EXPORT_H}) — use a "
-                           f"compact tier or pair it)")
+            w, h = im.size
+            if w > ABS_MAX_W or h > ABS_MAX_H:
+                bad.append(f"{png.name}: export {w}x{h} exceeds absolute "
+                           f"cap {ABS_MAX_W}x{ABS_MAX_H}")
+            pix = im.load()
+            assert pix is not None
+            px = [pix[x, y] for y in range(0, im.height, 7)
+                  for x in range(0, im.width, 7)]
+            n_accent = sum(1 for p in px if _matches(p, accents))
+            if n_accent < MIN_ACCENT_PX:
+                bad.append(f"{png.name}: no QuantFlow accent pixels "
+                           f"({n_accent} sampled) — theme not applied?")
+            if theme == "light":
+                lum = statistics.mean(
+                    0.299 * r + 0.587 * g + 0.114 * b for r, g, b in px)
+                if lum < LIGHT_BRIGHTNESS_FLOOR:
+                    bad.append(f"{png.name}: dark chart on light template "
+                               f"(mean lum {lum:.0f})")
 
     if bad:
         print(f"figure_lint: {len(bad)} violation(s) in {proj}:")
         for b in bad:
             print(f"  - {b}")
         return 1
-    print(f"figure_lint: clean ({len(figs)} figures, {crossrefs} crossrefs)")
+    print(f"figure_lint: clean ({len(figs)} figures, {crossrefs} crossrefs, "
+          f"{theme} palette ok)")
     return 0
 
 
