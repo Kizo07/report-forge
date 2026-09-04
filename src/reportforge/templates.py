@@ -757,9 +757,9 @@ execute:
 number-sections: false
 
 crossref:
-  fig-title: Figure
+  fig-title: Exhibit
   tbl-title: Table
-  fig-prefix: Figure
+  fig-prefix: Exhibit
   tbl-prefix: Table
   sec-prefix: Section
 
@@ -903,7 +903,7 @@ STUDIO_TYPT_TEMPLATE = r"""// report-forge "studio" — flexible editorial Typst
   ]
   show heading.where(level: 3): set text(font: "Space Grotesk", size: 10pt, weight: "bold", fill: muted)
 
-  show figure.caption: set text(size: 8.7pt, fill: muted)
+  show figure.caption: set text(size: 9pt, fill: ink)
   show figure.caption: set align(left)
   show quote: it => block(
     width: 100%,
@@ -1808,9 +1808,9 @@ execute:
 number-sections: false
 
 crossref:
-  fig-title: Figure
+  fig-title: Exhibit
   tbl-title: Table
-  fig-prefix: Figure
+  fig-prefix: Exhibit
   tbl-prefix: Table
   sec-prefix: Section
 
@@ -2010,7 +2010,7 @@ PORTFOLIO_LIGHT_TYPT_TEMPLATE = r"""// report-forge "portfolio-light" — studio
   ]
   show heading.where(level: 3): set text(font: "Georgia", size: 10pt, weight: "bold", fill: muted)
 
-  show figure.caption: set text(size: 8.7pt, fill: muted)
+  show figure.caption: set text(size: 9pt, fill: ink)
   show figure.caption: set align(left)
   show quote: it => block(
     width: 100%,
@@ -2300,7 +2300,7 @@ PORTFOLIO_DARK_TYPT_TEMPLATE = r"""// report-forge "portfolio-dark" — studio s
   ]
   show heading.where(level: 3): set text(font: "Georgia", size: 10pt, weight: "bold", fill: muted)
 
-  show figure.caption: set text(size: 8.7pt, fill: muted)
+  show figure.caption: set text(size: 9pt, fill: ink)
   show figure.caption: set align(left)
   show quote: it => block(
     width: 100%,
