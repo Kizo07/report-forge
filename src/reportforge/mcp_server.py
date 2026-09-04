@@ -118,6 +118,7 @@ def reportforge_scaffold_report(
     scenarios: list[dict[str, str]] | str | None = None,
     frontmatter_yaml: str | None = None,
     body: str | None = None,
+    engine_charts_only: bool = False,
 ) -> dict[str, Any]:
     """Create a new branded report project under ~/Documents/report-forge/reports/<slug>/.
 
@@ -172,6 +173,13 @@ def reportforge_scaffold_report(
             the layout (title, format options, custom css, etc.).
         body: For the 'bespoke' template: initial Markdown body for index.qmd.
             If omitted, a placeholder body is written.
+        engine_charts_only: Flagship hard-fail switch. When true the project
+            frontmatter records `engine_charts_only: true` and render_report
+            REFUSES to render if any chart PNG carries a non-engine Software
+            tag (matplotlib/seaborn fallback) — it returns ok:false naming
+            the files instead of shipping them. Set it on every flagship;
+            matplotlib fallback is forbidden there (quote the export error,
+            stringify scalar Timestamps, retry, escalate — never substitute).
 
     Returns paths and the source file to fill with content before rendering.
     """
@@ -184,6 +192,7 @@ def reportforge_scaffold_report(
         verdict=verdict, key_points=_coerce_str_list(key_points),
         scenarios=_coerce_list(scenarios),
         frontmatter_yaml=frontmatter_yaml, body=body,
+        engine_charts_only=engine_charts_only,
     )
 
 

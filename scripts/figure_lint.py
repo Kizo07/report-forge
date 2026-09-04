@@ -102,6 +102,7 @@ def main() -> int:
 
     fm = body.split("---")
     theme = "light" if len(fm) > 1 and "light" in fm[1] else "dark"
+    engine_only = bool(re.search(r"^engine_charts_only:\s*true\s*$", fm[1] if len(fm) > 1 else "", re.MULTILINE))
     accents = ACCENTS[theme]
 
     charts = proj / "charts"
@@ -130,6 +131,11 @@ def main() -> int:
                 if lum < LIGHT_BRIGHTNESS_FLOOR:
                     bad.append(f"{png.name}: dark chart on light template "
                                f"(mean lum {lum:.0f})")
+            if engine_only:
+                sw = str(Image.open(png).info.get("Software", ""))
+                if "matplotlib" in sw.lower() or "seaborn" in sw.lower():
+                    bad.append(f"{png.name}: non-engine fallback chart "
+                               f"({sw}) — engine_charts_only is set")
 
     if bad:
         print(f"figure_lint: {len(bad)} violation(s) in {proj}:")

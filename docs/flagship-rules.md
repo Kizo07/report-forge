@@ -38,8 +38,12 @@ this file is the committed mirror so a fresh checkout reproduces them.
 
 - Engine builders (`alpha_engine.viz`) with `theme="quantflow-light"` on
   light pages / `"quantflow-dark"` on dark — never hand-rolled plotly for
-  standard exhibits, never silent matplotlib substitution (quote the full
-  export error, stringify scalar Timestamps, retry once).
+  standard exhibits.
+- Matplotlib/seaborn fallback is FORBIDDEN on flagships. Scaffold with
+  `engine_charts_only=True`: render then hard-fails (ok:false naming the
+  files) instead of shipping a fallback. On export error: quote it
+  verbatim, stringify scalar Timestamps, retry once, escalate — never
+  substitute.
 - Captions burned into pixels via
   `save_figure(..., caption_text=caption(asof, source))`.
 

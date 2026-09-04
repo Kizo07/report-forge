@@ -77,6 +77,68 @@ def list_templates() -> list[dict]:
     ]
 
 
+def _set_frontmatter_flag(qmd_path: Path, key: str, value: bool) -> None:
+    """Insert `key: true/false` right after the opening --- fence."""
+    text = qmd_path.read_text()
+    lines = text.splitlines(keepends=True)
+    if not lines or lines[0].strip() != "---":
+        return
+    lines.insert(1, f"{key}: {'true' if value else 'false'}\n")
+    qmd_path.write_text("".join(lines))
+
+
+def _frontmatter_flag(workdir: Path, key: str) -> bool:
+    qmd = workdir / "index.qmd"
+    if not qmd.is_file():
+        return False
+    text = qmd.read_text()
+    if not text.startswith("---"):
+        return False
+    fence = text.find("\n---", 3)
+    head = text[:fence] if fence != -1 else text[:2000]
+    return bool(re.search(rf"^{key}:\s*true\s*$", head, re.MULTILINE))
+
+
+def _non_engine_charts(workdir: Path) -> list[str]:
+    """PNGs whose Software tag names matplotlib (or siblings).
+
+    Engine exports (plotly/kaleido via save_figure, save_chart) carry no
+    Software tag; matplotlib always stamps one. A flagship with
+    `engine_charts_only: true` must contain zero of these.
+    """
+    bad = []
+    charts = workdir / "charts"
+    if not charts.is_dir():
+        return bad
+    try:
+        from PIL import Image as _Image
+    except ImportError:
+        return bad
+    for png in sorted(charts.glob("*.png")):
+        try:
+            with _Image.open(png) as im:
+                sw = str(im.info.get("Software", ""))
+        except Exception:
+            continue
+        if "matplotlib" in sw.lower() or "seaborn" in sw.lower():
+            bad.append(png.name)
+    return bad
+
+
+def _engine_charts_violation(workdir: Path) -> str | None:
+    if not _frontmatter_flag(workdir, "engine_charts_only"):
+        return None
+    bad = _non_engine_charts(workdir)
+    if not bad:
+        return None
+    return (
+        "engine_charts_only is set but these charts are non-engine "
+        f"fallbacks: {', '.join(bad)}. Rebuild them with the engine "
+        "exhibit builders (theme matching the page) or drop the flag — "
+        "render refuses to ship fallback charts on a flagship."
+    )
+
+
 def scaffold_report(
     slug: str,
     title: str | None = None,
@@ -98,6 +160,7 @@ def scaffold_report(
     scenarios: list[dict] | None = None,
     frontmatter_yaml: str | None = None,
     body: str | None = None,
+    engine_charts_only: bool = False,
 ) -> dict:
     specs = {t["name"]: t for t in list_templates()}
     if template not in specs:
@@ -189,6 +252,8 @@ def scaffold_report(
                 shutil.rmtree(root, ignore_errors=True)
                 return {"ok": False, "error": "frontmatter_yaml must be a YAML mapping"}
             fm_text = frontmatter_yaml.strip()
+            if engine_charts_only:
+                fm_text += "\nengine_charts_only: true"
         body_text = (body or "").strip()
         if fm_text:
             qmd = f"---\n{fm_text}\n---\n\n{body_text}\n"
@@ -378,6 +443,8 @@ def scaffold_report(
             yml = _drop_yaml_block(yml, yml_fmt_key if fmt == "pdf" else fmt)
     (root / "_quarto.yml").write_text(yml)
     (root / "index.qmd").write_text(body)
+    if engine_charts_only:
+        _set_frontmatter_flag(root / "index.qmd", "engine_charts_only", True)
     ref = _default_reference_docx()
     if ref is not None and "docx" in kept_formats:
         shutil.copy(ref, root / "assets" / "reference-doc.docx")
@@ -428,6 +495,9 @@ def render_report(source: str, formats: list[str] | None = None, project: str | 
     if not src.is_file():
         return {"ok": False, "error": f"source is not a file: {src}"}
     workdir = _project_root_of(src) or src.parent
+    violation = _engine_charts_violation(workdir)
+    if violation is not None:
+        return {"ok": False, "error": violation}
     env = dict(__import__("os").environ)
     if env.get("OTEL_SDK_DISABLED") not in (None, "true", "false"):
         env["OTEL_SDK_DISABLED"] = "true" if env["OTEL_SDK_DISABLED"].lower() in ("1", "yes", "on") else "false"

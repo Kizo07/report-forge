@@ -249,3 +249,43 @@ def test_scaffold_uses_kernel_selected_by_environment_probe(
     config = yaml.safe_load((Path(result["path"]) / "_quarto.yml").read_text())
     assert config["execute"]["jupyter"] == "python3"
     assert result["jupyter_kernel"] == "python3"
+
+
+def _mpl_png(path: Path) -> None:
+    from PIL import Image, PngImagePlugin
+
+    info = PngImagePlugin.PngInfo()
+    info.add_text("Software", "Matplotlib version3.11.1, https://matplotlib.org/")
+    Image.new("RGB", (120, 60), "white").save(path, pnginfo=info)
+
+
+def test_scaffold_engine_charts_only_records_flag(isolated_reports: Path) -> None:
+    result = engine.scaffold_report(
+        "flag-test", template="memo", formats=["html"], engine_charts_only=True
+    )
+    assert result["ok"] is True
+    head = (Path(result["path"]) / "index.qmd").read_text().split("---")[1]
+    assert "engine_charts_only: true" in head
+
+
+def test_render_hard_fails_on_fallback_charts(isolated_reports: Path) -> None:
+    result = engine.scaffold_report(
+        "flag-fail", template="memo", formats=["html"], engine_charts_only=True
+    )
+    assert result["ok"] is True
+    proj = Path(result["path"])
+    (proj / "charts").mkdir()
+    _mpl_png(proj / "charts" / "fallback.png")
+    out = engine.render_report("flag-fail")
+    assert out["ok"] is False
+    assert "fallback.png" in out["error"]
+    assert "engine_charts_only" in out["error"]
+
+
+def test_render_gate_passes_without_flag(isolated_reports: Path) -> None:
+    result = engine.scaffold_report("no-flag", template="memo", formats=["html"])
+    assert result["ok"] is True
+    proj = Path(result["path"])
+    (proj / "charts").mkdir()
+    _mpl_png(proj / "charts" / "fallback.png")
+    assert engine._engine_charts_violation(proj) is None
