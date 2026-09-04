@@ -47,6 +47,10 @@ FULLWIDTH_SHARE = 0.60
 MAX_FULLWIDTH_RUN = 2
 MIN_ACCENT_PX = 20
 LIGHT_BRIGHTNESS_FLOOR = 150
+# Light paper corner target (#e5ddcc): catches white-background charts
+# (wrong template / default-style fallback) that pass brightness+accents.
+LIGHT_PAPER = (229, 221, 204)
+PAPER_TOL = 16
 
 
 def _matches(px, targets, tol=60):
@@ -131,6 +135,22 @@ def main() -> int:
                 if lum < LIGHT_BRIGHTNESS_FLOOR:
                     bad.append(f"{png.name}: dark chart on light template "
                                f"(mean lum {lum:.0f})")
+                boxes = (im.crop((0, 0, 12, 12)), im.crop((w - 12, 0, w, 12)),
+                         im.crop((0, h - 12, 12, h)),
+                         im.crop((w - 12, h - 12, w, h)))
+                chans: list[int] = [0, 0, 0]
+                total = 0
+                for box in boxes:
+                    raw = box.tobytes()
+                    n = len(raw) // 3
+                    total += n
+                    for i in range(3):
+                        chans[i] += sum(raw[i::3])
+                paper = tuple(c // total for c in chans)
+                if any(abs(a - b) > PAPER_TOL for a, b in zip(paper, LIGHT_PAPER)):
+                    bad.append(f"{png.name}: paper {paper} is not the light "
+                               f"template paper {LIGHT_PAPER} — wrong theme "
+                               f"or default-style fallback?")
             if engine_only:
                 sw = str(Image.open(png).info.get("Software", ""))
                 if "matplotlib" in sw.lower() or "seaborn" in sw.lower():
