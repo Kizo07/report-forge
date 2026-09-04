@@ -19,6 +19,8 @@ import sys  # noqa: E402
 
 sys.path.insert(0, str(AE_SRC))
 
+from reportforge import engine as rf_engine  # noqa: E402
+
 from alpha_engine.viz import (  # noqa: E402
     QUANTFLOW_DARK,
     attribution_bars,
@@ -79,3 +81,49 @@ def test_metrics_markdown_showtable_ready():
     md = metrics_markdown({"sharpe": 1.42, "max_dd": -0.18})
     assert "| Metric | Value |" in md
     assert "sharpe" in md and "1.42" in md
+
+
+def test_save_chart_colorway_derived_no_stock_blues():
+    import plotly.graph_objects as go
+
+    for name in ("quantflow-dark", "quantflow-light"):
+        fig = go.Figure(go.Bar(x=["a"], y=[1]))
+        rf_engine._apply_quantflow_plotly_template(fig, name)
+        cw = list(fig.layout.template.layout.colorway)
+        assert cw[0] == rf_engine.QUANTFLOW_PLOTLY_THEMES[name]["primary"]
+        # stock plotly blue must never leak in (dark ramp's own #79c0ff
+        # tail is canonical and fine on near-black, but not on paper)
+        assert "#58a6ff" not in cw
+        if name == "quantflow-light":
+            assert "#79c0ff" not in cw
+
+
+def test_plotly_mirror_matches_engine_palettes():
+    from alpha_engine.viz import QUANTFLOW_THEMES
+
+    for name, pal in QUANTFLOW_THEMES.items():
+        mirror = rf_engine.QUANTFLOW_PLOTLY_THEMES[name]
+        for key in ("paper_bg", "plot_bg", "font", "grid", "primary",
+                    "secondary", "positive", "negative", "muted"):
+            assert mirror[key] == pal[key], (name, key)
+        assert mirror["ramp"] == pal["quantile_seq"], name
+
+
+def test_round2_builders_and_caption(tmp_path):
+    from alpha_engine.viz import (caption, price_levels, returns_dist,
+                                  waterfall_bridge)
+
+    px = _series()
+    assert returns_dist(px.pct_change().dropna(),
+                        theme="quantflow-light").data
+    assert price_levels(px, {"support": 90.0, "resist": 130.0},
+                        theme="quantflow-light").data
+    fig = waterfall_bridge(["S", "a", "Sub", "b", "T"],
+                           [100, 10, 110, 5, 115], totals=[2, 4],
+                           theme="quantflow-light")
+    assert list(fig.data[0].measure)[2] == "total"
+    cap = caption(asof="2026-09-02", source="store")
+    probe = price_technicals(px, theme="quantflow-light")
+    out = save_figure(probe, tmp_path / "cap.png", caption_text=cap)
+    assert out.is_file()
+    assert any(a.text == cap for a in probe.layout.annotations)

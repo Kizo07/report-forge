@@ -646,14 +646,20 @@ def _project_template_name(project: str | None, out: Path) -> str | None:
 # QuantFlow plotly identity — mirror of alpha_engine.viz.QUANTFLOW_DARK/LIGHT
 # (alpha_engine is canonical; this copy lets save_chart style figures
 # without a cross-repo import). Gold + teal, matched to the portfolio pages.
+# Colorways derive from each palette (primary/secondary + ramp), mirroring
+# quantflow_template() — never stock plotly blues, which wash out on paper.
 QUANTFLOW_PLOTLY_THEMES = {
     "quantflow-dark": {
         "paper_bg": "#0a0d12", "plot_bg": "#10151d", "font": "#e7eaf0",
         "grid": "#1e2632", "primary": "#c9a227", "secondary": "#56cfc4",
+        "positive": "#3fb950", "negative": "#f85149", "muted": "#9aa4b2",
+        "ramp": ["#5c5320", "#8a7a2a", "#c9a227", "#56cfc4", "#79c0ff"],
     },
     "quantflow-light": {
         "paper_bg": "#e5ddcc", "plot_bg": "#ebe3d2", "font": "#362e21",
         "grid": "#d3c8b0", "primary": "#8f621f", "secondary": "#14756c",
+        "positive": "#2e7d32", "negative": "#c62828", "muted": "#6d6250",
+        "ramp": ["#b09a5e", "#8f621f", "#6d4c17", "#14756c", "#0f4c44"],
     },
 }
 
@@ -669,8 +675,8 @@ def _apply_quantflow_plotly_template(fig, name: str) -> None:
     import plotly.io as pio
 
     pal = QUANTFLOW_PLOTLY_THEMES[name]
-    colorway = [pal["primary"], pal["secondary"], "#58a6ff", "#79c0ff",
-                "#3fb950", "#f85149", "#a5d6ff", "#6d6250"]
+    colorway = ([pal["primary"], pal["secondary"], pal["positive"],
+                 pal["negative"]] + pal["ramp"] + [pal["muted"]])
     tmpl = go.layout.Template(layout=dict(
         paper_bgcolor=pal["paper_bg"], plot_bgcolor=pal["plot_bg"],
         font=dict(family="Inter, system-ui", color=pal["font"], size=13),
