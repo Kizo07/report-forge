@@ -41,11 +41,11 @@ ACCENTS = {
     "dark": [(201, 162, 39), (86, 196, 196)],       # gold #c9a227, teal #56cfc4
 }
 
-# Absolute insanity cap (px @scale=2): retina exports legitimately exceed
-# display size, so per-tier dim checks are meaningless — this catches only
-# unambiguous bloat. The real sizing defect (everything at width=100%) is
-# caught by the FULLWIDTH_SHARE check below.
-ABS_MAX_W, ABS_MAX_H = 2200, 1000
+# Absolute insanity cap (px @scale=2): must fit our own tier spec
+# (hero 1600x800 @scale=2 = 3200x1600) — a cap below the spec fails
+# compliant exports (TSLA-dark 2026-09-05: agent followed the spec,
+# the gate was wrong). Catches only exports beyond hero tier.
+ABS_MAX_W, ABS_MAX_H = 3400, 1700
 FULLWIDTH_SHARE = 0.60
 
 MAX_FULLWIDTH_RUN = 2
