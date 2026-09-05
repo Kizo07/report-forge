@@ -1,5 +1,17 @@
 """Embedded Quarto templates used by reportforge.scaffold."""
 
+from reportforge.templates_domain import (  # noqa: F401  (re-export)
+    EARNINGS_RECAP_QMD,
+    SECTOR_OUTLOOK_QMD,
+    THEMATIC_DEEPDIVE_QMD,
+    MACRO_OUTLOOK_QMD,
+    QUANT_FACTOR_BRIEF_QMD,
+    TECHNICAL_BRIEF_QMD,
+    ESG_SUSTAINABILITY_QMD,
+    CRYPTO_DIGITAL_QMD,
+    DOMAIN_BODY_TEMPLATES,
+)
+
 QUARTO_YML = """\
 project:
   type: default
