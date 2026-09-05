@@ -4,6 +4,20 @@ Snapshot of the voice, sizing, and verification rules that steered the
 AMZN v2 run (2026-09-04). The live quant-desk skill carries the same rules;
 this file is the committed mirror so a fresh checkout reproduces them.
 
+## Desk roles (quant-desk Phase 1 — ownership per track)
+
+- quant-analyst: numbers from the engine (factors, backtests, multiples
+  from verified prices). news-analyst: dated/sourced "what happened
+  and when". technical-analyst: pure tape (levels, regime, vol state).
+- earnings-analyst: print vs consensus, guidance, transcript signals.
+- sector-researcher: cycle position, peer comps, relative performance.
+- macro-analyst: rates/inflation/FX/commodity regime + scenario impact.
+- thematic-analyst: theme attribution with arithmetic, peer basket,
+  adoption evidence. demand-analyst: volumes, shares, TAM-with-math.
+- Phase 2 bull/bear debate independently, reconcile with documented
+  demotions. Phase 3 risk-manager sizes. Phase 4 CIO synthesizes —
+  preferably on the `desk-synthesis` template (one section per agent).
+
 ## Prose voice — human desk analyst
 
 - Short declarative sentences, one claim each (~20 words typical). One

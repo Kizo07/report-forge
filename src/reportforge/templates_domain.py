@@ -649,6 +649,130 @@ fig.write_image("assets/example-chart.png", width=9 * 100, height=4.5 * 100, sca
 
 # engine.scaffold_report dispatch: standard/memo/whitepaper stay in
 # templates.py; these typed bodies join the same lookup.
+DESK_SYNTHESIS_QMD = _FRONTMATTER + """\
+# Executive summary
+
+The call first: conviction, 12-month target with upside math, and the
+two facts that carry it. Then the one bear fact that could break it.
+Five sentences maximum — the body proves, the summary states.
+
+# Quant evidence (quant-analyst)
+
+Factor exposures, momentum screens, and ML signal scores from verified
+engine data, each with its as-of. Ranked output with scores, never
+sourced prose. Survivorship-bias-free: historical selection uses the
+as-of membership set, disclosed.
+
+![Primary quant exhibit: signal or factor exposure.](assets/example-chart.png){#fig-example width=85%}
+
+As @fig-example shows, read the exposure in one paragraph: what the
+scores say, what changed since last quarter, and what would flip them.
+
+# Technical setup (technical-analyst)
+
+Pure tape: support and resistance with exact levels, trend regime,
+volume and volatility state. No fundamentals here — the chart's vote,
+for and against the call.
+
+# Catalysts (news-analyst)
+
+Dated, sourced bullets only: what happened, when, from whom. microposts
+without dates do not ship. Close with which catalyst the position is
+actually underwritten on.
+
+# Earnings read (earnings-analyst)
+
+The print against consensus: revenue, margins, EPS with surprise math,
+guidance changes, and the one call-transcript signal (capex, pricing,
+buybacks) that matters. Every number with its unit and quarter as-of.
+
+| Metric | Reported | Consensus | Surprise |
+|--------|---------:|----------:|---------:|
+| Revenue | — | — | — |
+| Gross margin | — | — | — |
+| EPS | — | — | — |
+
+: Headline results vs consensus, quarter as of the report date. {#tbl-earnings}
+
+# Sector context (sector-researcher)
+
+Cycle position (demand, pricing power, inventories, utilization),
+relative performance against the sector, and the peer comps table.
+Where this name wins and loses versus direct peers — sector frame only.
+
+| Peer | Forward P/E (x) | EV/EBITDA (x) | Margin (%) | Growth (%) |
+|------|---------------:|--------------:|-----------:|-----------:|
+| Subject | — | — | — | — |
+| Peer 1 | — | — | — | — |
+| Peer 2 | — | — | — | — |
+
+: Peer comps, multiples as of the report date. {#tbl-comps}
+
+# Macro regime (macro-analyst)
+
+The weather that touches the thesis: rates path, inflation, FX, and
+the relevant commodities, each with prints and dates. What the base,
+bear, and bull macro paths each do to the numbers. Indicators, not vibes.
+
+# Thematic exposure (thematic-analyst)
+
+Revenue attributed to the theme with arithmetic, thematic peer basket,
+adoption-curve evidence with dates, and the quantified bull-case
+contribution. Hype dies here unless the math clears.
+
+# Demand deep dive (demand-analyst)
+
+End-market quantification: volumes, shares, backlog, and TAM as
+units × price × penetration, each leg sourced. Tables carry the
+ladders; prose carries the implication.
+
+# Bull vs bear adjudication
+
+Both cases steelmanned, then reconciled: what survives, what gets
+demoted and why. Every demotion names its reason. The bear's strongest
+fact gets answered, not buried.
+
+# Scenarios
+
+Bear, base, and bull with probabilities, price targets with upside
+math, and the variable that separates them.
+
+| Scenario | Probability (%) | Target | Return (%) | Driver |
+|----------|----------------:|-------:|-----------:|--------|
+| Bear | — | — | — | — |
+| Base | — | — | — | — |
+| Bull | — | — | — | — |
+
+: Scenario grid for the 12-month horizon. {#tbl-scenarios}
+
+# Risk and sizing (risk-manager)
+
+Position size with its vol budget, single-name and factor caps, the
+binary-event tails, and the level at which the call is wrong. Research,
+not advice.
+
+# Recommendation
+
+One paragraph: the call, the size, the horizon, the invalidation.
+Nothing new appears here that the body did not prove.
+
+# Method and data {.appendix}
+
+Engine freshness, universe membership date, vendors, return
+conventions, and every as-of in one place.
+
+""" + _CHUNK_HEADER + """\
+import numpy as np
+
+days = pd.bdate_range("2026-06-01", periods=60)
+scores = np.random.default_rng(7).normal(0.6, 0.25, 60).cumsum()
+df = pd.DataFrame({"signal": scores}, index=days)
+fig = px.line(df, x=df.index, y="signal", markers=False)
+fig.update_layout(template="plotly_white", title="Quant signal score, trailing 60 sessions", font=dict(size=16))
+fig.write_image("assets/example-chart.png", width=9 * 100, height=4.5 * 100, scale=3)
+```
+"""
+
 DOMAIN_BODY_TEMPLATES = {
     "earnings-recap": EARNINGS_RECAP_QMD,
     "sector-outlook": SECTOR_OUTLOOK_QMD,
@@ -658,4 +782,5 @@ DOMAIN_BODY_TEMPLATES = {
     "technical-brief": TECHNICAL_BRIEF_QMD,
     "esg-sustainability": ESG_SUSTAINABILITY_QMD,
     "crypto-digital": CRYPTO_DIGITAL_QMD,
+    "desk-synthesis": DESK_SYNTHESIS_QMD,
 }
