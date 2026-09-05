@@ -16,6 +16,10 @@ Checks:
   6. Palette identity: every chart carries QuantFlow accent pixels
      (per-theme gold/teal targets), and light-template charts pass a
      brightness floor (no dark PNGs on light pages).
+  7. No unescaped `$` in figure alt text or fig-cap: a `$...$` pair
+     (even across alt + caption of one line) parses as inline math and
+     silently un-renders the figure in HTML *and* PDF while firing
+     crossref warnings. Write `USD B` / `USD`, or escape as `\\$`.
 """
 
 import re
@@ -89,6 +93,11 @@ def main() -> int:
                 fullwidth += 1
         if re.search(r"\b([A-Z]) and ([A-Z])\b", alt):
             bad.append(f"qmd: alt-text mangling ({alt!r}) — use & not 'and'")
+        for zone, label in ((alt, "alt text"), (opts, "fig-cap/attrs")):
+            if re.search(r"(?<!\\)\$", zone):
+                bad.append(f"qmd: {fname} unescaped $ in {label} — Quarto "
+                           f"parses $...$ as math and silently un-renders "
+                           f"the figure (write USD or \\$)")
 
     figs = re.findall(r"!\[.*?\]\(charts/", body)
     if figs and fullwidth / len(figs) > FULLWIDTH_SHARE:

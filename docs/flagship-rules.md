@@ -33,6 +33,12 @@ this file is the committed mirror so a fresh checkout reproduces them.
   Retina headroom is fine; past 2200x1000 is bloat.
 - Every figure gets `{#fig-exN}` + fig-cap (native Exhibit numbering).
   Never hand-write `*Exhibit N*` paragraphs. Prose refers to `@fig-exN`.
+- NEVER put `$` in figure alt text or fig-cap: a `$...$` pair (even one
+  `$` in alt + another in the caption of the same line) parses as inline
+  math and silently un-renders the figure in HTML *and* PDF, with
+  crossref warnings as the only symptom. Write `USD B` / `USD`.
+  `figure_lint` rejects unescaped `$` in both zones (TSLA 2026-09-05:
+  5 figures flagged, 3 of them silently missing from both outputs).
 
 ## Chart identity
 
@@ -55,7 +61,18 @@ this file is the committed mirror so a fresh checkout reproduces them.
 1. Word count meets the run's gate (mechanically counted, never estimated).
 2. `python scripts/figure_lint.py <project-dir>` clean — size, crossrefs,
    voice tics, alt text, per-theme accent pixels, light brightness floor.
-3. Render requested formats; artifact check (HTML img count, PDF pages,
-   zero "Unable to display", zero dark charts on light).
-4. `reportforge_publish_report` + `present_files`; final answer leads
-   with the prediction, then absolute artifact paths.
+3. Render requested formats; artifact check (HTML img occurrences via
+   `grep -o "<img" | wc -l` — NOT `grep -c`, which counts lines and
+   undercounts paired figures — PDF pages, zero "Unable to display",
+   zero raw `](charts/` in HTML, zero dark charts on light).
+4. `reportforge_publish_report` + `present_files` IMMEDIATELY after the
+   render verifies — before writing the final summary, so a tool-loop
+   guardrail can never strand artifacts on host paths. Final answer
+   leads with the prediction, then absolute artifact paths.
+
+## Dense-page calibration (TSLA 2026-09-05)
+
+- 4,400 words + 21 exhibits ≈ 16 PDF pages. A true 10–12pp dense brief
+  budgets ~3,500 words + ~15 exhibits, with simple pairs two-up.
+  Do not chase the page number by silently dropping exhibits — report
+  the count honestly and let the brief owner cut scope.
