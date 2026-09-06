@@ -287,13 +287,21 @@ def reportforge_write_report_body(
     prose states the read, the table carries the digits. Every number needs
     a unit and an as-of; every paragraph answers "so what" in its last line.
 
-    Figure sizing — match embed width to information content, not a default:
-    hero/technicals/fan width=100%; standard single chart width=85%;
-    simple charts (<=12 bars, pies, single series) width=70% or paired in
-    ::: {layout-ncol=2} at width=100% of the column. Never stack more than
-    two width=100% figures without intervening prose; never leave a lone
-    chart as the only content under a heading — each exhibit gets 2-4 lines
-    saying what it shows and what the reader should conclude.
+    Figure sizing — widths are % of the TWO-COLUMN body (portfolio/studio
+    PDFs flow body text in two columns from page 2; cover stays
+    single-column page 1). Match embed width to information content:
+    heroes (technicals/fan/timeline/major exhibits) width=100% AND wrapped
+    in ::: {column-page} so they span both columns — an unwrapped 100%
+    only fills its own column. Standard/bar/simple charts width=85% of
+    the column (≈ old 40%-of-page print size) with running text flowing
+    beside them; two-column flow replaces layout-ncol pairing. Never
+    stack more than two spanned heroes without intervening prose; never
+    leave a lone chart as the only content under a heading — each
+    exhibit gets 2-4 lines saying what it shows and what the reader
+    should conclude. Tables stay in-column (template keeps them
+    unbreakable): max 5 data columns, as-of in the caption never per-row,
+    symbol headers (P/E, EV/EBITDA, S&P). NEVER `$` in alt text or
+    fig-cap (math-mode kill).
 
     Before render, run `python scripts/figure_lint.py <project-dir>` from
     the report-forge checkout — size/caption/voice/palette gate, must be
@@ -488,10 +496,13 @@ def reportforge_append_section(
     Number ladders go in a table, not a sentence. Every number needs a unit
     and an as-of.
 
-    Figure sizing — hero/technicals/fan width=100%; standard width=85%;
-    simple charts (<=12 bars, pies, single series) width=70% or paired in
-    ::: {layout-ncol=2}. Never stack more than two width=100% figures
-    without prose between; every exhibit gets 2-4 lines of read-through.
+    Figure sizing — widths are % of the TWO-COLUMN body (two columns from
+    page 2, cover single-column page 1). Heroes width=100% wrapped in
+    ::: {column-page} to span both columns; bar/standard/simple charts
+    width=85% of the column with text flowing beside them. Never stack
+    more than two spanned heroes without prose between; every exhibit
+    gets 2-4 lines of read-through. Tables stay in-column: max 5 data
+    columns, as-of in caption, symbol headers. NEVER `$` in alt/fig-cap.
 
     Before render, run `python scripts/figure_lint.py <project-dir>` —
     must be clean. Full rules: docs/flagship-rules.md.
