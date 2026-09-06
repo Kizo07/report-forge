@@ -20,6 +20,8 @@ Checks:
      (even across alt + caption of one line) parses as inline math and
      silently un-renders the figure in HTML *and* PDF while firing
      crossref warnings. Write `USD B` / `USD`, or escape as `\\$`.
+  8. Every `#`/`##` heading needs a preceding blank line (outside code
+     fences) — without it the marker renders as literal body text.
 """
 
 import re
@@ -107,6 +109,19 @@ def main() -> int:
     if crossrefs < len(figs):
         bad.append(f"qmd: {len(figs)} figures but only {crossrefs} "
                    f"{{#fig-}} crossrefs (native Exhibit numbering)")
+
+    # ATX headings need a preceding blank line — without it `# ...`
+    # renders as literal paragraph text (TSLA 2026-09-06: 8 leaks).
+    # (Outside ``` code fences — `#` comments inside chunks are fine.)
+    in_fence = False
+    for i, ln in enumerate(lines, 1):
+        if ln.strip().startswith("```"):
+            in_fence = not in_fence
+        if (not in_fence and re.match(r"^#{1,3} ", ln)
+                and i > 1 and lines[i - 2].strip()
+                and not lines[i - 2].strip().startswith("```")):
+            bad.append(f"qmd:{i}: heading without preceding blank line "
+                       f"({ln.strip()[:40]!r} renders as literal text)")
 
     low = body.lower()
     for tic in BANNED:
