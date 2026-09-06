@@ -1127,6 +1127,14 @@ STUDIO_TYPT_TEMPLATE = r"""// report-forge "studio" — flexible editorial Typst
 
   pagebreak(weak: true)
   set page(margin: margin)
+  // Two-column magazine body: cover stays single-column page 1;
+  // the break above starts the two-column flow on page 2.
+  // Small figures sit column-width beside running text; heroes wrapped
+  // in ::: {column-page} span both columns (quarto scope:parent).
+  set page(columns: 2)
+  // Tables never split across columns: a split table collides with
+  // running text. Short showcase tables ride whole to the next column.
+  show table: it => block(breakable: false, it)
   doc
 }
 """
@@ -2238,6 +2246,14 @@ PORTFOLIO_LIGHT_TYPT_TEMPLATE = r"""// report-forge "portfolio-light" — studio
 
   pagebreak(weak: true)
   set page(margin: margin)
+  // Two-column magazine body: cover stays single-column page 1;
+  // the break above starts the two-column flow on page 2.
+  // Small figures sit column-width beside running text; heroes wrapped
+  // in ::: {column-page} span both columns (quarto scope:parent).
+  set page(columns: 2)
+  // Tables never split across columns: a split table collides with
+  // running text. Short showcase tables ride whole to the next column.
+  show table: it => block(breakable: false, it)
   doc
 }
 """
@@ -2528,6 +2544,14 @@ PORTFOLIO_DARK_TYPT_TEMPLATE = r"""// report-forge "portfolio-dark" — studio s
 
   pagebreak(weak: true)
   set page(margin: margin)
+  // Two-column magazine body: cover stays single-column page 1;
+  // the break above starts the two-column flow on page 2.
+  // Small figures sit column-width beside running text; heroes wrapped
+  // in ::: {column-page} span both columns (quarto scope:parent).
+  set page(columns: 2)
+  // Tables never split across columns: a split table collides with
+  // running text. Short showcase tables ride whole to the next column.
+  show table: it => block(breakable: false, it)
   doc
 }
 """

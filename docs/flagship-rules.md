@@ -84,6 +84,26 @@ this file is the committed mirror so a fresh checkout reproduces them.
    guardrail can never strand artifacts on host paths. Final answer
    leads with the prediction, then absolute artifact paths.
 
+## Two-column magazine body (2026-09-05; portfolio + studio templates)
+
+- PDF body flows in two columns from page 2 (cover stays single-column
+  p1; the post-cover break starts the flow). Set in the Typst template
+  (`set page(columns: 2)` after the cover) — Quarto's YAML `columns`
+  key is ignored by our pinned builder, and mid-body raw `#set page`
+  does nothing (scoping). Template-level only.
+- Figures default to column width: author widths as % of COLUMN
+  (85% bars ≈ old 40%-of-page print size). Heroes wrapped in
+  `::: {column-page}` span both columns (quarto `scope:parent`).
+  Never rely on accidental float spanning — wrap deliberately.
+- Tables stay in-column and MUST be unbreakable: template carries
+  `show table: it => block(breakable: false, it)` — a split table
+  collides with running text at column breaks. Keep ≤5 data columns;
+  per-row as-of columns truncate (as-of belongs in the caption).
+- Headers use symbols (`P/E`, `EV/EBITDA`, `S&P`), never `and`/`to`
+  paraphrases. No `$` in alt/caption (math-mode kill).
+- HTML output stays single-column (screen reading); two-column is a
+  print/PDF treatment.
+
 ## Dense-page calibration (TSLA 2026-09-05)
 
 - 4,400 words + 21 exhibits ≈ 16 PDF pages. A true 10–12pp dense brief
