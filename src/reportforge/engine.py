@@ -782,8 +782,16 @@ def render_report(source: str, formats: list[str] | None = None, project: str | 
 
     # WS-3: machine-readable project state for reportforge_project_status.
     try:
+        try:
+            rendered_rev = manifest_mod.load(str(workdir)).revision
+        except manifest_mod.ManifestError:
+            rendered_rev = None
         state = {
             "last_render": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+            # Revision binding (RF-05): previews/export can verify the PDF
+            # was rendered from the current manifest revision, not an older
+            # one. A content edit bumps the revision and invalidates the PDF.
+            "manifest_revision": rendered_rev,
             "formats": wanted + (["pdf-web"] if pdf_web_requested else []),
             "outputs": sorted(rendered_outputs),
             "source": str(src),
@@ -1248,12 +1256,10 @@ def project_status(project: str) -> dict:
         for name in ("index.pdf", "index.html", "index.docx"):
             p = out_dir / name
             if p.is_file():
-                try:
-                    artifacts.append(_file_descriptor(
-                        out_dir, name, Path(name).stem,
-                        "deliverable", _mime_for_name(name)))
-                except OSError:
-                    pass
+                desc = _file_descriptor(out_dir, name, Path(name).stem,
+                                        "deliverable", _mime_for_name(name))
+                if desc is not None:
+                    artifacts.append(desc)
     missing_work = _missing_work_summary(root, view, artifacts)
     return {
         "ok": True,
@@ -1487,7 +1493,9 @@ def _first_heading_id(markdown: str) -> str | None:
 # --- Milestone A Task 1.3: precise section operations (RF-02) ----------------
 
 def _project_root_or_error(project: str) -> tuple[Path | None, dict | None]:
-    root = REPORTS_DIR / project.strip("/")
+    root = (REPORTS_DIR / project.strip("/")).resolve()
+    if REPORTS_DIR.resolve() not in root.parents and root != REPORTS_DIR.resolve():
+        return None, {"ok": False, "error": f"project escapes the reports dir: {project}"}
     if not root.is_dir():
         return None, {"ok": False, "error": f"project not found: {project}"}
     if not (root / "index.qmd").is_file():
@@ -2691,12 +2699,17 @@ def _export_release_locked(slug: str, root: Path, revision: int | None,
             else:
                 warnings.append("include_data requested but data/ is missing or empty")
         artifacts = []
+        skipped: list[str] = []
         for p in sorted(tmp.rglob("*")):
             if not p.is_file():
                 continue
             rel = str(p.relative_to(tmp))
             aid, role = _bundle_artifact_id(rel)
-            artifacts.append(_file_descriptor(tmp, rel, aid, role, _mime_for_name(p.name)))
+            desc = _describe_or_skip(tmp, rel, aid, role, _mime_for_name(p.name), skipped)
+            if desc is not None:
+                artifacts.append(desc)
+        if skipped:
+            warnings.append(f"artifacts vanished mid-build and were skipped: {', '.join(sorted(skipped))}")
         (tmp / "bundle.json").write_text(json.dumps({
             "schema_version": 1,
             "report_id": manifest.report_id,
@@ -2825,23 +2838,14 @@ def reportforge_capabilities() -> dict:
 
 # --- Milestone A Task 1.5: preview artifacts (RF-05) --------------------------
 
-def _load_manifest_if_present(root: Path) -> tuple[dict | None, str | None]:
-    """Read report.json for a project; loud failure when absent/unreadable.
-
-    Dict-level helper kept deliberately thin until Task 1.1's manifest module
-    lands: engine preview/export code should not duplicate the manifest state
-    machine, only consume it.
-    """
-    mpath = root / "report.json"
-    if not mpath.is_file():
-        return None, f"project has no report.json manifest (scaffold/import first): {mpath.name}"
+def _render_state_revision(root: Path) -> int | None:
+    """Manifest revision stamped at render time (None when unstamped/legacy)."""
     try:
-        m = json.loads(mpath.read_text())
-    except (json.JSONDecodeError, OSError) as exc:
-        return None, f"manifest unreadable: {exc}"
-    if not isinstance(m.get("revision"), int):
-        return None, "manifest has no integer 'revision' field"
-    return m, None
+        state = json.loads((root / ".reportforge-state.json").read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+    rev = state.get("manifest_revision") if isinstance(state, dict) else None
+    return rev if isinstance(rev, int) else None
 
 
 def render_preview(project: str, revision: int | None = None) -> dict:
@@ -2852,15 +2856,21 @@ def render_preview(project: str, revision: int | None = None) -> dict:
     <project>/output/previews/r<rev>/, and are returned as §3.2-shaped
     relative-path artifact descriptors — never host absolute paths.
     Read-only: the manifest revision is never bumped.
+
+    PDF-staleness rule: the PDF must have been rendered from the current
+    manifest revision (stamped in .reportforge-state.json at render time).
+    A stamped-but-older PDF fails loudly; an unstamped legacy PDF proceeds
+    with a warning and pdf_rendered_at_revision null.
     """
-    root = REPORTS_DIR / project.strip("/")
-    if not root.is_dir():
-        return {"ok": False, "error": f"project not found: {project}"}
-    manifest, err = _load_manifest_if_present(root)
+    root, err = _project_root_or_error(project)
     if err:
-        return {"ok": False, "error": err}
+        return err
+    assert root is not None
+    manifest, err = _load_or_import(root)
+    if err:
+        return err
     assert manifest is not None
-    current = manifest["revision"]
+    current = manifest.revision
     if revision is not None and revision != current:
         return {
             "ok": False,
@@ -2868,6 +2878,21 @@ def render_preview(project: str, revision: int | None = None) -> dict:
             "current_revision": current,
         }
     rev = current
+    warnings: list[str] = []
+
+    pdf_rev = _render_state_revision(root)
+    if pdf_rev is not None and pdf_rev != rev:
+        return {
+            "ok": False,
+            "error": (f"PDF was rendered from revision {pdf_rev} but the manifest "
+                      f"is at revision {rev}: render_report first (a content edit "
+                      f"invalidates previews)"),
+            "current_revision": rev,
+            "pdf_rendered_at_revision": pdf_rev,
+        }
+    if pdf_rev is None:
+        warnings.append("PDF predates revision stamping; re-render to bind "
+                        "previews to an exact revision")
 
     pdftoppm = shutil.which("pdftoppm")
     if not pdftoppm:
@@ -2924,27 +2949,38 @@ def render_preview(project: str, revision: int | None = None) -> dict:
     if contact is None:
         return {"ok": False, "error": "contact sheet composition failed (no page PNGs readable)"}
 
-    artifacts: list[dict] = [
-        _file_descriptor(root, f"output/previews/r{rev}/contact-sheet.png", "contact-sheet", "preview", "image/png")
-    ]
+    artifacts: list[dict] = []
+    skipped_previews: list[str] = []
+    desc = _describe_or_skip(root, f"output/previews/r{rev}/contact-sheet.png",
+                             "contact-sheet", "preview", "image/png", skipped_previews)
+    if desc is not None:
+        artifacts.append(desc)
     for p in _numbered_pages(page_files):
-        artifacts.append(
-            _file_descriptor(root, f"output/previews/r{rev}/pages/page-{p}.png", f"page-{p}", "preview", "image/png")
-        )
+        desc = _describe_or_skip(root, f"output/previews/r{rev}/pages/page-{p}.png",
+                                 f"page-{p}", "preview", "image/png", skipped_previews)
+        if desc is not None:
+            artifacts.append(desc)
 
     charts_dir = root / "charts"
     if charts_dir.is_dir():
         for chart in sorted(charts_dir.glob("*.png")):
-            artifacts.append(
-                _file_descriptor(root, f"charts/{chart.name}", f"exhibit-{chart.stem}", "preview", "image/png")
-            )
+            desc = _describe_or_skip(root, f"charts/{chart.name}",
+                                     f"exhibit-{chart.stem}", "preview", "image/png",
+                                     skipped_previews)
+            if desc is not None:
+                artifacts.append(desc)
+    if skipped_previews:
+        warnings.append("artifacts vanished mid-build and were skipped: "
+                        + ", ".join(sorted(skipped_previews)))
 
     return {
         "ok": True,
-        "report_id": manifest.get("report_id", project.strip("/")),
+        "report_id": manifest.report_id,
         "revision": rev,
         "page_count": page_count,
+        "pdf_rendered_at_revision": pdf_rev,
         "artifacts": artifacts,
+        "warnings": warnings,
         "next_step": "retrieve artifacts via read_project_file (binary) or export bundle §3",
     }
 
@@ -3018,10 +3054,27 @@ def _build_contact_sheet(page_files: list[Path], dest: Path) -> Path | None:
     return dest
 
 
-def _file_descriptor(root: Path, relpath: str, artifact_id: str, role: str, mime: str) -> dict:
-    """§3.2 artifact descriptor for a file under a project/bundle root."""
+def _describe_or_skip(root: Path, relpath: str, artifact_id: str, role: str,
+                      mime: str, skipped: list[str]) -> dict | None:
+    """Describe one artifact; on a glob→read race record it and skip."""
+    desc = _file_descriptor(root, relpath, artifact_id, role, mime)
+    if desc is None:
+        skipped.append(artifact_id)
+    return desc
+
+
+def _file_descriptor(root: Path, relpath: str, artifact_id: str, role: str, mime: str) -> dict | None:
+    """§3.2 artifact descriptor for a file under a project/bundle root.
+
+    Returns None when the file vanishes mid-build (glob→read race) instead
+    of raising across the tool boundary (§2.5 no-exceptions convention);
+    callers skip None and record which handle went missing.
+    """
     p = root / relpath
-    data = p.read_bytes()
+    try:
+        data = p.read_bytes()
+    except OSError:
+        return None
     return {
         "id": artifact_id,
         "path": relpath,

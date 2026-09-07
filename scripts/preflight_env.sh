@@ -86,6 +86,15 @@ else
   echo "  note: no chromium found — pdf-web format will fail until installed or REPORTFORGE_CHROMIUM is set"
 fi
 
+# Poppler for preview artifacts (RF-05 names this preflight dependency
+# explicitly: its absence is a loud ok:false at runtime).
+if command -v pdftoppm >/dev/null 2>&1 && command -v pdfinfo >/dev/null 2>&1; then
+  echo "poppler (previews): $(command -v pdftoppm)"
+else
+  echo "  MISSING: poppler (pdftoppm/pdfinfo) on PATH — render_preview will fail loudly"
+  fail=1
+fi
+
 if [[ "$fail" -ne 0 ]]; then
   echo ""
   echo "PRE-FLIGHT FAILED — install missing packages into $PY, e.g.:"

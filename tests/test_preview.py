@@ -39,9 +39,8 @@ def rendered_project(isolated_reports: Path) -> Path:
     """Scaffolded memo project with manifest, a chart, and a faked rendered PDF."""
     scaffold = engine.scaffold_report("preview-fixture", template="memo", formats=["pdf"])
     project = Path(scaffold["path"])
-    (project / "report.json").write_text(
-        '{"schema_version": 1, "report_id": "preview-fixture", "revision": 1, "state": "draft"}'
-    )
+    # Task 1.2's scaffold already wrote a proper revision-1 manifest; the
+    # preview path consumes it through manifest_mod.load (drift repair).
     charts = project / "charts"
     charts.mkdir(exist_ok=True)
     (charts / "pnl.png").write_bytes(_png_bytes())
@@ -81,20 +80,34 @@ def test_render_preview_missing_project(isolated_reports: Path) -> None:
     assert "project not found" in result["error"]
 
 
-def test_render_preview_requires_manifest(
+def test_render_preview_missing_manifest_auto_imports(
     isolated_reports: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Legacy dirs without report.json are adopted via import_dir (§1.6)."""
+    import json
+
     scaffold = engine.scaffold_report("preview-nomanifest", template="memo", formats=["pdf"])
     project = Path(scaffold["path"])
-    # Simulate a legacy dir: scaffold writes a manifest since Task 1.2.
     (project / "report.json").unlink()
     out = project / "output"
     out.mkdir(parents=True, exist_ok=True)
     (out / "index.pdf").write_bytes(b"%PDF-fake")
     monkeypatch.setattr(engine.subprocess, "run", _fake_pdftoppm())
     result = engine.render_preview("preview-nomanifest")
+    assert result["ok"] is True, result.get("error")
+    assert json.loads((project / "report.json").read_text())["revision"] == 1
+
+
+def test_render_preview_missing_qmd_is_loud(
+    isolated_reports: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scaffold = engine.scaffold_report("preview-noqmd", template="memo", formats=["pdf"])
+    project = Path(scaffold["path"])
+    (project / "report.json").unlink()
+    (project / "index.qmd").unlink()
+    result = engine.render_preview("preview-noqmd")
     assert result["ok"] is False
-    assert "manifest" in result["error"].lower()
+    assert "index.qmd" in result["error"]
 
 
 def test_render_preview_requires_rendered_pdf(
@@ -179,3 +192,83 @@ def test_render_preview_mcp_tool_registered() -> None:
     assert "reportforge_render_preview" in tools
     props = tools["reportforge_render_preview"].parameters["properties"]
     assert {"project", "revision"} <= set(props)
+
+
+# --- critic-2 RF-05 review regressions ---------------------------------------
+
+def _write_render_state(project: Path, revision: int | None) -> None:
+    import json
+
+    (project / ".reportforge-state.json").write_text(
+        json.dumps({"last_render": "2026-09-07T00:00:00+00:00",
+                    "manifest_revision": revision, "formats": ["pdf"],
+                    "outputs": ["index.pdf"], "source": "index.qmd"}))
+
+
+def test_render_preview_refuses_stale_pdf(
+    rendered_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """PDF rendered at r1, manifest bumped to r2 → loud re-render demand."""
+    from reportforge import manifest as manifest_mod
+
+    m = manifest_mod.load(str(rendered_project))
+    manifest_mod.bump(m, "content edit", actor="test")
+    manifest_mod.save(m, str(rendered_project))
+    _write_render_state(rendered_project, 1)
+    monkeypatch.setattr(engine.subprocess, "run", _fake_pdftoppm())
+    result = engine.render_preview("preview-fixture")
+    assert result["ok"] is False
+    assert "render" in result["error"].lower()
+    assert result["pdf_rendered_at_revision"] == 1
+    assert result["current_revision"] == 2
+    assert not (rendered_project / "output" / "previews").exists()
+
+
+def test_render_preview_stamped_pdf_binds_revision(
+    rendered_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_render_state(rendered_project, 1)
+    monkeypatch.setattr(engine.subprocess, "run", _fake_pdftoppm())
+    result = engine.render_preview("preview-fixture")
+    assert result["ok"] is True, result.get("error")
+    assert result["pdf_rendered_at_revision"] == 1
+    assert result["warnings"] == []
+
+
+def test_render_preview_unstamped_pdf_warns(
+    rendered_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert not (rendered_project / ".reportforge-state.json").exists()
+    monkeypatch.setattr(engine.subprocess, "run", _fake_pdftoppm())
+    result = engine.render_preview("preview-fixture")
+    assert result["ok"] is True, result.get("error")
+    assert result["pdf_rendered_at_revision"] is None
+    assert any("re-render" in w for w in result["warnings"])
+
+
+def _fake_pdftoppm_single_page() -> object:
+    """Poppler names single-page output <prefix>.png (no page number)."""
+
+    def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        prog = Path(command[0]).name
+        if prog == "pdfinfo":
+            return subprocess.CompletedProcess(command, 0, "Pages: 1\n", "")
+        if prog == "pdftoppm":
+            prefix = Path(command[-1])
+            prefix.parent.mkdir(parents=True, exist_ok=True)
+            (prefix.parent / f"{prefix.name}.png").write_bytes(_png_bytes())
+            return subprocess.CompletedProcess(command, 0, "", "")
+        return subprocess.CompletedProcess(command, 0, "", "", )
+
+    return fake_run
+
+
+def test_render_preview_single_page_fallback(
+    rendered_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(engine.subprocess, "run", _fake_pdftoppm_single_page())
+    result = engine.render_preview("preview-fixture")
+    assert result["ok"] is True, result.get("error")
+    assert result["page_count"] == 1
+    assert "page-1" in {a["id"] for a in result["artifacts"]}
+    assert (rendered_project / "output" / "previews" / "r1" / "pages" / "page-1.png").is_file()
