@@ -1897,6 +1897,20 @@ REQUIRED_SECTIONS = {
     "studio": ["overview", "figures and tables"],
 }
 
+# B-7 owns the full per-genre content; B-6 seeds the two genres its fixture
+# matrix exercises. Shape: {genre: [{kind: [...], label: ...}]} — a
+# requirement is satisfied only when a matching-kind source is BOTH
+# registered AND cited in the body (critic-2 F1: presence alone is cheap).
+REQUIRED_EVIDENCE = {
+    "earnings-recap": [
+        {"kind": ["filing", "transcript"],
+         "label": "results source (filing or call transcript)"},
+    ],
+    "macro-outlook": [
+        {"kind": ["dataset"], "label": "macro data series"},
+    ],
+}
+
 ILLUSTRATIVE_MARKERS = ("ILLUSTRATIVE", "example-data", "Lorem", "Add a short abstract here")
 
 _MONEY_RE = re.compile(r"\$\s?-?[\d,]+(?:\.\d+)?(?:\s?[Uu][Ss][Dd])?|[\d,]+(?:\.\d+)?\s?[Uu][Ss][Dd]")
@@ -1986,6 +2000,144 @@ def _readiness_evidence(text: str, spans: list[dict]) -> list[dict]:
         # a marker-heavy draft can never look cleaner than it is.
         issues.append(_issue("evidence", "info", "EVID-ILLUSTRATIVE-OVERFLOW",
                              f"{total} illustrative markers found; showing first 10"))
+    return issues
+
+
+# --- RF-03 evidence coverage (B-6, stdlib only) -------------------------------
+
+# Reserved-namespace cite scan (critic-2 F2 + critic-1 finding 3): every
+# @src-<key> occurrence regardless of bracket style — bracketed [@k],
+# compound [@a; @b], suppress-author [-@k], and bare in-text @k. One regex
+# kills every blind spot the bracket-only form had. The capture group
+# yields the bare citekey (no @ prefix) for registry lookup.
+_SRC_CITE_RE = re.compile(r"@(src-[\w-]+)")
+
+
+def _cover_number(value) -> float | None:
+    """Normalize a cover/fact value for linkage; None means unchecked.
+
+    Ranges ("300-310", "300 to 320") and non-numerics ("Q3'26") are
+    documented unchecked in the contract; unit-blind by design (a "300
+    bps" fact and a "$300" target compare as 300 — the issue names the
+    matched fact id so the ambiguity stays visible, never silent).
+    """
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if not isinstance(value, str):
+        return None
+    t = value.strip().replace(",", "").replace("$", "").strip()
+    t = re.sub(r"\s*(USD|usd|percent|pct|%|bps?)$", "", t, flags=re.IGNORECASE).strip()
+    if not t or re.search(r"\d\s*[-–~]\s*\d|\bto\b", t):
+        return None
+    try:
+        return float(t)
+    except ValueError:
+        return None
+
+
+def _cover_values_match(a: float, b: float) -> bool:
+    return abs(a - b) <= 1e-6 * max(1.0, abs(a), abs(b))
+
+
+def _cover_numeric_candidates(front: dict) -> list[tuple[str, float]]:
+    """Structured cover numerics: target, scenario values, metric values.
+
+    Verdict prose is excluded by design (policed by UNREGISTERED-CITE and
+    the numerics pass instead) — see the contract's deferred-items list.
+    """
+    cands: list[tuple[str, float]] = []
+    t = _cover_number(front.get("target"))
+    if t is not None:
+        cands.append(("target", t))
+    for seq_key in ("scenarios", "metrics"):
+        seq = front.get(seq_key)
+        if isinstance(seq, list):
+            for i, item in enumerate(seq):
+                if isinstance(item, dict):
+                    v = _cover_number(item.get("value"))
+                    if v is not None:
+                        cands.append((f"{seq_key}[{i}].value", v))
+    return cands
+
+
+def _readiness_evidence_coverage(root: Path, body: str, front: dict,
+                                 registries: dict, template: str) -> list[dict]:
+    """Registry↔body evidence linkage: cites, exhibits, cover, required kinds."""
+    issues: list[dict] = []
+    sources = registries.get("sources", {}) or {}
+    exhibits = registries.get("exhibits", {}) or {}
+    facts = registries.get("facts", {}) or {}
+    # Fenced code blocks are never prose: an [@key] inside a python chunk
+    # is documentation, and an error-severity FP would block release.
+    scanned = "\n".join(
+        line for _, line in manifest_mod._iter_prose_lines(body.splitlines()))
+    cited = set(_SRC_CITE_RE.findall(scanned))
+    for key in sorted(cited):
+        if key not in sources:
+            issues.append(_issue(
+                "evidence", "error", "EVID-UNREGISTERED-CITE",
+                f"cited source {key!r} has no registry record — register it first"))
+    # Exhibits: @fig- cross-refs AND {#fig-} embed definitions — an
+    # embedded-but-never-cross-referenced figure is the common style.
+    shorts = set(_FIGREF_RE.findall(scanned)) | set(_FIGANCHOR_RE.findall(scanned))
+    for short in sorted(shorts):
+        if f"fig-{short}" not in exhibits:
+            issues.append(_issue(
+                "evidence", "error", "EVID-EXHIBIT-UNREGISTERED",
+                f"figure @fig-{short} has no exhibit record — register it first"))
+    anchors = set(_FIGANCHOR_RE.findall(scanned))
+    for eid in sorted(exhibits):
+        rec = exhibits[eid]
+        f = rec.get("file")
+        if f is not None:
+            # Boundary pinned (critic-2 F3): only set-but-absent fires.
+            # file: null (anchor-grounded) never reaches this branch.
+            if not (root / f).is_file():
+                issues.append(_issue(
+                    "evidence", "error", "EVID-EXHIBIT-FILE-MISSING",
+                    f"exhibit {eid!r} points at missing file {f!r}"))
+        else:
+            short = eid[4:] if eid.startswith("fig-") else eid
+            if short not in anchors:
+                issues.append(_issue(
+                    "evidence", "warning", "EVID-EXHIBIT-ANCHOR-MISSING",
+                    f"exhibit {eid!r} is anchor-grounded but {{#fig-{short}}} "
+                    "no longer exists in index.qmd"))
+    for field, number in _cover_numeric_candidates(front):
+        match_id: str | None = None
+        match_kind = ""
+        for fid in sorted(facts):
+            fv = _cover_number(facts[fid].get("value"))
+            if fv is not None and _cover_values_match(number, fv):
+                match_id, match_kind = fid, facts[fid].get("kind", "")
+                break
+        if match_id is None:
+            issues.append(_issue(
+                "evidence", "warning", "EVID-COVER-UNLINKED",
+                f"cover {field} = {number:g} has no matching fact record"))
+        elif match_kind == "illustrative":
+            issues.append(_issue(
+                "evidence", "warning", "EVID-COVER-ILLUSTRATIVE",
+                f"cover {field} links to illustrative fact {match_id!r} — "
+                "thesis built on illustrative data"))
+    required = REQUIRED_EVIDENCE.get(template or "")
+    if required is None:
+        issues.append(_issue(
+            "evidence", "info", "EVID-NO-REQUIRED-LIST",
+            f"no required-evidence list defined for template {template!r}"))
+    else:
+        for req in required:
+            kinds = req["kind"] if isinstance(req.get("kind"), list) else [req.get("kind")]
+            satisfied = any(
+                s.get("kind") in kinds and skey in cited
+                for skey, s in sources.items())
+            if not satisfied:
+                issues.append(_issue(
+                    "evidence", "error", "EVID-MISSING-REQUIRED",
+                    f"no cited {req.get('label', req.get('kind'))} in registry "
+                    f"for template {template!r}"))
     return issues
 
 
@@ -2660,7 +2812,9 @@ def check_readiness(project: str) -> dict:
     template = manifest.to_dict().get("profile", {}).get("report_type", "")
     categories = {
         "structure": _readiness_structure(text, spans, template),
-        "evidence": _readiness_evidence(text, spans),
+        "evidence": (_readiness_evidence(text, spans)
+                     + _readiness_evidence_coverage(
+                         root, body, front, manifest.to_dict(), template)),
         "numerical": _readiness_numerical(body, front, spans, body_offset),
         "presentation": _readiness_presentation(root, text),
         "editorial": _readiness_editorial(manifest),
