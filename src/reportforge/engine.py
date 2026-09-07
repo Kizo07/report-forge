@@ -622,6 +622,17 @@ def _manifest_view(root: Path) -> tuple[dict | None, str | None]:
         "state": d["state"],
         "sections": d["sections"],
         "formats": d["formats"],
+        # RF-03 discovery (B-5): counts AND full maps — pinned shape, no
+        # truncation at human scale (critic-2: pick one, pin it in tests).
+        "evidence": {
+            "counts": {"sources": len(d.get("sources", {})),
+                       "exhibits": len(d.get("exhibits", {})),
+                       "facts": len(d.get("facts", {}))},
+            "sources": d.get("sources", {}),
+            "exhibits": d.get("exhibits", {}),
+            "facts": d.get("facts", {}),
+            "registry_version": d.get("registry_version", 0),
+        },
     }, None
 
 
@@ -3275,6 +3286,20 @@ def reportforge_capabilities() -> dict:
         },
         "manifest": {"schema_version": manifest_mod.SCHEMA_VERSION,
                      "states": list(manifest_mod.STATES)},
+        "evidence": {
+            "registry": True,
+            "citation_syntax": "[@key] (bracket) and @key (in-text); "
+                               "keys live in the src- namespace",
+            "bib_file": "sources.bib",
+            "fact_kinds": list(manifest_mod.FACT_KINDS),
+            "register_tools": ["reportforge_register_source",
+                               "reportforge_register_exhibit",
+                               "reportforge_register_fact",
+                               "reportforge_update_fact"],
+            "caption_attribution": "editorial convention for Milestone B "
+                                   "(records carry source_keys/as_of/alt; "
+                                   "nothing renders them into captions yet)",
+        },
         "tools": _mcp_tool_names(),
         "docs": {"flagship_rules": "docs/flagship-rules.md",
                  "contracts": "docs/milestone-a-contracts.md",

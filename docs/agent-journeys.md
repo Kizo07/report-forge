@@ -55,6 +55,25 @@ Export requires state `approved` and writes
 `bundle.json` (relative-path descriptors with sha256), optional `source/` +
 `data/`. The DeerFlow adapter resolves the same descriptors.
 
+## 5. Attribute (Milestone B: evidence registry)
+
+```bash
+reportforge source amzn-brief src-sec-10q-q2 filing "ACME 10-Q Q2 2026" --date 2026-07-30
+reportforge chart fig.json revenue --project amzn-brief \
+  --exhibit-title "Revenue trend" --source-keys src-sec-10q-q2
+reportforge fact amzn-brief fact-target-300 --value 300 --unit USD \
+  --kind calculated --source-keys src-sec-10q-q2
+reportforge status amzn-brief   # manifest.evidence: counts + full maps + registry_version
+reportforge readiness amzn-brief  # evidence category: cites/exhibits/cover linked
+```
+
+Cite sources from prose as `[@src-sec-10q-q2]` (or in-text `@src-sec-10q-q2`);
+the engine keeps `sources.bib` and the top-level `bibliography:` line in
+`_quarto.yml` for you. Exhibit ids reuse figure anchors (`fig-<id>`); cover
+verdict/target/scenarios/metrics numerics should have matching fact ids.
+Caption attribution (source/as-of under a figure) is an editorial convention
+for now — write it by hand; the record only stores the data.
+
 ## Fresh-agent checklist
 
 1. `capabilities` → pick template/profile/output.

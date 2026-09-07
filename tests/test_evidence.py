@@ -336,6 +336,33 @@ def test_update_fact_missing_id_fails(tmp_path, monkeypatch):
     res = engine.update_fact("ev-probe", "fact-nope", value=1)
     assert res["ok"] is False
 
+
+# --- B-5: evidence in views + capabilities -------------------------------------
+
+def test_status_and_open_expose_evidence(tmp_path, monkeypatch):
+    root = _scaffold(monkeypatch, tmp_path)
+    engine.register_source("ev-probe", **SRC)
+    st = engine.project_status("ev-probe")
+    assert st["ok"] is True
+    ev = st["manifest"]["evidence"]
+    assert ev["counts"] == {"sources": 1, "exhibits": 0, "facts": 0}
+    assert ev["sources"]["src-fed-sep-2026-dots"]["title"] == SRC["title"]
+    assert ev["exhibits"] == {} and ev["facts"] == {}
+    assert ev["registry_version"] == 1
+    op = engine.open_report("ev-probe")
+    assert op["ok"] is True
+    assert op["evidence"]["counts"]["sources"] == 1
+
+
+def test_capabilities_evidence_block():
+    caps = engine.reportforge_capabilities()
+    ev = caps["evidence"]
+    assert ev["registry"] is True
+    assert ev["bib_file"] == "sources.bib"
+    assert set(("observed", "calculated", "estimated", "illustrative")) <= set(ev["fact_kinds"])
+    assert "reportforge_register_source" in ev["register_tools"]
+    assert "reportforge_update_fact" in ev["register_tools"]
+
 def _scaffold(monkeypatch, tmp_path, slug="ev-probe", template="standard"):
     monkeypatch.setattr(engine, "REPORTS_DIR", tmp_path / "reports")
     res = engine.scaffold_report(slug, template=template, formats=["html", "pdf"])
