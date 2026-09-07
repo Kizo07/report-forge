@@ -287,3 +287,94 @@ def test_mcp_replace_section_tool_takes_expected_revision() -> None:
     assert "expected_revision" in props
     append_props = tools["reportforge_append_section"].parameters["properties"]
     assert "idempotency_key" in append_props
+
+
+# --- critic-1 RF-02 review regressions ---------------------------------------
+
+def test_stale_window_scoped_to_caller_revision(sectioned_report: Path) -> None:
+    """changed_sections covers caller-rev → current, not the whole log."""
+    for i in range(6):  # rev 2..7, all on s-background
+        r = engine.replace_section(
+            "sections-fixture", "s-background",
+            f"# Background\n\nEdit {i}.\n", expected_revision=1 + i,
+        )
+        assert r["ok"] is True
+    res = engine.replace_section(
+        "sections-fixture", "s-background", "# Background\n\nStale.\n",
+        expected_revision=6,
+    )
+    assert res["ok"] is False and res["stale_revision"] is True
+    assert res["current_revision"] == 7
+    revs = [e["revision"] for e in res["changed_sections"]]
+    assert revs == [7], f"window must be caller-blind-spot only, got {revs}"
+    assert res["events_truncated"] is False
+
+
+def test_append_first_heading_ignores_fenced_code(sectioned_report: Path) -> None:
+    md = "```python\n# not a heading\n```\n\n# Real Section\n\nBody.\n"
+    res = engine.append_section("sections-fixture", md)
+    assert res["ok"] is True
+    assert res["section_id"] == "s-real-section"
+    m = manifest_mod.load(sectioned_report)
+    assert m.revision_log[-1]["section_id"] == "s-real-section"
+
+
+def test_append_first_heading_strips_quarto_attrs(sectioned_report: Path) -> None:
+    res = engine.append_section("sections-fixture", "# Annex {.appendix}\n\nBody.\n")
+    assert res["ok"] is True
+    assert res["section_id"] == "s-annex"
+
+
+def test_move_noop_does_not_bump(sectioned_report: Path) -> None:
+    # s-scope already sits directly before s-background: the move is
+    # byte-identical, so it must not bump (§1.3 — content-changing ops only).
+    before = (sectioned_report / "index.qmd").read_bytes()
+    res = engine.move_section(
+        "sections-fixture", "s-scope",
+        before_section_id="s-background", expected_revision=1,
+    )
+    assert res["ok"] is True
+    assert res.get("moved") is False
+    assert res["revision"] == 1
+    assert (sectioned_report / "index.qmd").read_bytes() == before
+    assert manifest_mod.load(sectioned_report).revision == 1
+
+
+def test_replace_without_heading_warns(sectioned_report: Path) -> None:
+    res = engine.replace_section(
+        "sections-fixture", "s-background", "Just prose, no heading.\n",
+        expected_revision=1,
+    )
+    assert res["ok"] is True
+    assert "warning" in res
+    assert "s-background" not in _section_ids(sectioned_report)
+
+
+def test_section_op_non_utf8_qmd_is_clean_error(sectioned_report: Path) -> None:
+    (sectioned_report / "index.qmd").write_bytes(b"# Bad \xff\xfe\n\nbody\n")
+    res = engine.get_section("sections-fixture", "s-anything")
+    assert res["ok"] is False
+    assert "error" in res  # dict, never an exception across the boundary
+
+
+def test_multibyte_section_byte_range_roundtrips(sectioned_report: Path) -> None:
+    md = "# Ünïcodé Nötés\n\nCafé naïve — €42.\n"
+    res = engine.append_section("sections-fixture", md)
+    assert res["ok"] is True
+    got = engine.get_section("sections-fixture", res["section_id"])
+    assert got["ok"] is True
+    assert "Café" in got["markdown"]
+    text = (sectioned_report / "index.qmd").read_text(encoding="utf-8")
+    start, end = got["byte_range"]
+    assert text.encode("utf-8")[start:end].decode("utf-8") == got["markdown"]
+
+
+def test_mcp_move_delete_require_expected_revision() -> None:
+    import asyncio
+
+    from reportforge.mcp_server import mcp
+
+    tools = {t.name: t for t in asyncio.run(mcp.list_tools())}
+    for name in ("reportforge_move_section", "reportforge_delete_section"):
+        required = tools[name].parameters.get("required", [])
+        assert "expected_revision" in required, f"{name} must require expected_revision"

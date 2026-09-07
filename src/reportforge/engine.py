@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import base64
+import fcntl
+import functools
 import hashlib
 import json
 import os
@@ -1325,8 +1327,52 @@ def read_project_file(project: str, relpath: str, max_bytes: int = 32768) -> dic
     }
 
 
+class _project_lock:
+    """Inter-process mutex for one project's check-then-write window.
+
+    §2.2's own rationale says concurrent agents are normal; without this,
+    two sessions holding rev N can both pass the stale check and the
+    second clobbers the first. stdlib fcntl, project-local lock file.
+    """
+
+    def __init__(self, root: Path):
+        self._path = root / ".reportforge.lock"
+        self._fh = None
+
+    def __enter__(self):
+        self._fh = open(self._path, "w", encoding="utf-8")
+        assert self._fh is not None
+        fcntl.flock(self._fh.fileno(), fcntl.LOCK_EX)
+        return self
+
+    def __exit__(self, *exc):
+        assert self._fh is not None
+        try:
+            fcntl.flock(self._fh.fileno(), fcntl.LOCK_UN)
+        finally:
+            self._fh.close()
+        return False
+
+
+def _section_op_errors(fn):
+    """Contract §2.5: no exceptions cross the tool boundary.
+
+    Engine entry points return `{ok: False, ...}` dicts; an unexpected
+    error (e.g. non-UTF-8 index.qmd raising UnicodeDecodeError) becomes
+    a dict too instead of surfacing through fastmcp as an exception.
+    """
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except Exception as exc:  # noqa: BLE001 — boundary contract
+            return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+    return wrapper
+
+
 # --- WS-4: incremental composition -------------------------------------------
 
+@_section_op_errors
 def append_section(project: str, markdown: str, before: str | None = None,
                    before_section_id: str | None = None,
                    idempotency_key: str | None = None,
@@ -1338,6 +1384,7 @@ def append_section(project: str, markdown: str, before: str | None = None,
     the first heading whose text matches (case-insensitive substring);
     `before_section_id` instead addresses an exact section id. With
     `idempotency_key`, a repeat call with the same key is a no-op replay.
+    When both anchors are given, `before_section_id` wins.
     """
     root = REPORTS_DIR / project.strip("/")
     if not root.is_dir():
@@ -1345,18 +1392,26 @@ def append_section(project: str, markdown: str, before: str | None = None,
     qmd_path = root / "index.qmd"
     if not qmd_path.is_file():
         return {"ok": False, "error": f"project has no index.qmd: {project}"}
-    manifest, err = _load_or_import(root)
-    if err:
-        return err
-    assert manifest is not None
-    if idempotency_key and idempotency_key in manifest.idempotency_ledger:
-        prior = manifest.idempotency_ledger[idempotency_key]
-        return {
-            "ok": True,
-            "idempotent_replay": True,
-            "revision": prior.get("revision", manifest.revision),
-            "section_id": prior.get("section_id"),
-        }
+    with _project_lock(root):
+        manifest, err = _load_or_import(root)
+        if err:
+            return err
+        assert manifest is not None
+        if idempotency_key and idempotency_key in manifest.idempotency_ledger:
+            prior = manifest.idempotency_ledger[idempotency_key]
+            return {
+                "ok": True,
+                "idempotent_replay": True,
+                "revision": prior.get("revision", manifest.revision),
+                "section_id": prior.get("section_id"),
+            }
+        return _append_locked(root, qmd_path, manifest, markdown, before,
+                              before_section_id, idempotency_key, actor)
+
+
+def _append_locked(root: Path, qmd_path: Path, manifest, markdown: str,
+                   before: str | None, before_section_id: str | None,
+                   idempotency_key: str | None, actor: str) -> dict:
     text = qmd_path.read_text()
     # Split frontmatter: only when the file opens with a '---' line.
     fm_end = 0
@@ -1413,10 +1468,19 @@ def append_section(project: str, markdown: str, before: str | None = None,
 
 
 def _first_heading_id(markdown: str) -> str | None:
-    for line in markdown.splitlines():
+    """First heading id of an appended block, fence- and attr-aware.
+
+    Shares the manifest scanner's prose-line logic: `#` lines inside
+    fenced code and quarto `{...}` attribute suffixes must not leak into
+    the revision log or the idempotency ledger (§2.4).
+    """
+    for _, line in manifest_mod._iter_prose_lines(markdown.splitlines()):
         m = manifest_mod._HEADING_RE.match(line)
-        if m and m.group(2).strip():
-            return manifest_mod.slugify_section_id(m.group(2).strip())
+        if not m:
+            continue
+        title = manifest_mod._ATTR_SUFFIX_RE.sub("", m.group(2)).strip()
+        if title:
+            return manifest_mod.slugify_section_id(title)
     return None
 
 
@@ -1470,9 +1534,16 @@ def _load_or_import(root: Path):
         return None, {"ok": False, "error": str(exc)}
 
 
-def _stale_response(manifest) -> dict:
+def _stale_response(manifest, since_revision: int) -> dict:
+    """Stale-revision context scoped to what changed *since the caller*.
+
+    Contract §2.2: `changed_sections` covers the caller's blind window
+    (caller revision → current), not the whole log; the overflow flag
+    passes through so a re-applying client knows the scope is partial.
+    """
+    ev = manifest_mod.events_since(manifest, since_revision)
     changed = []
-    for e in manifest_mod.events_since(manifest, 0)["events"]:
+    for e in ev["events"]:
         op = e.get("op") or ""
         event = {"replace": "replaced", "move": "moved", "delete": "deleted",
                  "append": "added", "create": "added", "import": "added"}.get(op)
@@ -1485,6 +1556,7 @@ def _stale_response(manifest) -> dict:
         "stale_revision": True,
         "current_revision": manifest.revision,
         "changed_sections": changed[-50:],
+        "events_truncated": ev["events_truncated"],
         "hint": f"re-read the section, re-apply your change on top of revision {manifest.revision}",
     }
 
@@ -1493,7 +1565,7 @@ def _check_expected(manifest, expected_revision) -> dict | None:
     if expected_revision is None:
         return {"ok": False, "error": "expected_revision is required (pass the manifest revision you read)"}
     if expected_revision != manifest.revision:
-        return _stale_response(manifest)
+        return _stale_response(manifest, expected_revision)
     return None
 
 
@@ -1515,6 +1587,7 @@ def _commit_qmd_change(root: Path, manifest, new_text: str, reason: str,
     return {"ok": True, "revision": manifest.revision, "section_id": section_id}
 
 
+@_section_op_errors
 def get_section(project: str, section_id: str) -> dict:
     """Read one section's markdown, level, and byte range. Read-only."""
     root, err = _project_root_or_error(project)
@@ -1541,76 +1614,106 @@ def get_section(project: str, section_id: str) -> dict:
     }
 
 
+@_section_op_errors
 def replace_section(project: str, section_id: str, markdown: str,
                     expected_revision: int | None = None,
                     actor: str = "tool:replace_section") -> dict:
-    """Replace a section's heading + body wholesale; other bytes preserved."""
+    """Replace a section's heading + body wholesale; other bytes preserved.
+
+    The replacement should open with a heading: without one the section
+    id vanishes from the index and the response carries a `warning`.
+    """
     root, err = _project_root_or_error(project)
     if err:
         return err
     assert root is not None
-    manifest, err = _load_or_import(root)
-    if err:
-        return err
-    assert manifest is not None
-    gate = _check_expected(manifest, expected_revision)
-    if gate:
-        return gate
-    text = (root / "index.qmd").read_text(encoding="utf-8")
-    raw = text.encode("utf-8")
-    span = _find_span(_section_spans(text), section_id)
-    if span is None:
-        return {"ok": False, "error": f"unknown section {section_id!r}"}
-    new_block = markdown if markdown.endswith("\n") else markdown + "\n"
-    new_text = (raw[:span["start_byte"]] + new_block.encode("utf-8")
-                + raw[span["end_byte"]:]).decode("utf-8")
-    return _commit_qmd_change(root, manifest, new_text,
-                              f"replace section {section_id}",
-                              actor, "replace", section_id)
+    with _project_lock(root):
+        manifest, err = _load_or_import(root)
+        if err:
+            return err
+        assert manifest is not None
+        gate = _check_expected(manifest, expected_revision)
+        if gate:
+            return gate
+        text = (root / "index.qmd").read_text(encoding="utf-8")
+        raw = text.encode("utf-8")
+        span = _find_span(_section_spans(text), section_id)
+        if span is None:
+            return {"ok": False, "error": f"unknown section {section_id!r}"}
+        new_id = _first_heading_id(markdown)
+        new_block = markdown if markdown.endswith("\n") else markdown + "\n"
+        new_text = (raw[:span["start_byte"]] + new_block.encode("utf-8")
+                    + raw[span["end_byte"]:]).decode("utf-8")
+        result = _commit_qmd_change(root, manifest, new_text,
+                                    f"replace section {section_id}",
+                                    actor, "replace", new_id or section_id)
+        if new_id is None:
+            result["warning"] = (
+                f"replacement has no heading: section {section_id!r} is no "
+                "longer addressable; re-add a heading to restore it"
+            )
+            result["section_id"] = section_id
+        return result
 
 
+@_section_op_errors
 def move_section(project: str, section_id: str, before_section_id: str | None = None,
                  to_end: bool = False, expected_revision: int | None = None,
                  actor: str = "tool:move_section") -> dict:
-    """Move a section block before another section or to the document end."""
+    """Move a section block before another section or to the document end.
+
+    A move that changes no bytes (e.g. move-before-self, move-to-end of
+    the last section) is a no-op: it returns ok with `moved: False` and
+    does not bump the revision (§1.3 — only content-changing ops bump).
+    """
     root, err = _project_root_or_error(project)
     if err:
         return err
     assert root is not None
-    manifest, err = _load_or_import(root)
-    if err:
-        return err
-    assert manifest is not None
-    gate = _check_expected(manifest, expected_revision)
-    if gate:
-        return gate
-    if before_section_id is None and not to_end:
-        return {"ok": False,
-                "error": "pass before_section_id or to_end=True"}
-    text = (root / "index.qmd").read_text(encoding="utf-8")
-    raw = text.encode("utf-8")
-    spans = _section_spans(text)
-    span = _find_span(spans, section_id)
-    if span is None:
-        return {"ok": False, "error": f"unknown section {section_id!r}"}
-    block = raw[span["start_byte"]:span["end_byte"]]
-    rest = raw[:span["start_byte"]] + raw[span["end_byte"]:]
-    if to_end:
-        if not rest.endswith(b"\n"):
-            rest += b"\n"
-        new_raw = rest + block
-    else:
-        assert before_section_id is not None
-        # Locate the target in the shortened text (offsets shift after removal).
-        target = _find_span(_section_spans(rest.decode("utf-8")), before_section_id)
-        if target is None:
-            return {"ok": False, "error": f"unknown section {before_section_id!r}"}
-        new_raw = rest[:target["start_byte"]] + block + rest[target["start_byte"]:]
-    return _commit_qmd_change(root, manifest, new_raw.decode("utf-8"),
-                              f"move section {section_id}",
-                              actor, "move", section_id)
+    with _project_lock(root):
+        manifest, err = _load_or_import(root)
+        if err:
+            return err
+        assert manifest is not None
+        gate = _check_expected(manifest, expected_revision)
+        if gate:
+            return gate
+        if before_section_id is None and not to_end:
+            return {"ok": False,
+                    "error": "pass before_section_id or to_end=True"}
+        if before_section_id == section_id:
+            return {"ok": True, "revision": manifest.revision,
+                    "section_id": section_id, "moved": False,
+                    "notice": "move-before-self is a no-op; revision unchanged"}
+        text = (root / "index.qmd").read_text(encoding="utf-8")
+        raw = text.encode("utf-8")
+        spans = _section_spans(text)
+        span = _find_span(spans, section_id)
+        if span is None:
+            return {"ok": False, "error": f"unknown section {section_id!r}"}
+        block = raw[span["start_byte"]:span["end_byte"]]
+        rest = raw[:span["start_byte"]] + raw[span["end_byte"]:]
+        if to_end:
+            if not rest.endswith(b"\n"):
+                rest += b"\n"
+            new_raw = rest + block
+        else:
+            assert before_section_id is not None
+            # Locate the target in the shortened text (offsets shift after removal).
+            target = _find_span(_section_spans(rest.decode("utf-8")), before_section_id)
+            if target is None:
+                return {"ok": False, "error": f"unknown section {before_section_id!r}"}
+            new_raw = rest[:target["start_byte"]] + block + rest[target["start_byte"]:]
+        if new_raw == raw:
+            return {"ok": True, "revision": manifest.revision,
+                    "section_id": section_id, "moved": False,
+                    "notice": "move is a no-op (section already in place); revision unchanged"}
+        return _commit_qmd_change(root, manifest, new_raw.decode("utf-8"),
+                                  f"move section {section_id}",
+                                  actor, "move", section_id)
 
 
+@_section_op_errors
 def delete_section(project: str, section_id: str,
                    expected_revision: int | None = None,
                    actor: str = "tool:delete_section") -> dict:
@@ -1619,22 +1722,23 @@ def delete_section(project: str, section_id: str,
     if err:
         return err
     assert root is not None
-    manifest, err = _load_or_import(root)
-    if err:
-        return err
-    assert manifest is not None
-    gate = _check_expected(manifest, expected_revision)
-    if gate:
-        return gate
-    text = (root / "index.qmd").read_text(encoding="utf-8")
-    raw = text.encode("utf-8")
-    span = _find_span(_section_spans(text), section_id)
-    if span is None:
-        return {"ok": False, "error": f"unknown section {section_id!r}"}
-    new_raw = raw[:span["start_byte"]] + raw[span["end_byte"]:]
-    return _commit_qmd_change(root, manifest, new_raw.decode("utf-8"),
-                              f"delete section {section_id}",
-                              actor, "delete", section_id)
+    with _project_lock(root):
+        manifest, err = _load_or_import(root)
+        if err:
+            return err
+        assert manifest is not None
+        gate = _check_expected(manifest, expected_revision)
+        if gate:
+            return gate
+        text = (root / "index.qmd").read_text(encoding="utf-8")
+        raw = text.encode("utf-8")
+        span = _find_span(_section_spans(text), section_id)
+        if span is None:
+            return {"ok": False, "error": f"unknown section {section_id!r}"}
+        new_raw = raw[:span["start_byte"]] + raw[span["end_byte"]:]
+        return _commit_qmd_change(root, manifest, new_raw.decode("utf-8"),
+                                  f"delete section {section_id}",
+                                  actor, "delete", section_id)
 
 
 # --- Milestone A Task 1.4: readiness + review records (RF-04) ------------------

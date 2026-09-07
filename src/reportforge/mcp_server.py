@@ -575,9 +575,9 @@ def reportforge_replace_section(
 def reportforge_move_section(
     project: str,
     section_id: str,
+    expected_revision: int,
     before_section_id: str | None = None,
     to_end: bool = False,
-    expected_revision: int | None = None,
 ) -> dict[str, Any]:
     """Move a section block before another section or to the document end.
 
@@ -596,7 +596,7 @@ def reportforge_move_section(
 def reportforge_delete_section(
     project: str,
     section_id: str,
-    expected_revision: int | None = None,
+    expected_revision: int,
 ) -> dict[str, Any]:
     """Remove a section block from a project's index.qmd.
 
