@@ -167,11 +167,9 @@ abstract: <% abstract_yaml %>
 Summarize the question, method, headline findings, and the recommendation.
 Aim for five sentences a busy reader can act on.
 
-::: {.callout-note}
 ## Scope
 
 State what this report covers and explicitly does not cover.
-:::
 
 # Background
 
