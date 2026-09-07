@@ -191,3 +191,109 @@ def test_export_release_mcp_tool_registered() -> None:
     assert "reportforge_export_release" in tools
     props = tools["reportforge_export_release"].parameters["properties"]
     assert {"project", "dest"} <= set(props)
+
+
+# --- critic-1 RF-06 review regressions ---------------------------------------
+
+def test_export_artifact_ids_unique_with_source_and_data(
+    rendered_project: dict, isolated_reports: Path, tmp_path: Path
+) -> None:
+    project = rendered_project["project"]
+    (project / "data" / "a").mkdir(parents=True)
+    (project / "data" / "b").mkdir(parents=True)
+    (project / "data" / "a" / "x.csv").write_text("a")
+    (project / "data" / "b" / "x.csv").write_text("b")
+    dest = tmp_path / "bundle"
+    result = engine.export_release(
+        "export-fixture", revision=1, dest=str(dest),
+        include_source=True, include_data=True,
+    )
+    assert result["ok"] is True, result.get("error")
+    ids = [d["id"] for d in result["artifacts"]]
+    assert len(ids) == len(set(ids)), f"duplicate artifact ids: {ids}"
+    assert (dest / "export-fixture" / "r1" / "data" / "a" / "x.csv").is_file()
+
+
+def test_export_reexport_same_revision_overwrites(
+    rendered_project: dict, isolated_reports: Path, tmp_path: Path
+) -> None:
+    dest = tmp_path / "bundle"
+    r1 = engine.export_release("export-fixture", revision=1, dest=str(dest))
+    assert r1["ok"] is True
+    marker = dest / "export-fixture" / "r1" / "stale.txt"
+    marker.write_text("stale")
+    r2 = engine.export_release("export-fixture", revision=1, dest=str(dest))
+    assert r2["ok"] is True
+    assert not marker.exists()  # overwrite path replaced the dir, not merged
+    assert (dest / "export-fixture" / "r1" / "index.pdf").is_file()
+
+
+def test_export_include_data_copies_tree(
+    rendered_project: dict, isolated_reports: Path, tmp_path: Path
+) -> None:
+    project = rendered_project["project"]
+    (project / "data").mkdir()
+    (project / "data" / "prices.csv").write_text("close\n100\n")
+    dest = tmp_path / "bundle"
+    result = engine.export_release(
+        "export-fixture", revision=1, dest=str(dest), include_data=True
+    )
+    assert result["ok"] is True
+    on_disk = json.loads((dest / "export-fixture" / "r1" / "bundle.json").read_text())
+    assert on_disk["includes"]["data"] is True
+    assert (dest / "export-fixture" / "r1" / "data" / "prices.csv").is_file()
+
+
+def test_export_empty_include_warns_loudly(
+    rendered_project: dict, isolated_reports: Path, tmp_path: Path
+) -> None:
+    dest = tmp_path / "bundle"
+    result = engine.export_release(
+        "export-fixture", revision=1, dest=str(dest), include_data=True
+    )
+    assert result["ok"] is True
+    on_disk = json.loads((dest / "export-fixture" / "r1" / "bundle.json").read_text())
+    assert on_disk["includes"]["data"] is False
+    assert any("include_data" in w for w in result["warnings"])
+
+
+def test_export_bundle_header_fields(
+    rendered_project: dict, isolated_reports: Path, tmp_path: Path
+) -> None:
+    dest = tmp_path / "bundle"
+    result = engine.export_release("export-fixture", revision=1, dest=str(dest))
+    assert result["ok"] is True
+    on_disk = json.loads((dest / "export-fixture" / "r1" / "bundle.json").read_text())
+    assert on_disk["schema_version"] == 1
+    assert on_disk["report_id"] == "export-fixture"
+    assert on_disk["revision"] == 1
+    assert on_disk["exported_at"]  # real export instant, not a stale stamp
+
+
+def test_export_response_has_no_absolute_paths(
+    rendered_project: dict, isolated_reports: Path, tmp_path: Path
+) -> None:
+    dest = tmp_path / "bundle"
+    result = engine.export_release("export-fixture", revision=1, dest=str(dest))
+    assert result["ok"] is True
+    blob = json.dumps(result)
+    assert str(tmp_path) not in blob
+    assert "/home/" not in blob
+    assert "dest" not in result  # caller-supplied paths never echo back
+
+
+def test_export_preview_descriptors(
+    rendered_project: dict, isolated_reports: Path, tmp_path: Path
+) -> None:
+    project = rendered_project["project"]
+    prev = project / "output" / "previews" / "r1"
+    prev.mkdir(parents=True)
+    (prev / "contact-sheet.png").write_bytes(b"PNG-contact")
+    (prev / "page-1.png").write_bytes(b"PNG-p1")
+    dest = tmp_path / "bundle"
+    result = engine.export_release("export-fixture", revision=1, dest=str(dest))
+    assert result["ok"] is True
+    by_id = {d["id"]: d for d in result["artifacts"]}
+    assert by_id["contact-sheet"]["role"] == "preview"
+    assert by_id["page-1"]["role"] == "preview"
+    assert (dest / "export-fixture" / "r1" / "previews" / "page-1.png").is_file()

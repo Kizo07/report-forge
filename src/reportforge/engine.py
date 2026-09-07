@@ -16,7 +16,7 @@ import tempfile
 import time
 from html import escape as html_escape
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 import yaml
@@ -2574,13 +2574,17 @@ _BUNDLE_FORMATS = ("html", "pdf", "docx")
 
 
 def _bundle_artifact_id(rel: str) -> tuple[str, str]:
-    """(id, role) for a bundle-relative path."""
+    """(id, role) for a bundle-relative path. Ids are unique by construction.
+
+    Deliverables/previews/charts keep short semantic handles (their source
+    dirs are flat with unique stems); everything else derives from the full
+    relative path so source/, data/ and *_files/ companions can never
+    collide. bundle.json itself is the index — it needs no descriptor.
+    """
     p = Path(rel)
     name = p.name
     if name == "manifest.json":
         return "manifest-copy", "metadata"
-    if name == "bundle.json":
-        return "bundle-index", "metadata"
     if name == "contact-sheet.png":
         return "contact-sheet", "preview"
     m = re.fullmatch(r"page-(\d+)\.png", name)
@@ -2593,26 +2597,34 @@ def _bundle_artifact_id(rel: str) -> tuple[str, str]:
                 "index.docx": "docx"}[name], "deliverable"
     if "charts" in p.parts and p.suffix == ".png":
         return f"exhibit-{p.stem}", "preview"
-    if "source" in p.parts:
-        return "source", "source"
-    if "data" in p.parts:
-        return f"data-{name}", "data"
-    return p.stem, "companion"
+    if p.parts and p.parts[0] in ("source", "data"):
+        return rel.replace("/", "-"), p.parts[0]
+    return rel.replace("/", "-"), "companion"
 
 
+@_section_op_errors
 def export_release(project: str, revision: int | None = None, dest: str = ".",
                    include_source: bool = False, include_data: bool = False,
                    actor: str = "tool:export_release") -> dict:
     """Export an approved revision as a self-contained bundle (§3).
 
     Layout: <dest>/<report_id>/r<rev>/ with deliverables, manifest.json copy,
-    bundle.json descriptor index, optional source/ + data/. Atomic per
-    revision dir; a successful export transitions the manifest to exported.
+    bundle.json descriptor index, optional source/ + data/. Overwrites are
+    atomic per revision dir (rename-aside, never delete-then-rename); a
+    successful export transitions the manifest to exported.
     """
     slug = project.strip("/")
     root = REPORTS_DIR / slug
     if not root.is_dir():
         return {"ok": False, "error": f"project not found: {project}"}
+    with _project_lock(root):
+        return _export_release_locked(slug, root, revision, dest,
+                                      include_source, include_data, actor)
+
+
+def _export_release_locked(slug: str, root: Path, revision: int | None,
+                           dest: str, include_source: bool,
+                           include_data: bool, actor: str) -> dict:
     manifest, err = _load_or_import(root)
     if err:
         return err
@@ -2633,12 +2645,18 @@ def export_release(project: str, revision: int | None = None, dest: str = ".",
     if missing:
         return {"ok": False,
                 "error": f"no rendered output for {', '.join(missing)}: render first (export never auto-renders)"}
+    exported_at = datetime.now().astimezone().isoformat()
     dest_root = Path(dest)
     rdir = dest_root / manifest.report_id / f"r{current}"
     tmp = dest_root / manifest.report_id / f".r{current}.tmp-{os.getpid()}"
+    aside = dest_root / manifest.report_id / f".r{current}.prev-{os.getpid()}"
+    warnings: list[str] = []
+    artifacts: list = []
+    swapped = False
     try:
-        if tmp.exists():
-            shutil.rmtree(tmp)
+        for stale in (tmp, aside):
+            if stale.exists():
+                shutil.rmtree(stale)
         tmp.mkdir(parents=True)
         for fmt in required:
             shutil.copy2(out_dir / f"index.{fmt}", tmp / f"index.{fmt}")
@@ -2652,16 +2670,26 @@ def export_release(project: str, revision: int | None = None, dest: str = ".",
             shutil.copytree(prev_src, tmp / "previews")
         includes = {"source": False, "data": False}
         if include_source:
+            copied = []
             srcd = tmp / "source"
             srcd.mkdir()
             for name in ("index.qmd", "_quarto.yml", "styles.scss", "_brand.yml"):
                 p = root / name
                 if p.is_file():
                     shutil.copy2(p, srcd / name)
-            includes["source"] = True
-        if include_data and (root / "data").is_dir():
-            shutil.copytree(root / "data", tmp / "data")
-            includes["data"] = True
+                    copied.append(name)
+            includes["source"] = bool(copied)
+            if not copied:
+                warnings.append("include_source requested but no source files found")
+        if include_data:
+            data_src = root / "data"
+            data_files = ([p for p in data_src.rglob("*") if p.is_file()]
+                          if data_src.is_dir() else [])
+            if data_files:
+                shutil.copytree(data_src, tmp / "data")
+                includes["data"] = True
+            else:
+                warnings.append("include_data requested but data/ is missing or empty")
         artifacts = []
         for p in sorted(tmp.rglob("*")):
             if not p.is_file():
@@ -2673,24 +2701,37 @@ def export_release(project: str, revision: int | None = None, dest: str = ".",
             "schema_version": 1,
             "report_id": manifest.report_id,
             "revision": current,
-            "exported_at": manifest.updated,
+            "exported_at": exported_at,
             "artifacts": artifacts,
             "includes": includes,
             "delivery": {"adapters": ["local-bundle", "deerflow"], "present_paths": []},
-        }, indent=2))
+        }, indent=2, ensure_ascii=False))
         # Re-read bundle.json into the descriptor list so disk == response.
         artifacts = json.loads((tmp / "bundle.json").read_text())["artifacts"]
         rdir.parent.mkdir(parents=True, exist_ok=True)
         if rdir.exists():
-            shutil.rmtree(rdir)
+            os.rename(rdir, aside)  # aside first: no crash window without a bundle
         os.rename(tmp, rdir)
-    except OSError as exc:
+        swapped = True
+    except Exception as exc:  # noqa: BLE001 — cleanup + loud dict, never partial
+        for stale in (tmp, aside):
+            try:
+                if stale.exists() and stale != rdir:
+                    shutil.rmtree(stale)
+            except OSError:
+                pass
+        # The only survivable failure is after a completed swap (e.g. aside
+        # cleanup); anything earlier means no new bundle — fail loudly even
+        # though a previous bundle may still sit at rdir.
+        if not (swapped and rdir.is_dir()):
+            return {"ok": False, "error": f"bundle write failed: {exc}"}
+    finally:
+        # Best-effort aside removal; a leftover .prev dir never shadows rdir.
         try:
-            if tmp.exists():
-                shutil.rmtree(tmp)
+            if aside.exists():
+                shutil.rmtree(aside)
         except OSError:
             pass
-        return {"ok": False, "error": f"bundle write failed: {exc}"}
     tr = manifest_mod.transition(manifest, "exported", actor, f"export r{current}")
     if tr.get("ok"):
         manifest_mod.save(manifest, str(root))
@@ -2700,9 +2741,9 @@ def export_release(project: str, revision: int | None = None, dest: str = ".",
         "revision": current,
         "state": manifest.state,
         "bundle_root": str(Path(manifest.report_id) / f"r{current}"),
-        "dest": str(dest_root),
         "artifacts": artifacts,
-        "next_step": "retrieve bundle via the dest path or the DeerFlow adapter",
+        "warnings": warnings,
+        "next_step": "retrieve the bundle at <report_id>/r<rev> under the dest root",
     }
 
 
