@@ -53,7 +53,7 @@ def test_capabilities_shape(tmp_path, monkeypatch):
     assert len(caps["templates"]) >= 17
     assert caps["profiles"]["themes"] == ["light", "dark"]
     assert any(r["template"] == "standard" for r in caps["support_matrix"])
-    assert caps["execution"]["run_code"] is True
+    assert caps["execution"]["run_code"] == (caps["execution"]["disabled_reason"] is None)
     assert caps["preview"]["backend"] == "pdftoppm"
     assert "reportforge_replace_section" in caps["tools"]
     assert "reportforge_export_release" in caps["tools"]
@@ -71,6 +71,89 @@ def test_capabilities_mcp_tool_registered():
     assert "reportforge_capabilities" in tools
     assert "reportforge_check_readiness" in tools
     assert "reportforge_record_review" in tools
+
+
+def test_mcp_tool_fallback_mirrors_live_registry():
+    """F7: the static RF-07 tool list must equal the live MCP registry —
+    a new tool missing from the fallback is a discovery failure."""
+    import asyncio
+
+    from reportforge.mcp_server import mcp
+
+    live = {t.name for t in asyncio.run(mcp.list_tools())}
+    assert set(engine.MCP_TOOL_NAMES_FALLBACK) == live
+    assert set(engine._mcp_tool_names()) == live
+
+
+def test_capabilities_env_dependence(tmp_path, monkeypatch):
+    """F6: execution/preview flags must reflect the live environment."""
+    import os
+
+    monkeypatch.setattr(engine, "REPORTS_DIR", tmp_path / "reports")
+    monkeypatch.setenv("REPORTFORGE_EXEC", "off")
+    caps = engine.reportforge_capabilities()
+    assert caps["execution"]["run_code"] is False
+    assert caps["execution"]["disabled_reason"] == "REPORTFORGE_EXEC=off"
+    monkeypatch.delenv("REPORTFORGE_EXEC")
+    caps = engine.reportforge_capabilities()
+    assert caps["execution"]["run_code"] is True
+    assert caps["execution"]["disabled_reason"] is None
+    assert caps["preview"]["available"] == (engine.shutil.which("pdftoppm") is not None)
+    # Stored-profile taxonomy agrees with discovery (F5).
+    assert caps["profiles"]["report_type_map"] == {"studio": "studio-editorial"}
+
+
+def test_status_unrendered_clears_after_render(tmp_path, monkeypatch):
+    """F1: rendered formats leave unrendered_formats; ids are contract handles."""
+    _scaffold(monkeypatch, tmp_path)
+    root = tmp_path / "reports" / "journey-probe"
+    out = root / "output"
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "index.html").write_text("<html></html>")
+    (out / "index.pdf").write_bytes(b"%PDF-fake")
+    st = engine.project_status("journey-probe")
+    assert st["ok"] is True
+    assert st["missing_work"]["unrendered_formats"] == []
+    by_id = {a["id"]: a for a in st["artifacts"]}
+    assert set(by_id) == {"html", "pdf"}
+    for a in st["artifacts"]:
+        assert not Path(a["path"]).is_absolute()
+        assert (root / a["path"]).is_file()  # root-relative, resolvable
+
+
+def test_open_report_has_missing_work_and_artifacts(tmp_path, monkeypatch):
+    """F2: open_report carries the §4.2 projection and artifacts per §1.6."""
+    _scaffold(monkeypatch, tmp_path)
+    op = engine.open_report("journey-probe")
+    assert op["ok"] is True
+    assert op["missing_work"]["manifest"] is True
+    assert isinstance(op["artifacts"], list)
+
+
+def test_bespoke_scaffold_writes_manifest(tmp_path, monkeypatch):
+    """F3: bespoke scaffolds persist report.json incl. pdf-web, no lazy loss."""
+    monkeypatch.setattr(engine, "REPORTS_DIR", tmp_path / "reports")
+    res = engine.scaffold_report("bespoke-probe", template="bespoke",
+                                 formats=["html", "pdf-web"])
+    assert res["ok"] is True
+    m = json.loads((tmp_path / "reports" / "bespoke-probe" / "report.json").read_text())
+    assert m["revision"] == 1 and m["state"] == "draft"
+    assert m["profile"]["report_type"] == "bespoke"
+    assert "pdf-web" in m["formats"]
+    assert m["profile"]["output_profile"] == "web"
+
+
+def test_corrupt_manifest_error_surfaces(tmp_path, monkeypatch):
+    """F8: a corrupt report.json yields a loud reason, not a silent null."""
+    _scaffold(monkeypatch, tmp_path)
+    (tmp_path / "reports" / "journey-probe" / "report.json").write_text("{broken")
+    st = engine.project_status("journey-probe")
+    assert st["ok"] is True
+    assert st["manifest"] is None
+    assert st["manifest_error"]
+    op = engine.open_report("journey-probe")
+    assert op["ok"] is False
+    assert op["manifest_error"]
 
 
 def test_cli_new_status_open_capabilities(tmp_path, monkeypatch, capsys):

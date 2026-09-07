@@ -342,6 +342,16 @@ def scaffold_report(
         ref = _default_reference_docx()
         if ref is not None and "docx" in kept_formats:
             shutil.copy(ref, root / "assets" / "reference-doc.docx")
+        # §1.6: every scaffold writes a fresh report.json — bespoke included,
+        # so status/readiness/export key off the requested formats (pdf-web
+        # included) instead of a lossy lazy auto-import.
+        _write_scaffold_manifest(
+            root,
+            title=title or slug.replace("-", " ").replace("_", " ").title(),
+            brief=subtitle or "",
+            template="bespoke",
+            formats=kept_formats + (["pdf-web"] if pdf_web_requested else []),
+        )
         return {
             "ok": True,
             "path": str(root),
@@ -590,14 +600,18 @@ def _write_scaffold_manifest(root: Path, title: str, brief: str,
     )
 
 
-def _manifest_view(root: Path) -> dict | None:
-    """Manifest projection for status responses; auto-imports legacy dirs."""
+def _manifest_view(root: Path) -> tuple[dict | None, str | None]:
+    """Manifest projection for status responses; auto-imports legacy dirs.
+
+    Returns (view, error): error carries the loud reason when the manifest
+    is corrupt (§2.5), instead of degrading to a silent null.
+    """
     try:
         if not (root / manifest_mod.MANIFEST_FILENAME).is_file():
             manifest_mod.import_dir(str(root))
         m = manifest_mod.load(str(root))
-    except manifest_mod.ManifestError:
-        return None
+    except manifest_mod.ManifestError as exc:
+        return None, str(exc)
     d = m.to_dict()
     return {
         "report_id": d["report_id"],
@@ -608,18 +622,24 @@ def _manifest_view(root: Path) -> dict | None:
         "state": d["state"],
         "sections": d["sections"],
         "formats": d["formats"],
-    }
+    }, None
 
 
 def open_report(project: str) -> dict:
-    """Open a report by slug: brief, profile, sections, revision, state."""
+    """Open a report by slug: brief, profile, sections, revision, state,
+    plus missing_work (§4.2 readiness summary) and artifacts (§1.6)."""
     root = REPORTS_DIR / project.strip("/")
     if not root.is_dir():
         return {"ok": False, "error": f"project not found: {project}"}
-    view = _manifest_view(root)
+    view, manifest_error = _manifest_view(root)
     if view is None:
-        return {"ok": False, "error": f"project has no readable manifest: {project}"}
-    return {"ok": True, **view}
+        return {"ok": False, "error": f"project has no readable manifest: {project}",
+                "manifest_error": manifest_error}
+    out_dir = _output_dir_of(root)
+    artifacts = _status_artifacts(root, out_dir)
+    return {"ok": True, **view,
+            "missing_work": _missing_work_summary(root, view, artifacts),
+            "artifacts": artifacts}
 
 
 def _venv_python() -> Path | None:
@@ -1250,16 +1270,8 @@ def project_status(project: str) -> dict:
             last_render = None
     out_dir = _output_dir_of(root)
     render_logs = sorted(p.name for p in out_dir.glob(".render-log-*.txt")) if out_dir.is_dir() else []
-    view = _manifest_view(root)
-    artifacts: list[dict] = []
-    if out_dir.is_dir():
-        for name in ("index.pdf", "index.html", "index.docx"):
-            p = out_dir / name
-            if p.is_file():
-                desc = _file_descriptor(out_dir, name, Path(name).stem,
-                                        "deliverable", _mime_for_name(name))
-                if desc is not None:
-                    artifacts.append(desc)
+    view, manifest_error = _manifest_view(root)
+    artifacts = _status_artifacts(root, out_dir)
     missing_work = _missing_work_summary(root, view, artifacts)
     return {
         "ok": True,
@@ -1271,9 +1283,37 @@ def project_status(project: str) -> dict:
         "render_logs": render_logs,
         "last_render": last_render,
         "manifest": view,
+        "manifest_error": manifest_error,
         "artifacts": artifacts,
         "missing_work": missing_work,
     }
+
+
+_STATUS_FORMAT_IDS = {"index.pdf": "pdf", "index.html": "html",
+                       "index.docx": "docx"}
+
+
+def _status_artifacts(root: Path, out_dir: Path) -> list[dict]:
+    """Rendered deliverable descriptors with §3.2 contract ids.
+
+    Ids are the format handles (pdf/html/docx), not file stems — the
+    missing-work projection keys off these. Paths are project-root-relative
+    so they resolve with read_project_file like every other surface.
+    """
+    artifacts: list[dict] = []
+    if out_dir.is_dir():
+        for name in ("index.pdf", "index.html", "index.docx"):
+            p = out_dir / name
+            if p.is_file():
+                try:
+                    rel = str(p.resolve().relative_to(root.resolve()))
+                except ValueError:
+                    continue  # output dir outside the project: not addressable
+                desc = _file_descriptor(root, rel, _STATUS_FORMAT_IDS[name],
+                                        "deliverable", _mime_for_name(name))
+                if desc is not None:
+                    artifacts.append(desc)
+    return artifacts
 
 
 def _mime_for_name(name: str) -> str:
@@ -2806,6 +2846,10 @@ def reportforge_capabilities() -> dict:
             "themes": ["light", "dark"],
             "layouts": ["magazine", "single-column", "chartbook", "compact"],
             "output_profiles": ["editorial", "web", "editable-docx"],
+            # Template name → stored manifest profile.report_type for the
+            # cases where they differ (only studio today). Discovery and
+            # stored profile must agree on the same report (RF-08 inherits).
+            "report_type_map": {"studio": "studio-editorial"},
         },
         "support_matrix": matrix,
         "execution": {
