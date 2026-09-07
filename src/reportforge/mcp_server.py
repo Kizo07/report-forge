@@ -20,6 +20,7 @@ from reportforge.engine import (
     read_project_file,
     record_review,
     register_exhibit,
+    register_fact,
     register_source,
     render_preview,
     render_report,
@@ -29,6 +30,7 @@ from reportforge.engine import (
     save_asset,
     save_chart,
     scaffold_report,
+    update_fact,
     write_report_body,
 )
 
@@ -75,6 +77,16 @@ def _coerce_str_list(value: Any) -> Any:
                 return json.loads(s)
             except json.JSONDecodeError:
                 pass
+    return coerced
+
+
+def _coerce_id_list(value: Any) -> list | None:
+    """Registry link lists: None stays None, a bare id becomes [id]."""
+    coerced = _coerce_str_list(value)
+    if coerced is None:
+        return None
+    if isinstance(coerced, str):
+        return [coerced] if coerced.strip() else []
     return coerced
 
 mcp = FastMCP(
@@ -256,8 +268,8 @@ def reportforge_register_exhibit(
     """
     return register_exhibit(
         project, exhibit_id, title, file=file,
-        source_keys=_coerce_list(source_keys),
-        fact_ids=_coerce_list(fact_ids),
+        source_keys=_coerce_id_list(source_keys),
+        fact_ids=_coerce_id_list(fact_ids),
         as_of=as_of, alt=alt, overwrite=overwrite)
 
 
@@ -302,7 +314,7 @@ def reportforge_save_chart(
         file stem in the fig- namespace); pass exhibit_id/title/links to
         attribute it at save time.
     """
-    return save_chart(fig_json, out_basename, width, height, scale, project=project or None, template=template or None, exhibit_id=exhibit_id or None, exhibit_title=exhibit_title or None, source_keys=_coerce_list(source_keys), fact_ids=_coerce_list(fact_ids))
+    return save_chart(fig_json, out_basename, width, height, scale, project=project or None, template=template or None, exhibit_id=exhibit_id or None, exhibit_title=exhibit_title or None, source_keys=_coerce_id_list(source_keys), fact_ids=_coerce_id_list(fact_ids))
 
 
 @mcp.tool
@@ -727,6 +739,64 @@ def reportforge_register_source(
     return register_source(project, key, kind, title, date=date, url=url,
                            publisher=publisher, accessed=accessed,
                            as_of=as_of, overwrite=overwrite)
+
+
+@mcp.tool
+def reportforge_register_fact(
+    project: str,
+    fact_id: str,
+    value: Any,
+    unit: str = "",
+    kind: str = "observed",
+    source_keys: list[str] | str | None = None,
+    as_of: str | None = None,
+    note: str = "",
+    overwrite: bool = False,
+) -> dict[str, Any]:
+    """Register a shared typed fact record (RF-03).
+
+    Kind is required: observed, calculated, estimated, or illustrative.
+    Cover verdict/target/scenarios/metrics values should have matching
+    fact ids (checked by readiness EVID-COVER-UNLINKED).
+
+    Args:
+        project: Report slug (project directory name).
+        fact_id: Must match fact-<slug>.
+        value: Numeric or string quantity.
+        unit: Unit string (may be empty).
+        kind: observed, calculated, estimated, or illustrative.
+        source_keys: Registered source keys backing this fact.
+        as_of: Data vintage.
+        note: Free-text provenance note.
+        overwrite: Replace an existing record (history is preserved).
+    """
+    return register_fact(project, fact_id, value, unit=unit, kind=kind,
+                         source_keys=_coerce_id_list(source_keys),
+                         as_of=as_of, note=note, overwrite=overwrite)
+
+
+@mcp.tool
+def reportforge_update_fact(
+    project: str,
+    fact_id: str,
+    value: Any = None,
+    unit: str | None = None,
+    kind: str | None = None,
+    source_keys: list[str] | str | None = None,
+    as_of: str | None = None,
+    note: str | None = None,
+) -> dict[str, Any]:
+    """Update a fact record; superseded values stay in capped history (20).
+
+    Args:
+        project: Report slug (project directory name).
+        fact_id: Existing fact id.
+        value: New value (defaults to current — refreshes metadata only).
+        unit/kind/source_keys/as_of/note: Optional replacements.
+    """
+    return update_fact(project, fact_id, value=value, unit=unit, kind=kind,
+                       source_keys=_coerce_id_list(source_keys),
+                       as_of=as_of, note=note)
 
 
 @mcp.tool

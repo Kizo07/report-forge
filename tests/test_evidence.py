@@ -266,6 +266,76 @@ def test_save_chart_bad_exhibit_link_fails_before_write(tmp_path, monkeypatch):
     assert out["ok"] is False
     assert not (root / "figures" / "trend.png").exists()  # nothing half-written
 
+
+# --- B-4: register_fact / update_fact ------------------------------------------
+
+FACT = dict(fact_id="fact-target-300", value=300, unit="USD",
+            kind="calculated", source_keys=["src-fed-sep-2026-dots"])
+
+
+def test_register_fact_round_trip(tmp_path, monkeypatch):
+    root = _scaffold(monkeypatch, tmp_path)
+    engine.register_source("ev-probe", **SRC)
+    res = engine.register_fact("ev-probe", **FACT)
+    assert res["ok"] is True
+    m = M.load(str(root))
+    rec = m.facts["fact-target-300"]
+    assert rec["value"] == 300 and rec["kind"] == "calculated"
+    assert m.registry_version == 2
+
+
+def test_register_fact_bad_kind_fails(tmp_path, monkeypatch):
+    _scaffold(monkeypatch, tmp_path)
+    res = engine.register_fact("ev-probe", **dict(FACT, kind="guessed"))
+    assert res["ok"] is False
+
+
+def test_register_fact_dangling_source_fails(tmp_path, monkeypatch):
+    _scaffold(monkeypatch, tmp_path)
+    res = engine.register_fact("ev-probe", **FACT)  # source not registered
+    assert res["ok"] is False
+    assert "src-fed-sep-2026-dots" in res["error"]
+
+
+def test_register_fact_illustrative_flags(tmp_path, monkeypatch):
+    _scaffold(monkeypatch, tmp_path)
+    res = engine.register_fact("ev-probe", fact_id="fact-demo-1", value=999,
+                               unit="USD", kind="illustrative")
+    assert res["ok"] is True
+    assert res["illustrative"] is True  # readiness half: EVID-COVER-ILLUSTRATIVE
+
+
+def test_register_fact_duplicate_needs_overwrite(tmp_path, monkeypatch):
+    _scaffold(monkeypatch, tmp_path)
+    engine.register_source("ev-probe", **SRC)
+    assert engine.register_fact("ev-probe", **FACT)["ok"] is True
+    assert engine.register_fact("ev-probe", **FACT)["ok"] is False
+    assert engine.register_fact("ev-probe", **FACT, overwrite=True)["ok"] is True
+
+
+def test_update_fact_keeps_history_capped(tmp_path, monkeypatch):
+    root = _scaffold(monkeypatch, tmp_path)
+    engine.register_source("ev-probe", **SRC)
+    engine.register_fact("ev-probe", **FACT)
+    for v in (310, 320):
+        up = engine.update_fact("ev-probe", "fact-target-300", value=v)
+        assert up["ok"] is True
+    m = M.load(str(root))
+    rec = m.facts["fact-target-300"]
+    assert rec["value"] == 320
+    assert [h["value"] for h in rec["history"]] == [300, 310]
+    assert rec["history"][-1]["superseded_by"] == 320
+    for v in range(400, 430):
+        engine.update_fact("ev-probe", "fact-target-300", value=v)
+    rec = M.load(str(root)).facts["fact-target-300"]
+    assert len(rec["history"]) == 20  # capped, oldest dropped
+
+
+def test_update_fact_missing_id_fails(tmp_path, monkeypatch):
+    _scaffold(monkeypatch, tmp_path)
+    res = engine.update_fact("ev-probe", "fact-nope", value=1)
+    assert res["ok"] is False
+
 def _scaffold(monkeypatch, tmp_path, slug="ev-probe", template="standard"):
     monkeypatch.setattr(engine, "REPORTS_DIR", tmp_path / "reports")
     res = engine.scaffold_report(slug, template=template, formats=["html", "pdf"])

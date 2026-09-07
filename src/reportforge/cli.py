@@ -13,12 +13,14 @@ from reportforge.engine import (
     open_report,
     project_status,
     register_exhibit,
+    register_fact,
     register_source,
     render_preview,
     render_report,
     reportforge_capabilities,
     save_chart,
     scaffold_report,
+    update_fact,
 )
 
 
@@ -103,6 +105,27 @@ def main(argv: list[str] | None = None) -> int:
     p_exhibit.add_argument("--as-of", default=None)
     p_exhibit.add_argument("--alt", default=None)
     p_exhibit.add_argument("--overwrite", action="store_true")
+
+    p_fact = sub.add_parser("fact", help="register a fact record (RF-03)")
+    p_fact.add_argument("project")
+    p_fact.add_argument("fact_id")
+    p_fact.add_argument("--value", default=None)
+    p_fact.add_argument("--unit", default="")
+    p_fact.add_argument("--kind", default="observed")
+    p_fact.add_argument("--source-keys", default="")
+    p_fact.add_argument("--as-of", default=None)
+    p_fact.add_argument("--note", default="")
+    p_fact.add_argument("--overwrite", action="store_true")
+
+    p_fact_up = sub.add_parser("fact-update", help="update a fact record (RF-03)")
+    p_fact_up.add_argument("project")
+    p_fact_up.add_argument("fact_id")
+    p_fact_up.add_argument("--value", default=None)
+    p_fact_up.add_argument("--unit", default=None)
+    p_fact_up.add_argument("--kind", default=None)
+    p_fact_up.add_argument("--source-keys", default=None)
+    p_fact_up.add_argument("--as-of", default=None)
+    p_fact_up.add_argument("--note", default=None)
 
     args = parser.parse_args(argv)
     if args.cmd == "templates":
@@ -194,6 +217,22 @@ def main(argv: list[str] | None = None) -> int:
                                   file=args.file, source_keys=sk, fact_ids=fi,
                                   as_of=getattr(args, "as_of"), alt=args.alt,
                                   overwrite=args.overwrite)
+        print(json.dumps(result, indent=2))
+        return 0 if result.get("ok") else 1
+    elif args.cmd == "fact":
+        sk = [s.strip() for s in args.source_keys.split(",") if s.strip()]
+        result = register_fact(args.project, args.fact_id, args.value,
+                               unit=args.unit, kind=args.kind, source_keys=sk,
+                               as_of=getattr(args, "as_of"), note=args.note,
+                               overwrite=args.overwrite)
+        print(json.dumps(result, indent=2))
+        return 0 if result.get("ok") else 1
+    elif args.cmd == "fact-update":
+        sk = ([s.strip() for s in args.source_keys.split(",") if s.strip()]
+              if args.source_keys is not None else None)
+        result = update_fact(args.project, args.fact_id, value=args.value,
+                             unit=args.unit, kind=args.kind, source_keys=sk,
+                             as_of=getattr(args, "as_of"), note=args.note)
         print(json.dumps(result, indent=2))
         return 0 if result.get("ok") else 1
     return 0

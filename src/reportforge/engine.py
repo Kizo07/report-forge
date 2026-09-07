@@ -2900,6 +2900,122 @@ def register_exhibit(project: str, exhibit_id: str, title: str,
         return {"ok": True, "report_id": manifest.report_id, **res}
 
 
+FACT_HISTORY_CAP = 20
+
+
+def _register_fact_locked(manifest, fact_id: str, value, unit: str,
+                          kind: str, source_keys: list,
+                          as_of: str | None, note: str,
+                          overwrite: bool) -> dict:
+    """Record logic shared by register_fact (create) and overwrite-replace."""
+    record: dict = {"id": fact_id, "value": value, "unit": unit,
+                    "kind": kind, "source_keys": list(source_keys),
+                    "history": []}
+    if as_of is not None:
+        record["as_of"] = as_of
+    if note:
+        record["note"] = note
+    ok, verr = manifest_mod.validate_fact(record)
+    if not ok:
+        return {"ok": False, "error": verr}
+    link_err = _check_registry_links(manifest, source_keys, [])
+    if link_err is not None:
+        return {"ok": False, "error": link_err}
+    if fact_id in manifest.facts and not overwrite:
+        return {"ok": False,
+                "error": f"fact {fact_id!r} already registered; "
+                         "pass overwrite=True to replace or use update_fact"}
+    if fact_id in manifest.facts:
+        # Overwrite replaces the record but preserves its update history.
+        record["history"] = manifest.facts[fact_id].get("history", [])
+    manifest.facts[fact_id] = record
+    manifest.registry_version += 1
+    return {"ok": True, "fact_id": fact_id,
+            "illustrative": kind == "illustrative",
+            "registry_version": manifest.registry_version}
+
+
+@_section_op_errors
+def register_fact(project: str, fact_id: str, value, unit: str = "",
+                  kind: str = "observed",
+                  source_keys: list[str] | None = None,
+                  as_of: str | None = None, note: str = "",
+                  overwrite: bool = False) -> dict:
+    """Register a shared typed quantity (observed/calculated/estimated/illustrative).
+
+    Illustrative registrations are flagged in the response; the readiness
+    half of the flag is EVID-COVER-ILLUSTRATIVE (B-6). Bumps
+    registry_version, never content revision.
+    """
+    root, err = _project_root_or_error(project)
+    if err:
+        return err
+    assert root is not None
+    with _project_lock(root):
+        manifest, err = _load_or_import(root)
+        if err:
+            return err
+        assert manifest is not None
+        res = _register_fact_locked(
+            manifest, fact_id, value, unit, kind, source_keys or [],
+            as_of, note, overwrite)
+        if not res.get("ok"):
+            return res
+        manifest_mod.save(manifest, str(root))
+        return {"ok": True, "report_id": manifest.report_id, **res}
+
+
+@_section_op_errors
+def update_fact(project: str, fact_id: str, value=None, unit=None,
+                kind: str | None = None, source_keys=None,
+                as_of: str | None = None, note: str | None = None) -> dict:
+    """Update a fact record, keeping superseded values in capped history."""
+    root, err = _project_root_or_error(project)
+    if err:
+        return err
+    assert root is not None
+    with _project_lock(root):
+        manifest, err = _load_or_import(root)
+        if err:
+            return err
+        assert manifest is not None
+        if fact_id not in manifest.facts:
+            return {"ok": False, "error": f"unknown fact id: {fact_id!r}"}
+        record = dict(manifest.facts[fact_id])
+        history = list(record.get("history", []))
+        new_value = record["value"] if value is None else value
+        history.append({"value": record["value"], "unit": record.get("unit", ""),
+                        "kind": record.get("kind", ""),
+                        "superseded_by": new_value})
+        del history[:-FACT_HISTORY_CAP]
+        record["history"] = history
+        record["value"] = new_value
+        if unit is not None:
+            record["unit"] = unit
+        if kind is not None:
+            record["kind"] = kind
+        if source_keys is not None:
+            record["source_keys"] = list(source_keys)
+        if as_of is not None:
+            record["as_of"] = as_of
+        if note is not None:
+            record["note"] = note
+        ok, verr = manifest_mod.validate_fact(record)
+        if not ok:
+            return {"ok": False, "error": verr}
+        link_err = _check_registry_links(
+            manifest, record.get("source_keys", []), [])
+        if link_err is not None:
+            return {"ok": False, "error": link_err}
+        manifest.facts[fact_id] = record
+        manifest.registry_version += 1
+        manifest_mod.save(manifest, str(root))
+        return {"ok": True, "report_id": manifest.report_id,
+                "fact_id": fact_id, "value": new_value,
+                "illustrative": record.get("kind") == "illustrative",
+                "registry_version": manifest.registry_version}
+
+
 # --- Milestone A Task 1.6: portable export bundle (RF-06) ----------------------
 
 _BUNDLE_FORMATS = ("html", "pdf", "docx")
@@ -3098,6 +3214,7 @@ MCP_TOOL_NAMES_FALLBACK = [
     "reportforge_export_release", "reportforge_check_readiness",
     "reportforge_record_review", "reportforge_render_preview",
     "reportforge_register_source", "reportforge_register_exhibit",
+    "reportforge_register_fact", "reportforge_update_fact",
     "reportforge_capabilities",
 ]
 
