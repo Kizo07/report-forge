@@ -19,6 +19,7 @@ from reportforge.engine import (
     publish_report,
     read_project_file,
     record_review,
+    register_exhibit,
     register_source,
     render_preview,
     render_report,
@@ -226,6 +227,41 @@ def reportforge_render_report(
 
 
 @mcp.tool
+def reportforge_register_exhibit(
+    project: str,
+    exhibit_id: str,
+    title: str,
+    file: str | None = None,
+    source_keys: list[str] | str | None = None,
+    fact_ids: list[str] | str | None = None,
+    as_of: str | None = None,
+    alt: str | None = None,
+    overwrite: bool = False,
+) -> dict[str, Any]:
+    """Register an exhibit record: figure file or anchor linked to evidence.
+
+    The exhibit must be grounded: its id must match a {#fig-<id>} anchor in
+    index.qmd, or file must point at an existing file in the project.
+
+    Args:
+        project: Report slug (project directory name).
+        exhibit_id: Must reuse a figure anchor (fig-<id>).
+        title: Human-readable exhibit title.
+        file: Project-relative figure path (or null for anchor-grounded).
+        source_keys: Registered source keys backing this exhibit.
+        fact_ids: Registered fact ids shown in this exhibit.
+        as_of: Data vintage.
+        alt: Accessibility text for the figure.
+        overwrite: Replace an existing record with the same id.
+    """
+    return register_exhibit(
+        project, exhibit_id, title, file=file,
+        source_keys=_coerce_list(source_keys),
+        fact_ids=_coerce_list(fact_ids),
+        as_of=as_of, alt=alt, overwrite=overwrite)
+
+
+@mcp.tool
 def reportforge_save_chart(
     fig_json: str,
     out_basename: str,
@@ -234,6 +270,10 @@ def reportforge_save_chart(
     scale: int = 2,
     project: str = "",
     template: str = "",
+    exhibit_id: str = "",
+    exhibit_title: str = "",
+    source_keys: list[str] | str | None = None,
+    fact_ids: list[str] | str | None = None,
 ) -> dict[str, Any]:
     """Export a Plotly figure to static PNG (+ standalone interactive HTML).
 
@@ -258,8 +298,11 @@ def reportforge_save_chart(
             alpha_engine viz builders with theme=...) is never overridden.
 
     Returns png/html paths plus a ready-to-paste Markdown embed snippet.
+        When project is given the exhibit auto-registers (id defaults to the
+        file stem in the fig- namespace); pass exhibit_id/title/links to
+        attribute it at save time.
     """
-    return save_chart(fig_json, out_basename, width, height, scale, project=project or None, template=template or None)
+    return save_chart(fig_json, out_basename, width, height, scale, project=project or None, template=template or None, exhibit_id=exhibit_id or None, exhibit_title=exhibit_title or None, source_keys=_coerce_list(source_keys), fact_ids=_coerce_list(fact_ids))
 
 
 @mcp.tool

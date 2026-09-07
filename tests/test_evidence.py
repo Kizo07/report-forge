@@ -2,6 +2,7 @@
 
 import json
 import os
+from pathlib import Path
 
 import pytest
 
@@ -157,6 +158,113 @@ def test_validate_fact_ok_and_rejects():
 
 
 # --- B-2: register_source -----------------------------------------------------
+# (tests below, after the shared helpers)
+
+
+# --- B-3: register_exhibit ------------------------------------------------------
+
+WHITE_FIG_JSON = None  # built lazily: needs plotly import
+
+
+def _white_fig_json():
+    import plotly.express as px
+
+    return px.line(x=[1, 2], y=[3, 4]).to_json()
+
+
+def test_register_exhibit_file_grounded(tmp_path, monkeypatch):
+    root = _scaffold(monkeypatch, tmp_path)
+    engine.register_source("ev-probe", **SRC)
+    (root / "figures").mkdir()
+    (root / "figures" / "revenue.png").write_bytes(b"fake-png")
+    res = engine.register_exhibit(
+        "ev-probe", exhibit_id="fig-revenue", title="Revenue trend",
+        file="figures/revenue.png", source_keys=["src-fed-sep-2026-dots"])
+    assert res["ok"] is True
+    m = M.load(str(root))
+    assert m.exhibits["fig-revenue"]["file"] == "figures/revenue.png"
+    assert m.registry_version == 2  # source + exhibit
+
+
+def test_register_exhibit_anchor_grounded_no_file(tmp_path, monkeypatch):
+    root = _scaffold(monkeypatch, tmp_path)
+    qmd = (root / "index.qmd").read_text(encoding="utf-8")
+    (root / "index.qmd").write_text(
+        qmd + "\n![Rev.](figures/revenue.png){#fig-revenue}\n", encoding="utf-8")
+    res = engine.register_exhibit("ev-probe", exhibit_id="fig-revenue",
+                                  title="Revenue trend", file=None)
+    assert res["ok"] is True  # grounded by anchor, file null never fires
+
+
+def test_register_exhibit_ungrounded_fails(tmp_path, monkeypatch):
+    _scaffold(monkeypatch, tmp_path)
+    res = engine.register_exhibit("ev-probe", exhibit_id="fig-ghost",
+                                  title="Ghost chart")
+    assert res["ok"] is False  # no anchor, no file
+
+
+def test_register_exhibit_dangling_source_fails(tmp_path, monkeypatch):
+    root = _scaffold(monkeypatch, tmp_path)
+    (root / "figures").mkdir()
+    (root / "figures" / "x.png").write_bytes(b"x")
+    res = engine.register_exhibit("ev-probe", exhibit_id="fig-x", title="X",
+                                  file="figures/x.png",
+                                  source_keys=["src-never-registered"])
+    assert res["ok"] is False
+    assert "src-never-registered" in res["error"]
+
+
+def test_register_exhibit_reregister_needs_overwrite(tmp_path, monkeypatch):
+    root = _scaffold(monkeypatch, tmp_path)
+    (root / "figures").mkdir()
+    (root / "figures" / "x.png").write_bytes(b"x")
+    assert engine.register_exhibit(
+        "ev-probe", exhibit_id="fig-x", title="X",
+        file="figures/x.png")["ok"] is True
+    dup = engine.register_exhibit("ev-probe", exhibit_id="fig-x", title="X2",
+                                  file="figures/x.png")
+    assert dup["ok"] is False
+    assert "already registered" in dup["error"]
+    assert engine.register_exhibit(
+        "ev-probe", exhibit_id="fig-x", title="X2",
+        file="figures/x.png", overwrite=True)["ok"] is True
+
+
+def test_save_chart_with_project_registers_exhibit(tmp_path, monkeypatch):
+    root = _scaffold(monkeypatch, tmp_path)
+    out = engine.save_chart(_white_fig_json(), "trend", project="ev-probe")
+    assert out["ok"] is True, out
+    assert (root / "figures" / "trend.png").is_file()  # figures/, not cwd
+    m = M.load(str(root))
+    assert "fig-trend" in m.exhibits
+    assert m.exhibits["fig-trend"]["file"] == "figures/trend.png"
+
+
+def test_save_chart_explicit_in_project_path_honored(tmp_path, monkeypatch):
+    root = _scaffold(monkeypatch, tmp_path)
+    target = str(root / "figures" / "custom-name")
+    out = engine.save_chart(_white_fig_json(), target, project="ev-probe")
+    assert out["ok"] is True, out
+    assert Path(out["png"]).is_file()
+    assert Path(out["png"]).parent == root / "figures"
+
+
+def test_save_chart_without_project_registers_nothing(tmp_path, monkeypatch):
+    _scaffold(monkeypatch, tmp_path)
+    out = engine.save_chart(_white_fig_json(),
+                            str(tmp_path / "loose" / "trend"))
+    assert out["ok"] is True, out
+    m = M.load(str(tmp_path / "reports" / "ev-probe"))
+    assert m.exhibits == {}
+    assert m.registry_version == 0
+
+
+def test_save_chart_bad_exhibit_link_fails_before_write(tmp_path, monkeypatch):
+    root = _scaffold(monkeypatch, tmp_path)
+    out = engine.save_chart(_white_fig_json(), "trend", project="ev-probe",
+                            source_keys=["src-never-registered"])
+    assert out["ok"] is False
+    assert not (root / "figures" / "trend.png").exists()  # nothing half-written
 
 def _scaffold(monkeypatch, tmp_path, slug="ev-probe", template="standard"):
     monkeypatch.setattr(engine, "REPORTS_DIR", tmp_path / "reports")

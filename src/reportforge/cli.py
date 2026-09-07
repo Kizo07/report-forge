@@ -12,6 +12,7 @@ from reportforge.engine import (
     list_templates,
     open_report,
     project_status,
+    register_exhibit,
     register_source,
     render_preview,
     render_report,
@@ -52,6 +53,11 @@ def main(argv: list[str] | None = None) -> int:
     p_chart.add_argument("out_basename")
     p_chart.add_argument("--width", type=int, default=1400)
     p_chart.add_argument("--height", type=int, default=700)
+    p_chart.add_argument("--project", default=None)
+    p_chart.add_argument("--exhibit-id", default=None)
+    p_chart.add_argument("--exhibit-title", default=None)
+    p_chart.add_argument("--source-keys", default="")
+    p_chart.add_argument("--fact-ids", default="")
 
     p_status = sub.add_parser("status", help="show a report's manifest view + artifacts")
     p_status.add_argument("project")
@@ -86,6 +92,17 @@ def main(argv: list[str] | None = None) -> int:
     p_source.add_argument("--accessed", default=None)
     p_source.add_argument("--as-of", default=None)
     p_source.add_argument("--overwrite", action="store_true")
+
+    p_exhibit = sub.add_parser("exhibit", help="register an exhibit record (RF-03)")
+    p_exhibit.add_argument("project")
+    p_exhibit.add_argument("exhibit_id")
+    p_exhibit.add_argument("title")
+    p_exhibit.add_argument("--file", default=None)
+    p_exhibit.add_argument("--source-keys", default="")
+    p_exhibit.add_argument("--fact-ids", default="")
+    p_exhibit.add_argument("--as-of", default=None)
+    p_exhibit.add_argument("--alt", default=None)
+    p_exhibit.add_argument("--overwrite", action="store_true")
 
     args = parser.parse_args(argv)
     if args.cmd == "templates":
@@ -128,7 +145,12 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if result.get("ok") else 1
     elif args.cmd == "chart":
         fig_json = open(args.fig_json_file).read()
-        result = save_chart(fig_json, args.out_basename, args.width, args.height)
+        sk = [s.strip() for s in args.source_keys.split(",") if s.strip()]
+        fi = [s.strip() for s in args.fact_ids.split(",") if s.strip()]
+        result = save_chart(fig_json, args.out_basename, args.width, args.height,
+                            project=args.project, exhibit_id=args.exhibit_id,
+                            exhibit_title=args.exhibit_title,
+                            source_keys=sk, fact_ids=fi)
         print(json.dumps(result, indent=2))
         return 0 if result.get("ok") else 1
     elif args.cmd == "status":
@@ -163,6 +185,15 @@ def main(argv: list[str] | None = None) -> int:
                                  accessed=args.accessed,
                                  as_of=getattr(args, "as_of"),
                                  overwrite=args.overwrite)
+        print(json.dumps(result, indent=2))
+        return 0 if result.get("ok") else 1
+    elif args.cmd == "exhibit":
+        sk = [s.strip() for s in args.source_keys.split(",") if s.strip()]
+        fi = [s.strip() for s in args.fact_ids.split(",") if s.strip()]
+        result = register_exhibit(args.project, args.exhibit_id, args.title,
+                                  file=args.file, source_keys=sk, fact_ids=fi,
+                                  as_of=getattr(args, "as_of"), alt=args.alt,
+                                  overwrite=args.overwrite)
         print(json.dumps(result, indent=2))
         return 0 if result.get("ok") else 1
     return 0

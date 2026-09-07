@@ -972,7 +972,36 @@ def _apply_quantflow_plotly_template(fig, name: str) -> None:
     fig.update_layout(template=tmpl)
 
 
-def save_chart(fig_json: str, out_basename: str, width: int = 1400, height: int = 700, scale: int = 2, project: str | None = None, template: str | None = None) -> dict:
+def _anchor_chart_output(out_basename: str, project: str | None,
+                         root: Path | None) -> str:
+    """Precedence rule for chart output paths (critic-1 compat finding).
+
+    1. Sandbox paths (/mnt/user-data/...) → project's figures/ (existing
+       translation — the host cannot write the agent's sandbox).
+    2. An absolute path that already resolves inside the project → honored
+       verbatim (existing callers pass <root>/figures/<name>).
+    3. Anything else with a project (bare names, project-relative paths,
+       absolute paths outside the project) → <root>/figures/<name...>,
+       preserving any relative subdirectories.
+    4. No project → unchanged (today's byte-for-byte behavior).
+    """
+    translated = _translate_sandbox_path(out_basename, project)
+    if translated != out_basename:
+        return translated
+    if root is None:
+        return out_basename
+    p = Path(out_basename).expanduser()
+    if p.is_absolute():
+        try:
+            p.resolve().relative_to(root.resolve())
+            return out_basename
+        except (ValueError, OSError):
+            pass  # outside the project: redirect into figures/
+        return str(root / "figures" / p.name)
+    return str(root / "figures" / p)
+
+
+def save_chart(fig_json: str, out_basename: str, width: int = 1400, height: int = 700, scale: int = 2, project: str | None = None, template: str | None = None, exhibit_id: str | None = None, exhibit_title: str | None = None, source_keys: list[str] | None = None, fact_ids: list[str] | None = None) -> dict:
     try:
         import plotly.io as pio
 
@@ -1003,9 +1032,25 @@ def save_chart(fig_json: str, out_basename: str, width: int = 1400, height: int 
     # Sandbox-path translation (lesson of AAPL run 1, 2026-09-01): the agent's
     # sandbox exposes /mnt/user-data/... while this MCP server runs on the
     # host filesystem. Sandbox paths written here would fail silently from the
-    # agent's perspective. Translate them into the project's figures/ dir so
-    # the rendered qmd can actually find them.
-    out_basename = _translate_sandbox_path(out_basename, project)
+    # agent's perspective. Milestone B precedence (_anchor_chart_output):
+    # in-project absolutes honored, everything else lands in figures/.
+    root: Path | None = None
+    if project is not None:
+        root, root_err = _project_root_or_error(project)
+        if root_err:
+            return root_err
+        assert root is not None
+        # Fail-before-write: dangling exhibit links must never leave a
+        # half-registered chart on disk (B-3 test pins this ordering).
+        manifest_pre, pre_err = _load_or_import(root)
+        if pre_err:
+            return pre_err
+        assert manifest_pre is not None
+        link_err = _check_registry_links(
+            manifest_pre, source_keys or [], fact_ids or [])
+        if link_err is not None:
+            return {"ok": False, "error": link_err}
+    out_basename = _anchor_chart_output(out_basename, project, root)
     out = Path(out_basename).expanduser()
     out.parent.mkdir(parents=True, exist_ok=True)
     png = out.with_suffix(".png")
@@ -1015,7 +1060,36 @@ def save_chart(fig_json: str, out_basename: str, width: int = 1400, height: int 
         fig.write_html(str(html_path), include_plotlyjs="cdn", full_html=True)
     except Exception as exc:
         return {"ok": False, "error": f"chart export failed: {exc}", "partial": {"png": str(png)}}
-    return {"ok": True, "png": str(png), "html": str(html_path), "embed_snippet": f"![caption.]({png.name}){{width=90%}}", "template_applied": template_applied}
+    result: dict = {"ok": True, "png": str(png), "html": str(html_path), "embed_snippet": f"![caption.]({png.name}){{width=90%}}", "template_applied": template_applied}
+    if root is not None:
+        # Auto-register the exhibit (B-3): id defaults to the file stem in
+        # the fig- namespace; the just-written file grounds the record.
+        stem = png.stem
+        eid = exhibit_id or (stem if stem.startswith("fig-") else f"fig-{stem}")
+        try:
+            rel = str(png.resolve().relative_to(root.resolve()))
+        except (ValueError, OSError):
+            return {"ok": False, "error": f"chart landed outside the project root: {png}"}
+        with _project_lock(root):
+            manifest, err = _load_or_import(root)
+            if err:
+                return err
+            assert manifest is not None
+            # Re-saving a chart is an update, not a duplicate: inherit the
+            # existing record's links/title unless the caller overrides them.
+            existing = manifest.exhibits.get(eid, {})
+            reg = _register_exhibit_locked(
+                root, manifest, eid,
+                exhibit_title or existing.get("title", eid), rel,
+                source_keys or list(existing.get("source_keys", [])),
+                fact_ids or list(existing.get("fact_ids", [])),
+                existing.get("as_of"), existing.get("alt"), True)
+            if not reg.get("ok"):
+                return reg
+            manifest_mod.save(manifest, str(root))
+        result["exhibit_id"] = eid
+        result["registry_version"] = manifest.registry_version
+    return result
 
 
 # --- WS-2: arbitrary asset ingestion --------------------------------------
@@ -2725,6 +2799,107 @@ def register_source(project: str, key: str, kind: str, title: str,
                 "registry_version": manifest.registry_version}
 
 
+def _check_registry_links(manifest, source_keys: list, fact_ids: list) -> str | None:
+    """Dangling-link check shared by exhibit/fact registration (loud names)."""
+    if not isinstance(source_keys, list) or not isinstance(fact_ids, list):
+        return "source_keys and fact_ids must be lists of id strings"
+    for sk in source_keys:
+        if sk not in manifest.sources:
+            return f"unknown source key: {sk!r} — register it first"
+    for fid in fact_ids:
+        if fid not in manifest.facts:
+            return f"unknown fact id: {fid!r} — register it first"
+    return None
+
+
+def _exhibit_anchors(root: Path) -> set[str]:
+    """Figure-anchor short ids ({#fig-<id>}) currently present in index.qmd."""
+    try:
+        text = (root / "index.qmd").read_text(encoding="utf-8")
+    except OSError:
+        return set()
+    return set(_FIGANCHOR_RE.findall(text))
+
+
+def _register_exhibit_locked(root: Path, manifest, exhibit_id: str,
+                             title: str, file: str | None,
+                             source_keys: list, fact_ids: list,
+                             as_of: str | None, alt: str | None,
+                             overwrite: bool) -> dict:
+    """Record logic for register_exhibit; caller holds the project lock."""
+    record: dict = {"id": exhibit_id, "title": title, "file": file,
+                    "source_keys": list(source_keys),
+                    "fact_ids": list(fact_ids)}
+    if as_of is not None:
+        record["as_of"] = as_of
+    if alt is not None:
+        record["alt"] = alt
+    ok, verr = manifest_mod.validate_exhibit(record)
+    if not ok:
+        return {"ok": False, "error": verr}
+    link_err = _check_registry_links(manifest, source_keys, fact_ids)
+    if link_err is not None:
+        return {"ok": False, "error": link_err}
+    # Grounding (B-3): the id must match a live {#fig-} anchor, or the file
+    # must exist under the project root. One of the two — never neither.
+    short = exhibit_id[4:] if exhibit_id.startswith("fig-") else exhibit_id
+    grounded = short in _exhibit_anchors(root)
+    rel_file: str | None = None
+    if file is not None:
+        target = (root / file.strip().lstrip("/")).resolve()
+        try:
+            target.relative_to(root.resolve())
+        except ValueError:
+            return {"ok": False, "error": f"exhibit file escapes the project root: {file}"}
+        if not target.is_file():
+            return {"ok": False, "error": f"exhibit file not found in project: {file}"}
+        grounded = True
+        rel_file = str(target.relative_to(root.resolve()))
+    if not grounded:
+        return {"ok": False,
+                "error": f"exhibit {exhibit_id!r} is ungrounded: no {{#fig-{short}}} "
+                         "anchor in index.qmd and no existing file — pass file= or add the anchor"}
+    record["file"] = rel_file  # normalized project-relative, or None
+    if exhibit_id in manifest.exhibits and not overwrite:
+        return {"ok": False,
+                "error": f"exhibit {exhibit_id!r} already registered; "
+                         "pass overwrite=True to replace"}
+    manifest.exhibits[exhibit_id] = record
+    manifest.registry_version += 1
+    return {"ok": True, "exhibit_id": exhibit_id,
+            "registry_version": manifest.registry_version}
+
+
+@_section_op_errors
+def register_exhibit(project: str, exhibit_id: str, title: str,
+                     file: str | None = None,
+                     source_keys: list[str] | None = None,
+                     fact_ids: list[str] | None = None,
+                     as_of: str | None = None, alt: str | None = None,
+                     overwrite: bool = False) -> dict:
+    """Register an exhibit record: figure file or anchor linked to evidence.
+
+    Check-then-write runs under the project lock. Bumps registry_version,
+    never content revision.
+    """
+    root, err = _project_root_or_error(project)
+    if err:
+        return err
+    assert root is not None
+    with _project_lock(root):
+        manifest, err = _load_or_import(root)
+        if err:
+            return err
+        assert manifest is not None
+        res = _register_exhibit_locked(
+            root, manifest, exhibit_id, title, file,
+            source_keys or [], fact_ids or [], as_of, alt, overwrite)
+        if not res.get("ok"):
+            return res
+        manifest_mod.save(manifest, str(root))
+        return {"ok": True, "report_id": manifest.report_id, **res}
+
+
 # --- Milestone A Task 1.6: portable export bundle (RF-06) ----------------------
 
 _BUNDLE_FORMATS = ("html", "pdf", "docx")
@@ -2922,7 +3097,7 @@ MCP_TOOL_NAMES_FALLBACK = [
     "reportforge_move_section", "reportforge_delete_section",
     "reportforge_export_release", "reportforge_check_readiness",
     "reportforge_record_review", "reportforge_render_preview",
-    "reportforge_register_source",
+    "reportforge_register_source", "reportforge_register_exhibit",
     "reportforge_capabilities",
 ]
 
