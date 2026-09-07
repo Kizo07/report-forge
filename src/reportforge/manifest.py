@@ -36,8 +36,31 @@ IDEMPOTENCY_CAP = 500
 REVIEWS_CAP = 100
 
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
+_FENCE_RE = re.compile(r"^\s*(`{3,}|~{3,})")
 _SLUG_BAD_RE = re.compile(r"[^a-z0-9]+")
 _ATTR_SUFFIX_RE = re.compile(r"\s*\{[^}]*\}\s*$")
+
+
+def _iter_prose_lines(body: list[str]):
+    """Yield ``(index, line)`` pairs for body lines outside fenced code blocks.
+
+    QMD reports embed executable python chunks; a `#` comment inside a
+    fence is not a heading and must never become a section id. The index
+    is the position in the original body list so `line_start` stays exact.
+    """
+    in_fence: str | None = None
+    for i, line in enumerate(body):
+        m = _FENCE_RE.match(line)
+        if m:
+            fence = m.group(1)[0]  # backtick vs tilde; length need not match to close
+            if in_fence is None:
+                in_fence = fence
+            elif fence == in_fence:
+                in_fence = None
+            continue  # fence markers themselves are never headings
+        if in_fence is not None:
+            continue
+        yield i, line
 
 
 class ManifestError(Exception):
@@ -73,7 +96,8 @@ def scan_sections(qmd_text: str) -> list[dict]:
     body = _strip_frontmatter(lines)
     offset = len(lines) - len(body)  # 0-based count of stripped frontmatter lines
     sections = []
-    for i, line in enumerate(body):
+    seen_ids: dict[str, int] = {}
+    for i, line in _iter_prose_lines(body):
         m = _HEADING_RE.match(line)
         if not m:
             continue
@@ -82,9 +106,15 @@ def scan_sections(qmd_text: str) -> list[dict]:
         title = _ATTR_SUFFIX_RE.sub("", m.group(2)).strip()
         if not title:
             continue
+        base_id = slugify_section_id(title)
+        n = seen_ids.get(base_id, 0)
+        seen_ids[base_id] = n + 1
+        # Duplicate headings are common (e.g. repeated "Results"); the
+        # contract's collision-free rule gets a -2/-3 suffix.
+        sid = base_id if n == 0 else f"{base_id}-{n + 1}"
         sections.append(
             {
-                "id": slugify_section_id(title),
+                "id": sid,
                 "title": title,
                 "level": level,
                 "line_start": offset + i + 1,  # 1-based in original text
@@ -294,7 +324,8 @@ def _title_from_qmd(qmd_text: str, fallback: str) -> str:
     title = _frontmatter_value(qmd_text, "title")
     if title:
         return title
-    for line in _strip_frontmatter(qmd_text.splitlines()):
+    body = _strip_frontmatter(qmd_text.splitlines())
+    for _, line in _iter_prose_lines(body):
         m = _HEADING_RE.match(line)
         if m and len(m.group(1)) == 1:
             return m.group(2).strip()
@@ -303,9 +334,19 @@ def _title_from_qmd(qmd_text: str, fallback: str) -> str:
 
 def create(root: str, title: str, brief: str = "", profile: dict | None = None,
            formats: list | None = None, sections: list | None = None,
-           actor: str = "tool:scaffold") -> Manifest:
-    """Build a fresh revision-1 draft manifest and save it."""
+           actor: str = "tool:scaffold", overwrite: bool = False) -> Manifest:
+    """Build a fresh revision-1 draft manifest and save it.
+
+    Refuses to clobber an existing manifest unless ``overwrite=True`` —
+    revision history is immutable per contract §1.2, so a silent reset to
+    revision 1 is never acceptable.
+    """
     root = os.fspath(root)
+    if not overwrite and os.path.isfile(_manifest_path(root)):
+        raise ManifestError(
+            f"manifest already exists at {_manifest_path(root)}; "
+            "pass overwrite=True to reset it (revision history will be lost)"
+        )
     now = _now_iso()
     if sections is None:
         qmd = _read_qmd(root)
@@ -337,7 +378,10 @@ def create(root: str, title: str, brief: str = "", profile: dict | None = None,
 
 
 def _profile_from_template(template: str | None) -> dict:
-    genre = template or "standard"
+    # Contract §1.2: never guess. A present-but-unrecognized template value
+    # is echoed verbatim so the anomaly stays visible; only an absent value
+    # falls back to "standard".
+    genre = template if template else "standard"
     theme = "dark" if (template or "").endswith("-dark") else "light"
     return {
         "report_type": genre,
@@ -345,8 +389,41 @@ def _profile_from_template(template: str | None) -> dict:
         "theme": theme,
         "layout": "magazine",
         "output_profile": "editorial",
+        # Contract §1.2 lists general|flagship|draft policies but gives no
+        # Milestone-A derivation rule; fresh manifests start restrictive.
+        # RF-08 (workflow gates) will own policy transitions.
         "policy": "draft",
     }
+
+
+def _formats_from_quarto_yml(root: str) -> list[str] | None:
+    """Parse `format:` keys from the report's _quarto.yml (stdlib-only).
+
+    Returns None when the file is missing or has no recognizable format
+    block, letting the caller fall back to its default.
+    """
+    try:
+        text = open(os.path.join(root, "_quarto.yml"), encoding="utf-8").read()
+    except OSError:
+        return None
+    formats: list[str] = []
+    in_format_block = False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if re.match(r"^format\s*:", stripped):
+            # Inline form: `format: html` — block form follows on next lines.
+            inline = stripped.split(":", 1)[1].strip()
+            if inline:
+                return [inline] if inline in ("html", "pdf", "docx") else None
+            in_format_block = True
+            continue
+        if in_format_block:
+            if not line[:1].isspace() and stripped:
+                break  # dedented: block over
+            m = re.match(r"^\s{2,}(html|pdf|docx)\s*:", line)
+            if m and m.group(1) not in formats:
+                formats.append(m.group(1))
+    return formats or None
 
 
 def import_dir(root: str) -> Manifest:
@@ -365,7 +442,8 @@ def import_dir(root: str) -> Manifest:
         revision=1,
         state="draft",
         sections=scan_sections(qmd),
-        formats=["html", "pdf", "docx"],
+        # Contract §1.2: formats derive from _quarto.yml at import time.
+        formats=_formats_from_quarto_yml(root) or ["html", "pdf", "docx"],
         created=datetime.fromtimestamp(
             os.path.getmtime(root)).astimezone().isoformat(),
         updated=_now_iso(),

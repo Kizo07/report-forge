@@ -106,7 +106,6 @@ def test_import_dir(proj):
     assert m.revision == 1 and m.state == "draft"
     assert m.profile["report_type"] == "earnings-recap"
     assert len(m.sections) == 3
-    assert "Lorem" not in open(os.path.join(proj, "index.qmd")).read() or True
     # import never rewrites the qmd body
     assert open(os.path.join(proj, "index.qmd"), encoding="utf-8").read() == QMD
 
@@ -133,3 +132,70 @@ def test_events_since(proj):
     got = M.events_since(m, 1)
     assert got["events_truncated"] is False
     assert [e["revision"] for e in got["events"]] == [2, 3]
+
+
+FENCED_QMD = """---
+title: Fenced
+---
+
+# Real Heading
+
+```python
+# this comment is not a heading
+## neither is this
+```
+
+Some prose.
+
+~~~markdown
+# also not a heading
+~~~
+
+## Second Real
+"""
+
+
+def test_fenced_code_comments_are_not_sections(proj):
+    open(os.path.join(proj, "index.qmd"), "w", encoding="utf-8").write(FENCED_QMD)
+    sections = M.scan_sections(FENCED_QMD)
+    ids = [s["id"] for s in sections]
+    assert ids == ["s-real-heading", "s-second-real"]
+    # line_start still counts the fenced lines (advisory, 1-based, exact)
+    assert sections[1]["line_start"] == FENCED_QMD.splitlines().index("## Second Real") + 1
+
+
+def test_duplicate_headings_get_suffixed_ids():
+    qmd = "# A\n\n## Results\n\n## Results\n\n## Results\n"
+    ids = [s["id"] for s in M.scan_sections(qmd)]
+    assert ids == ["s-a", "s-results", "s-results-2", "s-results-3"]
+
+
+def test_create_refuses_to_clobber(proj):
+    M.create(proj, title="T")
+    m = M.load(proj)
+    for _ in range(3):
+        M.bump(m, "work", actor="a")
+    M.save(m, proj)
+    with pytest.raises(M.ManifestError, match="already exists"):
+        M.create(proj, title="T2")
+    assert M.load(proj).revision == 4  # history intact
+    M.create(proj, title="T2", overwrite=True)
+    assert M.load(proj).revision == 1  # explicit reset only
+
+
+def test_illegal_transitions_fail(proj):
+    m = M.create(proj, title="T")
+    assert M.transition(m, "approved", actor="a")["ok"] is False  # draft -> approved
+    assert M.transition(m, "bogus-state", actor="a")["ok"] is False  # unknown state
+    M.transition(m, "review", actor="a")
+    M.add_review(m, m.revision, "r", "approved", "ship it")
+    assert M.transition(m, "approved", actor="a")["ok"] is True
+    assert M.transition(m, "draft", actor="a")["ok"] is False  # approved -> draft
+    assert M.transition(m, "exported", actor="a")["ok"] is True
+    assert M.transition(m, "approved", actor="a")["ok"] is False  # exported -> approved
+
+
+def test_double_load_does_not_bump(proj):
+    M.create(proj, title="T")
+    assert M.load(proj).revision == 1
+    assert M.load(proj).revision == 1
