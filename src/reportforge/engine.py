@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
 import os
 import re
@@ -1219,6 +1220,216 @@ def append_section(project: str, markdown: str, before: str | None = None) -> di
         "action": action,
         "bytes": qmd_path.stat().st_size,
         "next_step": "render_report to verify the composition",
+    }
+
+
+# --- Milestone A Task 1.5: preview artifacts (RF-05) --------------------------
+
+
+def _load_manifest_if_present(root: Path) -> tuple[dict | None, str | None]:
+    """Read report.json for a project; loud failure when absent/unreadable.
+
+    Dict-level helper kept deliberately thin until Task 1.1's manifest module
+    lands: engine preview/export code should not duplicate the manifest state
+    machine, only consume it.
+    """
+    mpath = root / "report.json"
+    if not mpath.is_file():
+        return None, f"project has no report.json manifest (scaffold/import first): {mpath.name}"
+    try:
+        m = json.loads(mpath.read_text())
+    except (json.JSONDecodeError, OSError) as exc:
+        return None, f"manifest unreadable: {exc}"
+    if not isinstance(m.get("revision"), int):
+        return None, "manifest has no integer 'revision' field"
+    return m, None
+
+
+def render_preview(project: str, revision: int | None = None) -> dict:
+    """Render preview artifacts (contact sheet, pages, exhibits) for a report.
+
+    Contract §5: previews bind to (report_id, revision), are generated only
+    from that revision's rendered PDF (no auto-render), live under
+    <project>/output/previews/r<rev>/, and are returned as §3.2-shaped
+    relative-path artifact descriptors — never host absolute paths.
+    Read-only: the manifest revision is never bumped.
+    """
+    root = REPORTS_DIR / project.strip("/")
+    if not root.is_dir():
+        return {"ok": False, "error": f"project not found: {project}"}
+    manifest, err = _load_manifest_if_present(root)
+    if err:
+        return {"ok": False, "error": err}
+    assert manifest is not None
+    current = manifest["revision"]
+    if revision is not None and revision != current:
+        return {
+            "ok": False,
+            "error": f"stale revision: requested {revision}, manifest is at revision {current}",
+            "current_revision": current,
+        }
+    rev = current
+
+    pdftoppm = shutil.which("pdftoppm")
+    if not pdftoppm:
+        return {"ok": False, "error": "pdftoppm not found on PATH (previews unavailable)"}
+
+    out_dir = _output_dir_of(root)
+    if out_dir == root and (root / "output").is_dir():
+        out_dir = root / "output"
+    pdf = out_dir / "index.pdf"
+    if not pdf.is_file():
+        return {
+            "ok": False,
+            "error": f"no rendered PDF for revision {rev}: render first (previews never auto-render), missing {pdf.name}",
+        }
+
+    previews_dir = out_dir / "previews" / f"r{rev}"
+    try:
+        previews_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        return {"ok": False, "error": f"cannot create previews dir: {exc}"}
+
+    page_count = _pdf_page_count(pdf)
+    if page_count < 1:
+        return {"ok": False, "error": f"cannot count pages in {pdf.name}: not a readable PDF"}
+
+    pages_dir = previews_dir / "pages"
+    try:
+        pages_dir.mkdir(parents=True, exist_ok=True)
+        run = subprocess.run(  # noqa: S603 fixed binary, fixed args
+            [pdftoppm, "-png", "-r", "110", "-scale-to", "1400", pdf, str(pages_dir / "page")],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if run.returncode != 0:
+            return {"ok": False, "error": f"pdftoppm page raster failed: {run.stderr.strip()}"}
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "error": "pdftoppm page raster timed out (120s)"}
+    except OSError as exc:
+        return {"ok": False, "error": f"pdftoppm page raster failed: {exc}"}
+
+    page_files = sorted(pages_dir.glob("page-*.png"), key=_page_sort_key)
+    unnumbered = pages_dir / "page.png"
+    if not page_files and unnumbered.is_file():
+        # poppler names single-page output <prefix>.png (no page number)
+        numbered = pages_dir / "page-1.png"
+        numbered.write_bytes(unnumbered.read_bytes())
+        unnumbered.unlink()
+        page_files = [numbered]
+    if not page_files:
+        return {"ok": False, "error": "pdftoppm produced no page PNGs"}
+
+    contact = _build_contact_sheet(page_files, previews_dir / "contact-sheet.png")
+    if contact is None:
+        return {"ok": False, "error": "contact sheet composition failed (no page PNGs readable)"}
+
+    artifacts: list[dict] = [
+        _file_descriptor(root, f"output/previews/r{rev}/contact-sheet.png", "contact-sheet", "preview", "image/png")
+    ]
+    for p in _numbered_pages(page_files):
+        artifacts.append(
+            _file_descriptor(root, f"output/previews/r{rev}/pages/page-{p}.png", f"page-{p}", "preview", "image/png")
+        )
+
+    charts_dir = root / "charts"
+    if charts_dir.is_dir():
+        for chart in sorted(charts_dir.glob("*.png")):
+            artifacts.append(
+                _file_descriptor(root, f"charts/{chart.name}", f"exhibit-{chart.stem}", "preview", "image/png")
+            )
+
+    return {
+        "ok": True,
+        "report_id": manifest.get("report_id", project.strip("/")),
+        "revision": rev,
+        "page_count": page_count,
+        "artifacts": artifacts,
+        "next_step": "retrieve artifacts via read_project_file (binary) or export bundle §3",
+    }
+
+
+def _pdf_page_count(pdf: Path) -> int:
+    """Page count via pdfinfo (poppler); -1 when unavailable/unreadable."""
+    pdfinfo = shutil.which("pdfinfo")
+    if not pdfinfo:
+        return -1
+    try:
+        run = subprocess.run(  # noqa: S603 fixed binary, fixed args
+            [pdfinfo, str(pdf)],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return -1
+    if run.returncode != 0:
+        return -1
+    for line in run.stdout.splitlines():
+        if line.startswith("Pages:"):
+            try:
+                return int(line.split(":", 1)[1].strip())
+            except ValueError:
+                return -1
+    return -1
+
+
+def _page_sort_key(p: Path) -> tuple[int, ...]:
+    m = re.search(r"(\d+)\.png$", p.name)
+    return (int(m.group(1)),) if m else (10**9,)
+
+
+def _numbered_pages(page_files: list[Path]) -> list[int]:
+    nums: list[int] = []
+    for p in page_files:
+        m = re.search(r"(\d+)\.png$", p.name)
+        if m:
+            nums.append(int(m.group(1)))
+    return sorted(nums)
+
+
+def _build_contact_sheet(page_files: list[Path], dest: Path) -> Path | None:
+    """Tile page PNGs into one contact sheet PNG (Pillow)."""
+    try:
+        from PIL import Image
+    except ImportError:
+        return None
+    tile_w = 360
+    cols = 4
+    thumbs: list[Image.Image] = []
+    for pf in page_files:
+        try:
+            img = Image.open(pf)
+            img.load()
+        except Exception:
+            continue
+        ratio = tile_w / img.width
+        thumbs.append(img.resize((tile_w, max(1, round(img.height * ratio)))))
+    if not thumbs:
+        return None
+    rows = (len(thumbs) + cols - 1) // cols
+    tile_h = max(t.height for t in thumbs)
+    pad = 12
+    sheet = Image.new("RGB", (cols * tile_w + (cols + 1) * pad, rows * tile_h + (rows + 1) * pad), (24, 24, 28))
+    for i, t in enumerate(thumbs):
+        r, c = divmod(i, cols)
+        sheet.paste(t, (pad + c * (tile_w + pad), pad + r * (tile_h + pad)))
+    sheet.save(dest, format="PNG")
+    return dest
+
+
+def _file_descriptor(root: Path, relpath: str, artifact_id: str, role: str, mime: str) -> dict:
+    """§3.2 artifact descriptor for a file under a project/bundle root."""
+    p = root / relpath
+    data = p.read_bytes()
+    return {
+        "id": artifact_id,
+        "path": relpath,
+        "bytes": len(data),
+        "sha256": hashlib.sha256(data).hexdigest(),
+        "mime": mime,
+        "role": role,
     }
 
 
