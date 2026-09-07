@@ -13,6 +13,7 @@ from reportforge.engine import (
     project_status,
     publish_report,
     read_project_file,
+    render_preview,
     render_report,
     run_code,
     run_file,
@@ -516,6 +517,29 @@ def reportforge_append_section(
     Returns ok flag, action taken, new file size, and next_step (render).
     """
     return append_section(project, markdown, before=before)
+
+
+@mcp.tool
+def reportforge_render_preview(
+    project: str,
+    revision: int | None = None,
+) -> dict[str, Any]:
+    """Render preview artifacts for a report revision (RF-05).
+
+    Produces a contact sheet (all pages tiled), per-page PNGs, and exhibit
+    PNGs (charts/*), stored under <project>/output/previews/r<rev>/ and
+    returned as relative-path artifact descriptors (id/path/bytes/sha256/
+    mime/role). Previews bind to (report_id, revision): the rendered PDF
+    must already exist — render first, this tool never auto-renders.
+
+    Args:
+        project: Report slug (project directory name).
+        revision: Optional expected revision; mismatch is a loud failure
+            with current_revision in the response.
+
+    Returns ok, report_id, revision, page_count, artifacts, next_step.
+    """
+    return render_preview(project, revision=revision)
 
 
 def main() -> None:

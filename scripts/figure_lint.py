@@ -41,6 +41,8 @@ BANNED = [
 ACCENTS = {
     "light": [(143, 98, 31), (20, 117, 108)],      # gold #8f621f, teal #14756c
     "dark": [(201, 162, 39), (86, 196, 196)],       # gold #c9a227, teal #56cfc4
+    "ledger-light": [(143, 98, 31), (0, 158, 217)],  # gold #8f621f, cyan #009ed9
+    "ledger-dark": [(227, 172, 85), (8, 191, 255)],  # gold #e3ac55, cyan #08bfff
 }
 
 # Absolute insanity cap (px @scale=2): must fit our own tier spec
@@ -53,9 +55,13 @@ FULLWIDTH_SHARE = 0.60
 MAX_FULLWIDTH_RUN = 2
 MIN_ACCENT_PX = 20
 LIGHT_BRIGHTNESS_FLOOR = 150
-# Light paper corner target (#e5ddcc): catches white-background charts
-# (wrong template / default-style fallback) that pass brightness+accents.
-LIGHT_PAPER = (229, 221, 204)
+# Light paper corner targets (#e5ddcc portfolio, #eef3f6 ledger ice):
+# catches white-background charts (wrong template / default-style
+# fallback) that pass brightness+accents.
+LIGHT_PAPERS = {
+    "light": (229, 221, 204),
+    "ledger-light": (238, 243, 246),
+}
 PAPER_TOL = 16
 
 
@@ -129,8 +135,14 @@ def main() -> int:
             bad.append(f"qmd: banned tic {tic!r} present")
 
     fm = body.split("---")
-    theme = "light" if len(fm) > 1 and "light" in fm[1] else "dark"
-    engine_only = bool(re.search(r"^engine_charts_only:\s*true\s*$", fm[1] if len(fm) > 1 else "", re.MULTILINE))
+    head = fm[1] if len(fm) > 1 else ""
+    m = re.search(r"^reportforge-template:\s*[\"']?([\w-]+)", head, re.MULTILINE)
+    tpl = m.group(1) if m else ""
+    if tpl in ACCENTS:
+        theme = tpl
+    else:
+        theme = "light" if "light" in head else "dark"
+    engine_only = bool(re.search(r"^engine_charts_only:\s*true\s*$", head, re.MULTILINE))
     accents = ACCENTS[theme]
 
     charts = proj / "charts"
@@ -153,7 +165,7 @@ def main() -> int:
             if n_accent < MIN_ACCENT_PX:
                 bad.append(f"{png.name}: no QuantFlow accent pixels "
                            f"({n_accent} sampled) — theme not applied?")
-            if theme == "light":
+            if theme in LIGHT_PAPERS:
                 lum = statistics.mean(
                     0.299 * r + 0.587 * g + 0.114 * b for r, g, b in px)
                 if lum < LIGHT_BRIGHTNESS_FLOOR:
@@ -171,9 +183,10 @@ def main() -> int:
                     for i in range(3):
                         chans[i] += sum(raw[i::3])
                 paper = tuple(c // total for c in chans)
-                if any(abs(a - b) > PAPER_TOL for a, b in zip(paper, LIGHT_PAPER)):
+                want = LIGHT_PAPERS[theme]
+                if any(abs(a - b) > PAPER_TOL for a, b in zip(paper, want)):
                     bad.append(f"{png.name}: paper {paper} is not the light "
-                               f"template paper {LIGHT_PAPER} — wrong theme "
+                               f"template paper {want} — wrong theme "
                                f"or default-style fallback?")
             if engine_only:
                 sw = str(Image.open(png).info.get("Software", ""))
