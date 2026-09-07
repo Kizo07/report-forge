@@ -59,10 +59,13 @@ class RenderResult:
 # Templates sharing the studio editorial pipeline (hero/compact title,
 # eyebrow, organization, 0-6 metrics, accent override, exhibit labels).
 _PORTFOLIO_TEMPLATES = {"portfolio-light", "portfolio-dark"}
-_EDITORIAL_TEMPLATES = {"studio"} | _PORTFOLIO_TEMPLATES
+# Cyan Ledger variants (derived; see scripts/derive_ledger_templates.py).
+_LEDGER_TEMPLATES = {"ledger-light", "ledger-dark"}
+_EDITORIAL_TEMPLATES = {"studio"} | _PORTFOLIO_TEMPLATES | _LEDGER_TEMPLATES
 # Site-gold defaults (Kizo07.github.io); used only when the caller leaves
 # the generic scaffold accent untouched.
-_PORTFOLIO_DEFAULT_ACCENTS = {"portfolio-light": "#8f621f", "portfolio-dark": "#d9a54e"}
+_PORTFOLIO_DEFAULT_ACCENTS = {"portfolio-light": "#8f621f", "portfolio-dark": "#d9a54e",
+                              "ledger-light": "#8f621f", "ledger-dark": "#e3ac55"}
 
 
 def list_templates() -> list[dict]:
@@ -83,6 +86,8 @@ def list_templates() -> list[dict]:
         {"name": "studio", "description": "Premium content-neutral editorial report: hero, compact, or minimal title, optional organization/eyebrow/metrics/verdict/key-points/scenarios cover infographics, accent override, footer, configurable accent, flexible Markdown sections, refined figures and tables. Custom Typst PDF and responsive HTML; html/pdf/docx.", "toc": False, "number_sections": False, "exhibit_labels": True, "papersize": "us-letter", "formats": ["html", "pdf", "docx"], "content_neutral": True, "title_layouts": ["hero", "compact", "minimal"], "max_metrics": 6},
         {"name": "portfolio-light", "description": "Studio editorial pipeline in the portfolio light theme: warm paper, serif display type, gold kicker. Hero/compact/minimal title, eyebrow, organization, 0-6 metrics, verdict/key-points/scenarios cover infographics, accent override, exhibit labels; html/pdf/docx.", "toc": False, "number_sections": False, "exhibit_labels": True, "papersize": "us-letter", "formats": ["html", "pdf", "docx"], "content_neutral": True, "title_layouts": ["hero", "compact", "minimal"], "max_metrics": 6},
         {"name": "portfolio-dark", "description": "Studio editorial pipeline in the portfolio dark theme: near-black paper, serif display type, gold kicker. Hero/compact/minimal title, eyebrow, organization, 0-6 metrics, verdict/key-points/scenarios cover infographics, accent override, exhibit labels; html/pdf/docx.", "toc": False, "number_sections": False, "exhibit_labels": True, "papersize": "us-letter", "formats": ["html", "pdf", "docx"], "content_neutral": True, "title_layouts": ["hero", "compact", "minimal"], "max_metrics": 6},
+        {"name": "ledger-dark", "description": "Studio editorial pipeline in the Cyan Ledger midnight theme: near-black blue paper, Space Grotesk display type, ledger-gold kicker, cyan links. Same cover infographics (metrics/verdict/key-points/scenarios), two-column body, exhibit labels; html/pdf/docx.", "toc": False, "number_sections": False, "exhibit_labels": True, "papersize": "us-letter", "formats": ["html", "pdf", "docx"], "content_neutral": True, "title_layouts": ["hero", "compact", "minimal"], "max_metrics": 6},
+        {"name": "ledger-light", "description": "Studio editorial pipeline in the Cyan Ledger ice theme: ice-blue paper, Space Grotesk display type, ledger-gold kicker, scheme-safe cyan links. Same cover infographics, two-column body, exhibit labels; html/pdf/docx.", "toc": False, "number_sections": False, "exhibit_labels": True, "papersize": "us-letter", "formats": ["html", "pdf", "docx"], "content_neutral": True, "title_layouts": ["hero", "compact", "minimal"], "max_metrics": 6},
         {"name": "bespoke", "description": "Minimal project, no template opinions: you supply the full .qmd frontmatter and body (via write_report_body / append_section). Use for custom layouts, html-first designs, or the pdf-web (headless-Chromium print) path. html/pdf/docx/pdf-web.", "toc": False, "number_sections": False, "formats": ["html", "pdf", "docx", "pdf-web"], "content_neutral": True},
     ]
 
@@ -274,8 +279,8 @@ def scaffold_report(
             return {"ok": False, "error": "title layout must be 'hero', 'compact' or 'minimal'"}
         if not re.fullmatch(r"#[0-9a-fA-F]{6}", accent):
             return {"ok": False, "error": "accent must be a six-digit hex color such as #4f46e5"}
-    if template in _PORTFOLIO_TEMPLATES and accent.lower() == "#4f46e5":
-        # Portfolio templates default to the site gold unless the caller
+    if template in (_PORTFOLIO_TEMPLATES | _LEDGER_TEMPLATES) and accent.lower() == "#4f46e5":
+        # Portfolio/Ledger templates default to their gold unless the caller
         # passes an explicit accent.
         accent = _PORTFOLIO_DEFAULT_ACCENTS[template]
 
@@ -379,7 +384,7 @@ def scaffold_report(
         "scenarios_count": len(normalized_scenarios) if template in _EDITORIAL_TEMPLATES else 0,
         # Starter-body figure default: dark figures for the dark theme so the
         # example chart (and any inline chunks) match the page.
-        "plotly_default": "plotly_dark" if template == "portfolio-dark" else "plotly_white",
+        "plotly_default": "plotly_dark" if template in ("portfolio-dark", "ledger-dark") else "plotly_white",
         # Recorded into the scaffolded frontmatter so tools (chart theming)
         # and humans can tell which template a project was built from.
         "template_name": template,
@@ -465,6 +470,20 @@ def scaffold_report(
             header_name = "portfolio-header.html"
             brand_tpl = templates.PORTFOLIO_LIGHT_BRAND_YML
             styles_extra = templates.PORTFOLIO_LIGHT_STYLES_EXTRA
+        elif template == "ledger-light":
+            yml_tpl = templates.PORTFOLIO_YML
+            typt_tpl = templates.LEDGER_LIGHT_TYPT_TEMPLATE
+            show_tpl = templates.LEDGER_LIGHT_TYPT_SHOW
+            header_name = "portfolio-header.html"
+            brand_tpl = templates.LEDGER_LIGHT_BRAND_YML
+            styles_extra = templates.LEDGER_LIGHT_STYLES_EXTRA
+        elif template == "ledger-dark":
+            yml_tpl = templates.PORTFOLIO_YML
+            typt_tpl = templates.LEDGER_DARK_TYPT_TEMPLATE
+            show_tpl = templates.LEDGER_DARK_TYPT_SHOW
+            header_name = "portfolio-header.html"
+            brand_tpl = templates.LEDGER_DARK_BRAND_YML
+            styles_extra = templates.LEDGER_DARK_STYLES_EXTRA
         else:
             yml_tpl = templates.PORTFOLIO_YML
             typt_tpl = templates.PORTFOLIO_DARK_TYPT_TEMPLATE
@@ -799,11 +818,25 @@ QUANTFLOW_PLOTLY_THEMES = {
         "positive": "#2e7d32", "negative": "#c62828", "muted": "#6d6250",
         "ramp": ["#b09a5e", "#8f621f", "#6d4c17", "#14756c", "#0f4c44"],
     },
+    "ledger-dark": {
+        "paper_bg": "#060a12", "plot_bg": "#0c1220", "font": "#e9eff5",
+        "grid": "#14202f", "primary": "#e3ac55", "secondary": "#08bfff",
+        "positive": "#3fbfae", "negative": "#e66785", "muted": "#819aaa",
+        "ramp": ["#6b5a26", "#a3853c", "#e3ac55", "#08bfff", "#3fbfae"],
+    },
+    "ledger-light": {
+        "paper_bg": "#eef3f6", "plot_bg": "#e7edf2", "font": "#1b2634",
+        "grid": "#cfd9e1", "primary": "#8f621f", "secondary": "#009ed9",
+        "positive": "#237a57", "negative": "#c05563", "muted": "#5a6b7a",
+        "ramp": ["#b09a5e", "#8f621f", "#6d4c17", "#009ed9", "#3fbfae"],
+    },
 }
 
 _PORTFOLIO_TO_QUANTFLOW_TEMPLATE = {
     "portfolio-dark": "quantflow-dark",
     "portfolio-light": "quantflow-light",
+    "ledger-dark": "ledger-dark",
+    "ledger-light": "ledger-light",
 }
 
 
