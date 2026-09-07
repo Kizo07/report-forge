@@ -18,7 +18,7 @@ import tempfile
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 MANIFEST_FILENAME = "report.json"
 QMD_FILENAME = "index.qmd"
 
@@ -138,6 +138,16 @@ class Manifest:
     revision_log: list = field(default_factory=list)
     idempotency_ledger: dict = field(default_factory=dict)
     reviews: list = field(default_factory=list)
+    # RF-03 evidence registries (Milestone B): sources cited from prose,
+    # exhibits backing figures, shared fact records. Schema 2: pre-B
+    # loaders must fail loudly on these files, never silently wipe them.
+    sources: dict = field(default_factory=dict)
+    exhibits: dict = field(default_factory=dict)
+    facts: dict = field(default_factory=dict)
+    # Render-input generation: registry writes touch sources.bib/_quarto.yml,
+    # so each mutation bumps this; preview/review bindings record it and
+    # warn on mismatch (content revision is for prose edits only).
+    registry_version: int = 0
     schema_version: int = SCHEMA_VERSION
 
     def to_dict(self) -> dict:
@@ -152,7 +162,92 @@ class Manifest:
                 f"this loader supports up to {SCHEMA_VERSION}"
             )
         known = {f for f in cls.__dataclass_fields__}
-        return cls(**{k: v for k, v in data.items() if k in known})
+        init = {k: v for k, v in data.items() if k in known}
+        for map_name, validator in (("sources", validate_source),
+                                    ("exhibits", validate_exhibit),
+                                    ("facts", validate_fact)):
+            records = init.get(map_name, {})
+            if not isinstance(records, dict):
+                raise ManifestError(f"manifest {map_name!r} is not a map")
+            for key, rec in records.items():
+                ok, err = validator(rec)
+                if not ok:
+                    raise ManifestError(
+                        f"manifest {map_name}[{key!r}] invalid: {err}")
+        reg = init.get("registry_version", 0)
+        if not isinstance(reg, int) or isinstance(reg, bool):
+            raise ManifestError(
+                f"manifest registry_version is not an int: {reg!r}")
+        return cls(**init)
+
+
+# --- RF-03 record validators (shape-only; link checks live in engine) --------
+
+SOURCE_KINDS = ("filing", "article", "dataset", "price-feed",
+                "transcript", "report", "other")
+FACT_KINDS = ("observed", "calculated", "estimated", "illustrative")
+
+_SOURCE_KEY_RE = re.compile(r"^src-[a-z0-9][a-z0-9-]*$")
+_EXHIBIT_ID_RE = re.compile(r"^fig-[\w-]+$")
+_FACT_ID_RE = re.compile(r"^fact-[a-z0-9][a-z0-9-]*$")
+
+
+def _nonempty_str(rec: dict, key: str) -> bool:
+    val = rec.get(key)
+    return isinstance(val, str) and bool(val.strip())
+
+
+def validate_source(rec: object) -> tuple[bool, str]:
+    """Shape-check a source record. Returns (ok, error)."""
+    if not isinstance(rec, dict):
+        return False, "source record is not an object"
+    key = rec.get("key", "")
+    if not isinstance(key, str) or not _SOURCE_KEY_RE.match(key):
+        # The src- namespace is reserved: fig-/tbl-/sec- crossrefs and
+        # bare words are never citekeys (contract: pandoc-builtin exclusion).
+        return False, f"key {key!r} must match src-<slug>"
+    if rec.get("kind") not in SOURCE_KINDS:
+        return False, f"kind {rec.get('kind')!r} not in {list(SOURCE_KINDS)}"
+    if not _nonempty_str(rec, "title"):
+        return False, "title is required"
+    if not _nonempty_str(rec, "date") and not _nonempty_str(rec, "as_of"):
+        return False, "one of date / as_of is required"
+    return True, ""
+
+
+def validate_exhibit(rec: object) -> tuple[bool, str]:
+    """Shape-check an exhibit record. Returns (ok, error)."""
+    if not isinstance(rec, dict):
+        return False, "exhibit record is not an object"
+    if not isinstance(rec.get("id"), str) or not _EXHIBIT_ID_RE.match(rec["id"]):
+        return False, f"id {rec.get('id')!r} must reuse a figure anchor (fig-<id>)"
+    if not _nonempty_str(rec, "title"):
+        return False, "title is required"
+    if rec.get("file") is not None and not isinstance(rec.get("file"), str):
+        return False, "file must be a path string or null (anchor-grounded)"
+    for link_key in ("source_keys", "fact_ids"):
+        links = rec.get(link_key, [])
+        if not isinstance(links, list) or not all(isinstance(x, str) for x in links):
+            return False, f"{link_key} must be a list of id strings"
+    return True, ""
+
+
+def validate_fact(rec: object) -> tuple[bool, str]:
+    """Shape-check a fact record. Returns (ok, error)."""
+    if not isinstance(rec, dict):
+        return False, "fact record is not an object"
+    if not isinstance(rec.get("id"), str) or not _FACT_ID_RE.match(rec["id"]):
+        return False, f"id {rec.get('id')!r} must match fact-<slug>"
+    if rec.get("value") is None:
+        return False, "value is required (numeric or string)"
+    if not isinstance(rec.get("unit", ""), str):
+        return False, "unit must be a string"
+    if rec.get("kind") not in FACT_KINDS:
+        return False, f"kind {rec.get('kind')!r} not in {list(FACT_KINDS)}"
+    links = rec.get("source_keys", [])
+    if not isinstance(links, list) or not all(isinstance(x, str) for x in links):
+        return False, "source_keys must be a list of id strings"
+    return True, ""
 
 
 def _manifest_path(root: str) -> str:
