@@ -1897,17 +1897,63 @@ REQUIRED_SECTIONS = {
     "studio": ["overview", "figures and tables"],
 }
 
-# B-7 owns the full per-genre content; B-6 seeds the two genres its fixture
-# matrix exercises. Shape: {genre: [{kind: [...], label: ...}]} — a
-# requirement is satisfied only when a matching-kind source is BOTH
-# registered AND cited in the body (critic-2 F1: presence alone is cheap).
+# Per-genre required evidence (B-7). Shape: {genre: [{kind: [...],
+# label: ...}]} — a requirement is satisfied only when a matching-kind
+# source is BOTH registered AND cited in the body (critic-2 F1: presence
+# alone is cheap). Keep to <=3 requirements per genre (YAGNI).
+# Content-neutral / caller-owned genres (bespoke, studio, portfolio-*,
+# ledger-*) intentionally have no list — the evidence check emits
+# EVID-NO-REQUIRED-LIST (info) for those, mirroring STRUCT-NO-REQUIRED-LIST.
 REQUIRED_EVIDENCE = {
+    "standard": [
+        {"kind": ["article", "report", "filing", "dataset", "transcript",
+                  "price-feed"],
+         "label": "at least one cited source"},
+    ],
+    "memo": [
+        {"kind": ["article", "report", "filing", "dataset", "transcript",
+                  "price-feed"],
+         "label": "at least one cited source"},
+    ],
+    "whitepaper": [
+        {"kind": ["dataset", "report"], "label": "thesis evidence"},
+        {"kind": ["article", "report", "filing"], "label": "background source"},
+    ],
     "earnings-recap": [
         {"kind": ["filing", "transcript"],
          "label": "results source (filing or call transcript)"},
+        {"kind": ["price-feed", "dataset"], "label": "market reaction data"},
+    ],
+    "sector-outlook": [
+        {"kind": ["dataset", "price-feed"], "label": "sector price data"},
+        {"kind": ["report", "filing"], "label": "sector fundamentals"},
+    ],
+    "thematic-deepdive": [
+        {"kind": ["dataset"], "label": "theme data"},
+        {"kind": ["report", "article"], "label": "theme research"},
     ],
     "macro-outlook": [
         {"kind": ["dataset"], "label": "macro data series"},
+    ],
+    "quant-factor-brief": [
+        {"kind": ["dataset", "price-feed"], "label": "return/price data"},
+        {"kind": ["report"], "label": "factor research"},
+    ],
+    "technical-brief": [
+        {"kind": ["price-feed", "dataset"], "label": "market price data"},
+    ],
+    "esg-sustainability": [
+        {"kind": ["report"], "label": "ESG data source"},
+        {"kind": ["article", "report"], "label": "controversy coverage"},
+    ],
+    "crypto-digital": [
+        {"kind": ["dataset", "price-feed"], "label": "market data"},
+    ],
+    "desk-synthesis": [
+        {"kind": ["report"], "label": "desk input note"},
+    ],
+    "modern": [
+        {"kind": ["dataset", "price-feed", "report"], "label": "signal evidence"},
     ],
 }
 

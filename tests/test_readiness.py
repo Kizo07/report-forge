@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from reportforge import engine
 from reportforge import manifest as manifest_mod
 
@@ -264,7 +266,7 @@ def test_evid_unregistered_cite_fires(tmp_path, monkeypatch):
                     "Growth resumed [@src-missing].\n" + BASE_SECTIONS)
     res = engine.check_readiness(proj)
     assert _codes(res, "evidence") == ["EVID-UNREGISTERED-CITE",
-                                       "EVID-NO-REQUIRED-LIST"]
+                                       "EVID-MISSING-REQUIRED"]
     assert res["categories"]["evidence"]["issues"][0]["severity"] == "error"
     assert res["ready_for_review"] is False  # error blocks
 
@@ -294,7 +296,7 @@ def test_evid_fenced_cite_ignored(tmp_path, monkeypatch):
                     "```python\n# cite [@src-fenced]\n```\n\nClean prose.\n"
                     + BASE_SECTIONS)
     assert _codes(engine.check_readiness(proj), "evidence") == [
-        "EVID-NO-REQUIRED-LIST"]
+        "EVID-MISSING-REQUIRED"]
 
 
 def test_evid_exhibit_ref_and_embed_unregistered(tmp_path, monkeypatch):
@@ -305,7 +307,7 @@ def test_evid_exhibit_ref_and_embed_unregistered(tmp_path, monkeypatch):
     res = engine.check_readiness(proj)
     assert _codes(res, "evidence") == ["EVID-EXHIBIT-UNREGISTERED",
                                        "EVID-EXHIBIT-UNREGISTERED",
-                                       "EVID-NO-REQUIRED-LIST"]
+                                       "EVID-MISSING-REQUIRED"]
     assert res["categories"]["evidence"]["issues"][0]["severity"] == "error"
 
 
@@ -321,7 +323,7 @@ def test_evid_exhibit_file_missing(tmp_path, monkeypatch):
     (root / "figures" / "x.png").unlink()  # set-but-absent: must fire
     res = engine.check_readiness(proj)
     assert _codes(res, "evidence") == ["EVID-EXHIBIT-FILE-MISSING",
-                                       "EVID-NO-REQUIRED-LIST"]
+                                       "EVID-MISSING-REQUIRED"]
     assert res["categories"]["evidence"]["issues"][0]["severity"] == "error"
 
 
@@ -348,7 +350,7 @@ def test_evid_anchor_missing_warns(tmp_path, monkeypatch):
         qmd.replace("{#fig-rev}", ""), encoding="utf-8")
     res = engine.check_readiness(proj)
     assert _codes(res, "evidence") == ["EVID-EXHIBIT-ANCHOR-MISSING",
-                                       "EVID-NO-REQUIRED-LIST"]
+                                       "EVID-MISSING-REQUIRED"]
     assert res["categories"]["evidence"]["issues"][0]["severity"] == "warning"
 
 
@@ -358,11 +360,11 @@ def test_evid_cover_unlinked_and_linked(tmp_path, monkeypatch):
                     BASE_SECTIONS)
     res = engine.check_readiness(proj)
     assert _codes(res, "evidence") == ["EVID-COVER-UNLINKED",
-                                       "EVID-NO-REQUIRED-LIST"]
+                                       "EVID-MISSING-REQUIRED"]
     assert engine.register_fact(proj, fact_id="fact-target-310", value=310,
                                 unit="USD", kind="calculated")["ok"] is True
     assert _codes(engine.check_readiness(proj), "evidence") == [
-        "EVID-NO-REQUIRED-LIST"]
+        "EVID-MISSING-REQUIRED"]
 
 
 def test_evid_cover_illustrative(tmp_path, monkeypatch):
@@ -373,7 +375,7 @@ def test_evid_cover_illustrative(tmp_path, monkeypatch):
                                 unit="USD", kind="illustrative")["ok"] is True
     res = engine.check_readiness(proj)
     assert _codes(res, "evidence") == ["EVID-COVER-ILLUSTRATIVE",
-                                       "EVID-NO-REQUIRED-LIST"]
+                                       "EVID-MISSING-REQUIRED"]
 
 
 def test_evid_missing_required_registered_but_uncited(tmp_path, monkeypatch):
@@ -383,11 +385,21 @@ def test_evid_missing_required_registered_but_uncited(tmp_path, monkeypatch):
                            title="10-Q", date="2026-07-30")
     res = engine.check_readiness(proj)
     # Stocked registry, zero cites: presence alone does not satisfy (F1).
-    assert _codes(res, "evidence") == ["EVID-MISSING-REQUIRED"]
+    # earnings-recap has two requirements → two issues.
+    assert _codes(res, "evidence") == ["EVID-MISSING-REQUIRED",
+                                       "EVID-MISSING-REQUIRED"]
     root = tmp_path / "p-req"
     qmd = (root / "index.qmd").read_text(encoding="utf-8")
     (root / "index.qmd").write_text(
         qmd + "\nResults beat [@src-earnings-q2].\n", encoding="utf-8")
+    # First requirement satisfied; market-reaction requirement still open.
+    assert _codes(engine.check_readiness(proj), "evidence") == [
+        "EVID-MISSING-REQUIRED"]
+    engine.register_source(proj, key="src-tape", kind="price-feed",
+                           title="Tape", date="2026-07-30")
+    qmd = (root / "index.qmd").read_text(encoding="utf-8")
+    (root / "index.qmd").write_text(
+        qmd + "\nShares added 2% [@src-tape].\n", encoding="utf-8")
     assert _codes(engine.check_readiness(proj), "evidence") == []
 
 
@@ -396,13 +408,16 @@ def test_evid_fully_linked_clean(tmp_path, monkeypatch):
     # + linked cover on a genre with a required list → zero evidence issues.
     monkeypatch.setattr(engine, "REPORTS_DIR", tmp_path)
     proj = _ev_make(tmp_path, "p-clean", EV_FM_ERN + "target: 310\n",
-                    "Results beat [@src-earnings-q2]. See @fig-x.\n"
-                    + BASE_SECTIONS)
+                    "Results beat [@src-earnings-q2]. Shares added 2% [@src-tape]. "
+                    "See @fig-x.\n" + BASE_SECTIONS)
     root = tmp_path / "p-clean"
     (root / "figures").mkdir()
     (root / "figures" / "x.png").write_bytes(b"x")
     assert engine.register_source(
         proj, key="src-earnings-q2", kind="filing", title="10-Q",
+        date="2026-07-30")["ok"] is True
+    assert engine.register_source(
+        proj, key="src-tape", kind="price-feed", title="Tape",
         date="2026-07-30")["ok"] is True
     assert engine.register_exhibit(
         proj, exhibit_id="fig-x", title="X", file="figures/x.png",
@@ -413,4 +428,46 @@ def test_evid_fully_linked_clean(tmp_path, monkeypatch):
         source_keys=["src-earnings-q2"])["ok"] is True
     res = engine.check_readiness(proj)
     assert _codes(res, "evidence") == []
+    assert res["categories"]["evidence"]["pass"] is True
+
+
+# --- Milestone B Task B-7: per-genre required evidence ------------------------
+
+@pytest.mark.parametrize("genre", sorted(engine.REQUIRED_EVIDENCE))
+def test_required_evidence_fires_then_clears(tmp_path, monkeypatch, genre):
+    # Every listed genre: uncited registry → MISSING-REQUIRED; register and
+    # cite one source per requirement: the code clears. Map changes are
+    # covered automatically since the parametrization reads the live map.
+    monkeypatch.setattr(engine, "REPORTS_DIR", tmp_path)
+    fm = f"title: T\nreportforge-template: {genre}\ndate: 2026-09-04\n"
+    proj = _ev_make(tmp_path, f"p-req-{genre}", fm, BASE_SECTIONS)
+    reqs = engine.REQUIRED_EVIDENCE[genre]
+    assert 1 <= len(reqs) <= 3  # YAGNI cap pinned
+    for i, req in enumerate(reqs):
+        kinds = req["kind"] if isinstance(req.get("kind"), list) else [req.get("kind")]
+        assert engine.register_source(
+            proj, key=f"src-req-{i}", kind=kinds[0], title=f"R{i}",
+            date="2026-01-01")["ok"] is True
+    res = engine.check_readiness(proj)
+    assert _codes(res, "evidence").count("EVID-MISSING-REQUIRED") == len(reqs)
+    root = tmp_path / f"p-req-{genre}"
+    qmd = (root / "index.qmd").read_text(encoding="utf-8")
+    cites = " ".join(f"[@src-req-{i}]" for i in range(len(reqs)))
+    (root / "index.qmd").write_text(qmd + f"\nEvidence {cites}.\n",
+                                    encoding="utf-8")
+    res2 = engine.check_readiness(proj)
+    assert "EVID-MISSING-REQUIRED" not in _codes(res2, "evidence")
+
+
+@pytest.mark.parametrize("genre", ["bespoke", "studio", "portfolio-dark",
+                                   "ledger-light"])
+def test_content_neutral_genres_emit_no_required_list_info(tmp_path,
+                                                           monkeypatch,
+                                                           genre):
+    # No REQUIRED_EVIDENCE entry: honest info, never a block.
+    monkeypatch.setattr(engine, "REPORTS_DIR", tmp_path)
+    fm = f"title: T\nreportforge-template: {genre}\ndate: 2026-09-04\n"
+    proj = _ev_make(tmp_path, f"p-neutral-{genre}", fm, BASE_SECTIONS)
+    res = engine.check_readiness(proj)
+    assert "EVID-NO-REQUIRED-LIST" in _codes(res, "evidence")
     assert res["categories"]["evidence"]["pass"] is True
