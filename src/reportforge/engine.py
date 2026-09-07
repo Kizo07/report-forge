@@ -1637,8 +1637,323 @@ def delete_section(project: str, section_id: str,
                               actor, "delete", section_id)
 
 
-# --- Milestone A Task 1.5: preview artifacts (RF-05) --------------------------
+# --- Milestone A Task 1.4: readiness + review records (RF-04) ------------------
 
+REQUIRED_SECTIONS = {
+    "standard": ["executive summary", "analysis", "recommendations"],
+    "memo": ["purpose"],
+    "whitepaper": ["investment thesis", "analysis"],
+}
+
+ILLUSTRATIVE_MARKERS = ("ILLUSTRATIVE", "example-data", "Lorem", "Add a short abstract here")
+
+_MONEY_RE = re.compile(r"\$\s?-?[\d,]+(?:\.\d+)?(?:\s?[Uu][Ss][Dd])?|[\d,]+(?:\.\d+)?\s?[Uu][Ss][Dd]")
+_PCT_RE = re.compile(r"-?[\d,]+(?:\.\d+)?\s?(?:percent\b|pct\b|bps?\b|%)", re.IGNORECASE)
+_ASOF_RE = re.compile(r"[Aa]s of (\d{4}-\d{2}-\d{2})")
+_DATE_FM_RE = re.compile(r"^date\s*:\s*(\d{4}-\d{2}-\d{2})", re.MULTILINE)
+_FIGREF_RE = re.compile(r"@fig-([\w-]+)")
+_FIGANCHOR_RE = re.compile(r"\{#fig-([\w-]+)\}")
+_SIGN_NEG_RE = re.compile(r"\b(minus|negative|fell|dropped|declined|lost)\b", re.IGNORECASE)
+
+
+def _num_value(token: str) -> float | None:
+    t = token.replace("$", "").replace(",", "").strip()
+    t = re.sub(r"\s*(USD|usd|percent|pct|%|bps?)$", "", t, flags=re.IGNORECASE).strip()
+    t = t.replace("−", "-")
+    try:
+        v = float(t)
+    except ValueError:
+        return None
+    if re.search(r"bps?$", token.strip(), re.IGNORECASE):
+        v = v / 100.0
+    return v
+
+
+def _frontmatter_dict(text: str) -> dict:
+    if not text.startswith("---"):
+        return {}
+    close = text.find("\n---", 3)
+    if close == -1:
+        return {}
+    try:
+        return yaml.safe_load(text[3:close]) or {}
+    except yaml.YAMLError:
+        return {}
+
+
+def _issue(category: str, severity: str, code: str, message: str,
+           section_id: str | None = None, detail: str = "") -> dict:
+    return {"category": category, "severity": severity, "code": code,
+            "message": message, "section_id": section_id, "detail": detail}
+
+
+def _body_text(text: str) -> str:
+    """QMD without the leading YAML frontmatter block (body facts only)."""
+    if text.startswith("---"):
+        close = text.find("\n---", 3)
+        if close != -1:
+            fence_end = text.find("\n", close + 1)
+            if fence_end != -1:
+                return text[fence_end + 1:]
+    return text
+
+
+def _readiness_structure(text: str, spans: list[dict], template: str) -> list[dict]:
+    issues = []
+    required = REQUIRED_SECTIONS.get(template or "", [])
+    titles = " ".join(s["title"].lower() for s in spans)
+    for keyword in required:
+        if keyword.lower() not in titles:
+            issues.append(_issue("structure", "error", "STRUCT-MISSING-SECTION",
+                                 f"mandatory section missing for template {template!r}: {keyword}"))
+    if not spans:
+        issues.append(_issue("structure", "error", "STRUCT-NO-SECTIONS",
+                             "no sections found in index.qmd"))
+    return issues
+
+
+def _readiness_evidence(text: str, spans: list[dict]) -> list[dict]:
+    issues = []
+    for i, line in enumerate(text.splitlines(), start=1):
+        for marker in ILLUSTRATIVE_MARKERS:
+            if marker in line and len([x for x in issues if x["code"] == "EVID-ILLUSTRATIVE"]) < 10:
+                issues.append(_issue("evidence", "warning", "EVID-ILLUSTRATIVE",
+                                     f"illustrative content marker {marker!r} (line {i}) — never silently passed"))
+                break
+    return issues
+
+
+def _spots_in_text(text: str) -> list[dict]:
+    """Money values near price keywords, grouped by nearby as-of date."""
+    spots = []
+    for m in _MONEY_RE.finditer(text):
+        window = text[max(0, m.start() - 120):m.end() + 60]
+        if not re.search(r"close|price|spot|target|usd", window, re.IGNORECASE):
+            continue
+        v = _num_value(m.group(0))
+        if v is None:
+            continue
+        near = text[max(0, m.start() - 300):m.start()]
+        dates = _ASOF_RE.findall(near)
+        spots.append({"value": v, "asof": dates[-1] if dates else None,
+                      "pos": m.start()})
+    return spots
+
+
+def _readiness_numerical(text: str, front: dict) -> list[dict]:
+    issues = []
+    verdict = str(front.get("verdict", ""))
+    target_raw = front.get("target", "")
+    pct_m = _PCT_RE.search(verdict)
+    tgt_m = _MONEY_RE.search(str(target_raw) + " " + verdict)
+    spots = _spots_in_text(text)
+    if pct_m and tgt_m and spots:
+        claimed = _num_value(pct_m.group(0))
+        target = _num_value(tgt_m.group(0))
+        spot = spots[0]["value"]
+        if claimed is not None and target and spot:
+            derived = (target / spot - 1) * 100
+            if abs(claimed - derived) > 0.5:
+                issues.append(_issue(
+                    "numerical", "error", "NUM-DERIVED-PCT",
+                    f"cover claims {claimed:g}% to ${target:g} but spot ${spot:g} implies {derived:+.1f}%",
+                    detail="frontmatter:verdict/target vs body spot"))
+    # Spot clustering within shared as-of groups only (undated together).
+    groups: dict = {}
+    for s in spots:
+        groups.setdefault(s["asof"], []).append(s["value"])
+    for key, vals in groups.items():
+        if len(vals) < 2:
+            continue
+        spread = max(vals) - min(vals)
+        if spread > 1.0:
+            issues.append(_issue(
+                "numerical", "error", "NUM-SPOT-DISAGREE",
+                f"spot mentions disagree by ${spread:.2f} (as-of {key or 'unstated'}): "
+                + ", ".join(f"${v:g}" for v in sorted(set(vals))[:6])))
+        elif spread > 0.05:
+            issues.append(_issue(
+                "numerical", "warning", "NUM-SPOT-DISAGREE",
+                f"spot mentions differ by ${spread:.2f} — rounding gray zone"))
+    # As-of dates vs frontmatter date + mode outliers.
+    fm_date = front.get("date")
+    fm_date = str(fm_date) if fm_date is not None else None
+    asofs = _ASOF_RE.findall(text)
+    for d in set(asofs):
+        if fm_date and d > fm_date:
+            issues.append(_issue("numerical", "error", "NUM-ASOF-FUTURE",
+                                 f"as-of {d} is later than frontmatter date {fm_date}"))
+    if asofs:
+        from collections import Counter
+        mode = Counter(asofs).most_common(1)[0][0]
+        outliers = sorted({d for d in asofs if d != mode})
+        if outliers:
+            issues.append(_issue("numerical", "warning", "NUM-ASOF-MIXED",
+                                 f"as-of mode {mode}; outliers: {', '.join(outliers)}"))
+    # Sign conflicts: prose sign word + value vs table row opposite sign.
+    prose_vals: dict[float, str] = {}
+    for line in text.splitlines():
+        if line.lstrip().startswith("|"):
+            continue
+        for pm in _PCT_RE.finditer(line):
+            v = _num_value(pm.group(0))
+            if v is None or v == 0:
+                continue
+            before = line[max(0, pm.start() - 40):pm.start()]
+            sign = "neg" if _SIGN_NEG_RE.search(before) else None
+            if sign:
+                prose_vals[round(abs(v), 4)] = sign
+    if prose_vals:
+        for line in text.splitlines():
+            cells = [c.strip() for c in line.strip().strip("|").split("|")]
+            if len(cells) < 2 or not line.lstrip().startswith("|"):
+                continue
+            for cell in cells[1:]:
+                cm = _PCT_RE.search(cell) or _MONEY_RE.search(cell)
+                if not cm:
+                    continue
+                v = _num_value(cm.group(0))
+                if v is None or round(abs(v), 4) not in prose_vals:
+                    continue
+                cell_neg = cell.strip().startswith(("-", "−")) or \
+                    _SIGN_NEG_RE.search(cell) is not None
+                if prose_vals[round(abs(v), 4)] == "neg" and not cell_neg \
+                        and "+" in cell:
+                    issues.append(_issue(
+                        "numerical", "error", "NUM-SIGN-CONFLICT",
+                        f"prose states -{abs(v):g} but table shows +{abs(v):g}",
+                        detail=line.strip()[:160]))
+    # Scenario weights: frontmatter scenarios values must sum to 100 ± 0.5.
+    weights = []
+    scenarios = front.get("scenarios")
+    if isinstance(scenarios, list):
+        for s in scenarios:
+            if isinstance(s, dict) and isinstance(s.get("value"), (int, float)):
+                weights.append(float(s["value"]))
+    if len(weights) >= 2 and abs(sum(weights) - 100) > 0.5:
+        issues.append(_issue("numerical", "error", "NUM-SCENARIO-WEIGHTS",
+                             f"scenario weights sum to {sum(weights):g}, not 100"))
+    return issues
+
+
+def _readiness_presentation(root: Path, text: str) -> list[dict]:
+    issues = []
+    charts_dir = root / "charts"
+    if charts_dir.is_dir():
+        charts = sorted(p.name for p in charts_dir.glob("*.png"))
+        for name in charts:
+            stem = Path(name).stem
+            if stem not in text and name not in text:
+                issues.append(_issue("presentation", "warning", "PRES-UNREFERENCED-CHART",
+                                     f"charts/{name} is never referenced in index.qmd"))
+    anchors = set(_FIGANCHOR_RE.findall(text))
+    for ref in sorted(set(_FIGREF_RE.findall(text))):
+        if ref not in anchors:
+            issues.append(_issue("presentation", "error", "PRES-DANGLING-REF",
+                                 f"@fig-{ref} has no matching figure anchor"))
+    try:
+        violation = _engine_charts_violation(root)
+    except Exception:
+        violation = None
+    if violation:
+        issues.append(_issue("presentation", "error", "PRES-ENGINE-CHARTS",
+                             violation))
+    lint_out = _run_figure_lint(root)
+    if lint_out is not None:
+        issues.append(_issue("presentation", "warning", "PRES-FIGURE-LINT",
+                             f"figure_lint reports: {lint_out[:300]}"))
+    return issues
+
+
+def _run_figure_lint(root: Path) -> str | None:
+    """Run scripts/figure_lint.py; None when clean/missing, else output tail."""
+    script = Path(__file__).resolve().parents[2] / "scripts" / "figure_lint.py"
+    if not script.is_file():
+        return None
+    try:
+        run = subprocess.run(
+            [sys.executable, str(script), str(root)],
+            capture_output=True, text=True, timeout=120)
+    except (subprocess.TimeoutExpired, OSError):
+        return None
+    if run.returncode == 0:
+        return None
+    out = (run.stdout + "\n" + run.stderr).strip()
+    return out[-800:] if out else "figure_lint failed with no output"
+
+
+def _readiness_editorial(manifest) -> list[dict]:
+    if any(r.get("revision") == manifest.revision and r.get("decision") == "approved"
+           for r in manifest.reviews):
+        return [_issue("editorial", "info", "EDIT-REVIEWED",
+                       f"revision {manifest.revision} has an approved review record")]
+    return [_issue("editorial", "warning", "EDIT-NEEDS-REVIEW",
+                   f"revision {manifest.revision} has no approved review record — judgment is human-only")]
+
+
+def check_readiness(project: str) -> dict:
+    """Unified readiness: structure, evidence, numerical, presentation, editorial.
+
+    Automated checks only; factual accuracy and source quality are explicitly
+    out of scope (review §3.6) — see the scope_note in every response.
+    """
+    root, err = _project_root_or_error(project)
+    if err:
+        return err
+    assert root is not None
+    manifest, err = _load_or_import(root)
+    if err:
+        return err
+    assert manifest is not None
+    text = (root / "index.qmd").read_text(encoding="utf-8")
+    spans = _section_spans(text)
+    front = _frontmatter_dict(text)
+    body = _body_text(text)
+    template = manifest.to_dict().get("profile", {}).get("report_type", "")
+    categories = {
+        "structure": _readiness_structure(text, spans, template),
+        "evidence": _readiness_evidence(text, spans),
+        "numerical": _readiness_numerical(body, front),
+        "presentation": _readiness_presentation(root, text),
+        "editorial": _readiness_editorial(manifest),
+    }
+    cats = {name: {"pass": not any(i["severity"] == "error" for i in iss),
+                   "issues": iss} for name, iss in categories.items()}
+    ready = all(c["pass"] for c in cats.values())
+    return {
+        "ok": True,
+        "report_id": manifest.report_id,
+        "revision": manifest.revision,
+        "state": manifest.state,
+        "categories": cats,
+        "ready_for_review": ready,
+        "scope_note": ("automated structure/evidence/presentation checks only — "
+                       "not factual accuracy, source quality, or financial claims (review §3.6)"),
+    }
+
+
+def record_review(project: str, revision: int, reviewer: str, decision: str,
+                  comments: str = "", section_id: str | None = None,
+                  actor: str = "tool:record_review") -> dict:
+    """Append a review record to the manifest (§4.3)."""
+    root, err = _project_root_or_error(project)
+    if err:
+        return err
+    assert root is not None
+    manifest, err = _load_or_import(root)
+    if err:
+        return err
+    assert manifest is not None
+    res = manifest_mod.add_review(manifest, revision, reviewer, decision,
+                                  comments, section_id)
+    if not res.get("ok"):
+        return res
+    manifest_mod.save(manifest, str(root))
+    return {"ok": True, "report_id": manifest.report_id,
+            "revision": revision, "decision": decision}
+
+
+# --- Milestone A Task 1.5: preview artifacts (RF-05) --------------------------
 
 def _load_manifest_if_present(root: Path) -> tuple[dict | None, str | None]:
     """Read report.json for a project; loud failure when absent/unreadable.
