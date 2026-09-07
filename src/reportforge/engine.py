@@ -1953,6 +1953,220 @@ def record_review(project: str, revision: int, reviewer: str, decision: str,
             "revision": revision, "decision": decision}
 
 
+# --- Milestone A Task 1.6: portable export bundle (RF-06) ----------------------
+
+_BUNDLE_FORMATS = ("html", "pdf", "docx")
+
+
+def _bundle_artifact_id(rel: str) -> tuple[str, str]:
+    """(id, role) for a bundle-relative path."""
+    p = Path(rel)
+    name = p.name
+    if name == "manifest.json":
+        return "manifest-copy", "metadata"
+    if name == "bundle.json":
+        return "bundle-index", "metadata"
+    if name == "contact-sheet.png":
+        return "contact-sheet", "preview"
+    m = re.fullmatch(r"page-(\d+)\.png", name)
+    if m and "previews" in p.parts:
+        return f"page-{m.group(1)}", "preview"
+    if p.suffix == ".png" and "previews" in p.parts:
+        return f"exhibit-{p.stem}", "preview"
+    if name in ("index.pdf", "index.html", "index.docx"):
+        return {"index.pdf": "pdf", "index.html": "html",
+                "index.docx": "docx"}[name], "deliverable"
+    if "charts" in p.parts and p.suffix == ".png":
+        return f"exhibit-{p.stem}", "preview"
+    if "source" in p.parts:
+        return "source", "source"
+    if "data" in p.parts:
+        return f"data-{name}", "data"
+    return p.stem, "companion"
+
+
+def export_release(project: str, revision: int | None = None, dest: str = ".",
+                   include_source: bool = False, include_data: bool = False,
+                   actor: str = "tool:export_release") -> dict:
+    """Export an approved revision as a self-contained bundle (§3).
+
+    Layout: <dest>/<report_id>/r<rev>/ with deliverables, manifest.json copy,
+    bundle.json descriptor index, optional source/ + data/. Atomic per
+    revision dir; a successful export transitions the manifest to exported.
+    """
+    slug = project.strip("/")
+    root = REPORTS_DIR / slug
+    if not root.is_dir():
+        return {"ok": False, "error": f"project not found: {project}"}
+    manifest, err = _load_or_import(root)
+    if err:
+        return err
+    assert manifest is not None
+    current = manifest.revision
+    if revision is not None and revision != current:
+        return {"ok": False,
+                "error": f"stale revision: requested {revision}, manifest is at revision {current}",
+                "current_revision": current}
+    if manifest.state not in ("approved", "exported"):
+        return {"ok": False,
+                "error": f"export requires state approved (current: {manifest.state}) — render drafts freely, release only reviewed revisions"}
+    out_dir = _output_dir_of(root)
+    if out_dir == root and (root / "output").is_dir():
+        out_dir = root / "output"
+    required = [f for f in manifest.to_dict().get("formats", []) if f in _BUNDLE_FORMATS]
+    missing = [f for f in required if not (out_dir / f"index.{f}").is_file()]
+    if missing:
+        return {"ok": False,
+                "error": f"no rendered output for {', '.join(missing)}: render first (export never auto-renders)"}
+    dest_root = Path(dest)
+    rdir = dest_root / manifest.report_id / f"r{current}"
+    tmp = dest_root / manifest.report_id / f".r{current}.tmp-{os.getpid()}"
+    try:
+        if tmp.exists():
+            shutil.rmtree(tmp)
+        tmp.mkdir(parents=True)
+        for fmt in required:
+            shutil.copy2(out_dir / f"index.{fmt}", tmp / f"index.{fmt}")
+        for companion in sorted(out_dir.glob("*_files")):
+            if companion.is_dir():
+                shutil.copytree(companion, tmp / companion.name)
+        (tmp / "manifest.json").write_text(
+            json.dumps(manifest.to_dict(), indent=2, ensure_ascii=False))
+        prev_src = out_dir / "previews" / f"r{current}"
+        if prev_src.is_dir():
+            shutil.copytree(prev_src, tmp / "previews")
+        includes = {"source": False, "data": False}
+        if include_source:
+            srcd = tmp / "source"
+            srcd.mkdir()
+            for name in ("index.qmd", "_quarto.yml", "styles.scss", "_brand.yml"):
+                p = root / name
+                if p.is_file():
+                    shutil.copy2(p, srcd / name)
+            includes["source"] = True
+        if include_data and (root / "data").is_dir():
+            shutil.copytree(root / "data", tmp / "data")
+            includes["data"] = True
+        artifacts = []
+        for p in sorted(tmp.rglob("*")):
+            if not p.is_file():
+                continue
+            rel = str(p.relative_to(tmp))
+            aid, role = _bundle_artifact_id(rel)
+            artifacts.append(_file_descriptor(tmp, rel, aid, role, _mime_for_name(p.name)))
+        (tmp / "bundle.json").write_text(json.dumps({
+            "schema_version": 1,
+            "report_id": manifest.report_id,
+            "revision": current,
+            "exported_at": manifest.updated,
+            "artifacts": artifacts,
+            "includes": includes,
+            "delivery": {"adapters": ["local-bundle", "deerflow"], "present_paths": []},
+        }, indent=2))
+        # Re-read bundle.json into the descriptor list so disk == response.
+        artifacts = json.loads((tmp / "bundle.json").read_text())["artifacts"]
+        rdir.parent.mkdir(parents=True, exist_ok=True)
+        if rdir.exists():
+            shutil.rmtree(rdir)
+        os.rename(tmp, rdir)
+    except OSError as exc:
+        try:
+            if tmp.exists():
+                shutil.rmtree(tmp)
+        except OSError:
+            pass
+        return {"ok": False, "error": f"bundle write failed: {exc}"}
+    tr = manifest_mod.transition(manifest, "exported", actor, f"export r{current}")
+    if tr.get("ok"):
+        manifest_mod.save(manifest, str(root))
+    return {
+        "ok": True,
+        "report_id": manifest.report_id,
+        "revision": current,
+        "state": manifest.state,
+        "bundle_root": str(Path(manifest.report_id) / f"r{current}"),
+        "dest": str(dest_root),
+        "artifacts": artifacts,
+        "next_step": "retrieve bundle via the dest path or the DeerFlow adapter",
+    }
+
+
+# --- Milestone A Task 1.7: capability discovery (RF-07 slice) -------------------
+
+MCP_TOOL_NAMES_FALLBACK = [
+    "reportforge_list_templates", "reportforge_scaffold_report",
+    "reportforge_render_report", "reportforge_save_chart",
+    "reportforge_write_report_body", "reportforge_publish_report",
+    "reportforge_run_code", "reportforge_run_file",
+    "reportforge_save_asset", "reportforge_project_status",
+    "reportforge_read_project_file", "reportforge_append_section",
+    "reportforge_get_section", "reportforge_replace_section",
+    "reportforge_move_section", "reportforge_delete_section",
+    "reportforge_export_release", "reportforge_check_readiness",
+    "reportforge_record_review", "reportforge_render_preview",
+    "reportforge_capabilities",
+]
+
+
+def _mcp_tool_names() -> list[str]:
+    # mcp.list_tools() is async (and unusable inside a running loop), so the
+    # engine keeps this static registry — update it when adding MCP tools.
+    return list(MCP_TOOL_NAMES_FALLBACK)
+
+
+def reportforge_capabilities() -> dict:
+    """Capability discovery (§6): templates, profiles, support matrix, env."""
+    templates = list_templates()
+    matrix = [{
+        "report_type": t.get("name"),
+        "template": t.get("name"),
+        "formats": t.get("formats", []),
+        "exhibit_labels": bool(t.get("exhibit_labels", False)),
+        "toc": bool(t.get("toc", False)),
+        "content_neutral": bool(t.get("content_neutral", False)),
+    } for t in templates]
+    exec_on = _exec_enabled()
+    pdftoppm = shutil.which("pdftoppm")
+    return {
+        "schema_version": 1,
+        "server": "reportforge",
+        "templates": templates,
+        "profiles": {
+            "report_types": [t.get("name") for t in templates],
+            "brands": ["quantflow", "neutral"],
+            "themes": ["light", "dark"],
+            "layouts": ["magazine", "single-column", "chartbook", "compact"],
+            "output_profiles": ["editorial", "web", "editable-docx"],
+        },
+        "support_matrix": matrix,
+        "execution": {
+            "run_code": exec_on, "run_file": exec_on,
+            "interpreter": "reportforge venv",
+            "disabled_reason": None if exec_on else "REPORTFORGE_EXEC=off",
+        },
+        "preview": {
+            "supported": True, "backend": "pdftoppm",
+            "available": bool(pdftoppm),
+            "artifact_ids": ["contact-sheet", "page-<n>", "exhibit-<fig-id>"],
+        },
+        "delivery": {
+            "methods": ["local-bundle", "deerflow-thread-outputs"],
+            "requires_env": ["DEERFLOW_THREAD_OUTPUTS_HOST (deerflow only)"],
+        },
+        "sections": {
+            "ops": ["get", "replace", "move", "delete", "append"],
+            "optimistic_concurrency": True,
+            "idempotent_append": True,
+        },
+        "manifest": {"schema_version": manifest_mod.SCHEMA_VERSION,
+                     "states": list(manifest_mod.STATES)},
+        "tools": _mcp_tool_names(),
+        "docs": {"flagship_rules": "docs/flagship-rules.md",
+                 "contracts": "docs/milestone-a-contracts.md",
+                 "journeys": "docs/agent-journeys.md"},
+    }
+
+
 # --- Milestone A Task 1.5: preview artifacts (RF-05) --------------------------
 
 def _load_manifest_if_present(root: Path) -> tuple[dict | None, str | None]:

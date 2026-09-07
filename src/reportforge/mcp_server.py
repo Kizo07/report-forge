@@ -9,13 +9,16 @@ from fastmcp import FastMCP
 
 from reportforge.engine import (
     append_section,
+    check_readiness,
     delete_section,
+    export_release,
     get_section,
     list_templates,
     move_section,
     project_status,
     publish_report,
     read_project_file,
+    record_review,
     render_preview,
     render_report,
     replace_section,
@@ -603,6 +606,86 @@ def reportforge_delete_section(
         expected_revision: Manifest revision the change applies on top of.
     """
     return delete_section(project, section_id, expected_revision=expected_revision)
+
+
+@mcp.tool
+def reportforge_export_release(
+    project: str,
+    dest: str,
+    revision: int | None = None,
+    include_source: bool = False,
+    include_data: bool = False,
+) -> dict[str, Any]:
+    """Export an approved revision as a self-contained bundle (§3).
+
+    Layout <dest>/<report_id>/r<rev>/ with deliverables, manifest.json copy,
+    bundle.json descriptor index, optional source/ + data/. Drafts are
+    rejected — only approved revisions release. A successful export marks
+    the manifest exported.
+
+    Args:
+        project: Report slug (project directory name).
+        dest: Destination root directory for the bundle.
+        revision: Revision to export (default: current).
+        include_source: Also bundle index.qmd + config.
+        include_data: Also bundle the data/ directory.
+    """
+    return export_release(project, revision=revision, dest=dest,
+                          include_source=include_source,
+                          include_data=include_data)
+
+
+@mcp.tool
+def reportforge_check_readiness(
+    project: str,
+) -> dict[str, Any]:
+    """Unified readiness: structure, evidence, numerical, presentation, editorial.
+
+    Returns per-category issues plus ready_for_review (zero errors).
+    Automated checks only — never factual verification (review §3.6).
+
+    Args:
+        project: Report slug (project directory name).
+    """
+    return check_readiness(project)
+
+
+@mcp.tool
+def reportforge_record_review(
+    project: str,
+    revision: int,
+    reviewer: str,
+    decision: str,
+    comments: str = "",
+    section_id: str | None = None,
+) -> dict[str, Any]:
+    """Record a human/agent review decision against a revision (§4.3).
+
+    Approval (review -> approved) requires an approved record for the
+    current revision.
+
+    Args:
+        project: Report slug (project directory name).
+        revision: Revision the decision applies to.
+        reviewer: Who decided (e.g. 'human:fire').
+        decision: 'changes_requested' or 'approved'.
+        comments: Optional rationale.
+        section_id: Optional section the decision targets.
+    """
+    return record_review(project, revision, reviewer, decision,
+                         comments=comments, section_id=section_id)
+
+
+@mcp.tool
+def reportforge_capabilities() -> dict[str, Any]:
+    """Capability discovery (§6): templates, profiles, support matrix, env.
+
+    Fresh agents call this first: supported template/profile/output
+    combinations, execution availability, preview support, delivery methods,
+    section ops, manifest states, tool list, and doc pointers. No arguments.
+    """
+    from reportforge import engine as _engine
+    return _engine.reportforge_capabilities()
 
 
 @mcp.tool

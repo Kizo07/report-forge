@@ -6,7 +6,18 @@ import argparse
 import json
 import sys
 
-from reportforge.engine import list_templates, render_report, save_chart, scaffold_report
+from reportforge.engine import (
+    check_readiness,
+    export_release,
+    list_templates,
+    open_report,
+    project_status,
+    render_preview,
+    render_report,
+    reportforge_capabilities,
+    save_chart,
+    scaffold_report,
+)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -40,6 +51,28 @@ def main(argv: list[str] | None = None) -> int:
     p_chart.add_argument("out_basename")
     p_chart.add_argument("--width", type=int, default=1400)
     p_chart.add_argument("--height", type=int, default=700)
+
+    p_status = sub.add_parser("status", help="show a report's manifest view + artifacts")
+    p_status.add_argument("project")
+
+    p_open = sub.add_parser("open", help="open a report by slug (brief/profile/sections/revision)")
+    p_open.add_argument("project")
+
+    p_ready = sub.add_parser("readiness", help="run readiness checks on a report")
+    p_ready.add_argument("project")
+
+    p_preview = sub.add_parser("preview", help="render preview PNGs for a revision")
+    p_preview.add_argument("project")
+    p_preview.add_argument("--revision", type=int, default=None)
+
+    p_export = sub.add_parser("export", help="export an approved revision as a bundle")
+    p_export.add_argument("project")
+    p_export.add_argument("dest")
+    p_export.add_argument("--revision", type=int, default=None)
+    p_export.add_argument("--include-source", action="store_true")
+    p_export.add_argument("--include-data", action="store_true")
+
+    p_caps = sub.add_parser("capabilities", help="show capability discovery response")
 
     args = parser.parse_args(argv)
     if args.cmd == "templates":
@@ -85,6 +118,31 @@ def main(argv: list[str] | None = None) -> int:
         result = save_chart(fig_json, args.out_basename, args.width, args.height)
         print(json.dumps(result, indent=2))
         return 0 if result.get("ok") else 1
+    elif args.cmd == "status":
+        result = project_status(args.project)
+        print(json.dumps(result, indent=2))
+        return 0 if result.get("ok") else 1
+    elif args.cmd == "open":
+        result = open_report(args.project)
+        print(json.dumps(result, indent=2))
+        return 0 if result.get("ok") else 1
+    elif args.cmd == "readiness":
+        result = check_readiness(args.project)
+        print(json.dumps(result, indent=2))
+        return 0 if result.get("ok") else 1
+    elif args.cmd == "preview":
+        result = render_preview(args.project, revision=args.revision)
+        print(json.dumps(result, indent=2))
+        return 0 if result.get("ok") else 1
+    elif args.cmd == "export":
+        result = export_release(args.project, revision=args.revision, dest=args.dest,
+                                include_source=args.include_source,
+                                include_data=args.include_data)
+        print(json.dumps(result, indent=2))
+        return 0 if result.get("ok") else 1
+    elif args.cmd == "capabilities":
+        print(json.dumps(reportforge_capabilities(), indent=2))
+        return 0
     return 0
 
 
