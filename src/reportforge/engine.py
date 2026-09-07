@@ -814,15 +814,22 @@ def render_report(source: str, formats: list[str] | None = None, project: str | 
     # WS-3: machine-readable project state for reportforge_project_status.
     try:
         try:
-            rendered_rev = manifest_mod.load(str(workdir)).revision
+            rendered_manifest = manifest_mod.load(str(workdir))
+            rendered_rev = rendered_manifest.revision
+            rendered_reg = rendered_manifest.registry_version
         except manifest_mod.ManifestError:
             rendered_rev = None
+            rendered_reg = None
         state = {
             "last_render": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
             # Revision binding (RF-05): previews/export can verify the PDF
             # was rendered from the current manifest revision, not an older
             # one. A content edit bumps the revision and invalidates the PDF.
             "manifest_revision": rendered_rev,
+            # Registry binding (R2, Milestone B): registry writes change
+            # render inputs (sources.bib/_quarto.yml) without bumping the
+            # revision — stamp it too so previews fail loudly on stale bytes.
+            "registry_version": rendered_reg,
             "formats": wanted + (["pdf-web"] if pdf_web_requested else []),
             "outputs": sorted(rendered_outputs),
             "source": str(src),
@@ -1964,7 +1971,7 @@ _PCT_RE = re.compile(r"-?[\d,]+(?:\.\d+)?\s?(?:percent\b|pct\b|bps?\b|%)", re.IG
 _ASOF_RE = re.compile(r"[Aa]s of (\d{4}-\d{2}-\d{2})")
 _DATE_FM_RE = re.compile(r"^date\s*:\s*(\d{4}-\d{2}-\d{2})", re.MULTILINE)
 _FIGREF_RE = re.compile(r"@fig-([\w-]+)")
-_FIGANCHOR_RE = re.compile(r"\{#fig-([\w-]+)\}")
+_FIGANCHOR_RE = re.compile(r"\{#fig-([\w-]+)[^}]*\}")
 _SIGN_NEG_RE = re.compile(r"\b(minus|negative|fell|dropped|declined|lost)\b", re.IGNORECASE)
 
 
@@ -3519,6 +3526,21 @@ def _render_state_revision(root: Path) -> int | None:
     return rev if isinstance(rev, int) else None
 
 
+def _render_state_registry_version(root: Path) -> int | None:
+    """Registry version stamped at render time (None when unstamped/legacy).
+
+    Legacy state files predate the field — absent means "made before the
+    binding existed", not "version zero", so callers proceed (the revision
+    check still gates truly ancient PDFs).
+    """
+    try:
+        state = json.loads((root / ".reportforge-state.json").read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+    reg = state.get("registry_version") if isinstance(state, dict) else None
+    return reg if isinstance(reg, int) else None
+
+
 def render_preview(project: str, revision: int | None = None) -> dict:
     """Render preview artifacts (contact sheet, pages, exhibits) for a report.
 
@@ -3531,7 +3553,9 @@ def render_preview(project: str, revision: int | None = None) -> dict:
     PDF-staleness rule: the PDF must have been rendered from the current
     manifest revision (stamped in .reportforge-state.json at render time).
     A stamped-but-older PDF fails loudly; an unstamped legacy PDF proceeds
-    with a warning and pdf_rendered_at_revision null.
+    with a warning and pdf_rendered_at_revision null. The same rule covers
+    the registry binding (R2): a registration after the render fails loudly
+    and names both registry versions.
     """
     root, err = _project_root_or_error(project)
     if err:
@@ -3564,6 +3588,19 @@ def render_preview(project: str, revision: int | None = None) -> dict:
     if pdf_rev is None:
         warnings.append("PDF predates revision stamping; re-render to bind "
                         "previews to an exact revision")
+    pdf_reg = _render_state_registry_version(root)
+    current_reg = manifest.registry_version
+    if pdf_reg is not None and pdf_reg != current_reg:
+        return {
+            "ok": False,
+            "error": (f"PDF was rendered at registry v{pdf_reg} but the manifest "
+                      f"is at registry v{current_reg}: render_report first (a "
+                      "registration changes render inputs without bumping revision)"),
+            "current_revision": rev,
+            "pdf_rendered_at_revision": pdf_rev,
+            "pdf_rendered_at_registry_version": pdf_reg,
+            "current_registry_version": current_reg,
+        }
 
     pdftoppm = shutil.which("pdftoppm")
     if not pdftoppm:

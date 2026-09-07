@@ -9,6 +9,7 @@ missing. RED until engine.render_preview lands.
 from __future__ import annotations
 
 import io
+import json
 import subprocess
 from pathlib import Path
 
@@ -244,6 +245,29 @@ def test_render_preview_unstamped_pdf_warns(
     assert result["ok"] is True, result.get("error")
     assert result["pdf_rendered_at_revision"] is None
     assert any("re-render" in w for w in result["warnings"])
+
+
+def test_render_preview_refuses_registry_stale_pdf(
+    rendered_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """PDF rendered at registry v0, source registered since (v1) → loud fail."""
+    from reportforge import manifest as manifest_mod
+
+    m = manifest_mod.load(str(rendered_project))
+    m.registry_version = 1  # a registration landed after the render
+    manifest_mod.save(m, str(rendered_project))
+    (rendered_project / ".reportforge-state.json").write_text(
+        json.dumps(
+            {"last_render": "2026-09-07T00:00:00+00:00",
+             "manifest_revision": m.revision, "registry_version": 0,
+             "formats": ["pdf"], "outputs": ["index.pdf"],
+             "source": "index.qmd"}))
+    monkeypatch.setattr(engine.subprocess, "run", _fake_pdftoppm())
+    result = engine.render_preview("preview-fixture")
+    assert result["ok"] is False
+    assert "registry" in result["error"]
+    assert result["pdf_rendered_at_registry_version"] == 0
+    assert result["current_registry_version"] == 1
 
 
 def _fake_pdftoppm_single_page() -> object:

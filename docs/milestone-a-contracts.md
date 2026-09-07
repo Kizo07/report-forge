@@ -232,7 +232,7 @@ Rules:
 | Category | Automated checks (Milestone A) | Deferred (listed, not computed) |
 | --- | --- | --- |
 | structure | mandatory sections present for the template (per-template required-heading list; missing = issue); heading levels well-ordered | section-depth sanity |
-| evidence coverage | illustrative-content markers (`ILLUSTRATIVE`, `example-data`, placeholder text like "Lorem", "Add a short abstract here") detected and listed — never silently passed; evidence-coverage vs a registry is RF-03 (Milestone B) | source quality, claim support |
+| evidence coverage | illustrative-content markers (never silently passed) + Milestone B registry linkage: 8 EVID-* codes over sources/exhibits/facts registries (see §8) | source quality, claim support, caption-number↔fact linkage |
 | numerical consistency | heuristic pattern scans: metric strings on the cover (verdict/metrics) vs numbers appearing in tables — mismatch patterns flagged for human confirmation; #quant refines the heuristics (plan Task 1.4) | full fact checking |
 | presentation | `charts/*.png` all referenced in the QMD (unreferenced chart = issue); zero dangling `@fig-` crossrefs (pdftotext grep on rendered PDF where applicable); `scripts/figure_lint.py` result surfaced as-is; `engine_charts_only` violations (reuses `_engine_charts_violation`) | label legibility, accessibility conformance |
 | editorial review | whether a review record exists for the current revision (§4.3) and whether any recorded issue is unresolved | the actual judgment — human only |
@@ -302,6 +302,88 @@ Non-goals (explicit): readiness does NOT verify factual accuracy, source quality
 
 - `support_matrix` is derived from `list_templates()` — one row per template; Milestone A does not add a second template system (the type×brand×theme decomposition is RF-08).
 - `execution.available == false` when `REPORTFORGE_EXEC=off` (with `disabled_reason`); `preview.available == false` when `pdftoppm` is missing. Both must reflect the live environment, not hardcoded true.
+
+## 8. Milestone B — evidence registry (RF-03) + coverage deepening (RF-04)
+
+### 8.1 Registry maps (`report.json`, schema 2)
+
+`sources` (keyed by citekey), `exhibits` (keyed by `fig-<id>`), `facts`
+(keyed by `fact-<slug>`), plus `registry_version: int` (0 for pre-B files).
+Schema bumped 1 → 2: pre-B loaders fail loudly on B manifests instead of
+silently wiping the registries on load-reconcile. Record shapes are
+validated on load (`ManifestError` on hand-edited garbage — never silent).
+
+- source: `key` (`src-<slug>`, reserved namespace), `kind` ∈ filing /
+  article / dataset / price-feed / transcript / report / other, `title`,
+  `date` or `as_of`, optional `url` (stored verbatim, never fetched),
+  `publisher`, `accessed`.
+- exhibit: `id` (`fig-<id>`, reuses a figure anchor), `title`,
+  `file` (project-relative path or null when anchor-grounded),
+  `source_keys[]`, `fact_ids[]`, optional `as_of`, `alt`.
+- fact: `id` (`fact-<slug>`), `value` (numeric or string), `unit`,
+  `kind` ∈ observed / calculated / estimated / illustrative (required),
+  `source_keys[]`, optional `as_of`, `note`, `history[]` (capped at 20).
+
+Registry writes bump `registry_version` (they change render inputs:
+`sources.bib`, `_quarto.yml`) but never content `revision`. Preview/review
+bindings record the version they were made at and warn on mismatch.
+
+### 8.2 Registration tools
+
+`reportforge_register_source` (persists + rewrites `sources.bib` + ensures
+one TOP-LEVEL `bibliography: sources.bib` line in `_quarto.yml` — never
+nested under `project:`, where Quarto silently ignores it),
+`reportforge_register_exhibit` (id must match a live `{#fig-}` anchor or
+`file` must exist under the project root; re-register needs
+`overwrite=True`), `reportforge_register_fact` / `reportforge_update_fact`
+(overwrite preserves history). All three check-then-write under the project
+lock; dangling source/fact links fail loudly naming the missing key.
+`save_chart` with a project anchors output into `figures/` (explicit
+in-project absolute paths honored; sandbox paths translated as before),
+pre-validates links before writing, and auto-registers the exhibit
+(`fig-<stem>`, re-saves inherit existing links).
+
+### 8.3 Coverage codes (`evidence` category)
+
+Scanner rules: fenced code blocks stripped before scanning (error-severity
+FPs would block release); cite scan = every `@src-<key>` occurrence in any
+bracket style (bracketed, compound `[@a; @b]`, suppress-author `[-@k]`,
+bare in-text); exhibit scan = `@fig-` refs AND `{#fig-}` embed definitions;
+`fig-/tbl-/sec-/eq-` crossref prefixes are never citekeys. Cover matching:
+`target`, `scenarios[].value`, `metrics[].value` normalized to floats
+(tolerance 1e-6 relative); ranges and non-numerics unchecked; unit-blind by
+design with the matched fact id named in the issue.
+
+| Code | Severity | Fires when | Rationale |
+| --- | --- | --- | --- |
+| EVID-UNREGISTERED-CITE | error | cited `@src-` key with no record | mechanically unambiguous; renders broken |
+| EVID-EXHIBIT-UNREGISTERED | error | `@fig-` ref or `{#fig-}` embed with no record | same unambiguity as cites |
+| EVID-EXHIBIT-FILE-MISSING | error | record with `file` set but absent from disk (`file: null` never fires) | deliverable points at nothing |
+| EVID-EXHIBIT-ANCHOR-MISSING | warning | anchor-grounded record whose anchor left the QMD | drift signal, not breakage |
+| EVID-COVER-UNLINKED | warning | cover numeric with no equal-value fact | pragmatic for B (no legacy report passes an error gate); Milestone C auto-derivation promotes it to error |
+| EVID-COVER-ILLUSTRATIVE | warning | matched cover fact has kind=illustrative | thesis on illustrative data must not be silent |
+| EVID-MISSING-REQUIRED | error | genre's required kind neither registered nor cited (presence alone never satisfies) | the §7 headline outcome |
+| EVID-NO-REQUIRED-LIST | info | genre has no REQUIRED_EVIDENCE entry (bespoke, studio, portfolio-*, ledger-*) | honest branch, mirrors STRUCT-NO-REQUIRED-LIST |
+
+Per-genre `REQUIRED_EVIDENCE` (≤3 requirements each; content-neutral genres
+omitted by design): standard/memo (any cited source), whitepaper (thesis
+evidence + background), earnings-recap (filing/transcript + market reaction),
+sector-outlook (prices + fundamentals), thematic-deepdive (theme data +
+research), macro-outlook (macro series), quant-factor-brief (price data +
+factor research), technical-brief (market data), esg-sustainability (ESG
+data + controversy coverage), crypto-digital (market data),
+desk-synthesis (desk inputs), modern (signal evidence).
+
+### 8.4 Honest deferrals (Milestone B explicitly does NOT)
+
+- Caption attribution (source/as-of rendered under a figure) is an
+  editorial convention: records store the data, nothing renders it.
+- Caption-number↔fact value linkage: record granularity satisfies §8's
+  "captions to their records" for B.
+- Verdict prose numerics: policed by UNREGISTERED-CITE + the numerics pass,
+  not by cover linkage (structured target/scenarios/metrics only).
+- Source-quality judgment stays editorial/human (review §7 note); no URL
+  metadata fetching (local-first, no network in the registry path).
 
 ---
 

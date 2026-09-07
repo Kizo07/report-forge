@@ -338,6 +338,21 @@ def test_evid_anchor_grounded_null_file_never_missing(tmp_path, monkeypatch):
     assert "EVID-EXHIBIT-ANCHOR-MISSING" not in _codes(res, "evidence")
 
 
+def test_evid_anchor_with_attributes_grounds(tmp_path, monkeypatch):
+    # Quarto anchors routinely carry attributes ({#fig-x width=85%}): the
+    # anchor scan must see through them (probe find: starter example figure
+    # was invisible, breaking registration AND firing PRES-DANGLING-REF).
+    monkeypatch.setattr(engine, "REPORTS_DIR", tmp_path)
+    proj = _ev_make(tmp_path, "p-attr", EV_FM_STD,
+                    '![X.](figures/x.png){#fig-x width=85%}\n\nSee @fig-x.\n'
+                    + BASE_SECTIONS)
+    assert engine.register_exhibit(
+        proj, exhibit_id="fig-x", title="X", file=None)["ok"] is True
+    res = engine.check_readiness(proj)
+    assert "EVID-EXHIBIT-ANCHOR-MISSING" not in _codes(res, "evidence")
+    assert "PRES-DANGLING-REF" not in _codes(res, "presentation")
+
+
 def test_evid_anchor_missing_warns(tmp_path, monkeypatch):
     monkeypatch.setattr(engine, "REPORTS_DIR", tmp_path)
     proj = _ev_make(tmp_path, "p-anchormiss", EV_FM_STD,

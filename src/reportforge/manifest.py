@@ -350,15 +350,31 @@ def transition(manifest: Manifest, to_state: str, actor: str, note: str = "") ->
             "current_state": manifest.state,
         }
     if manifest.state == "review" and to_state == "approved":
-        if not any(
-            r.get("revision") == manifest.revision and r.get("decision") == "approved"
-            for r in manifest.reviews
-        ):
+        qualifying = [
+            r for r in manifest.reviews
+            if r.get("revision") == manifest.revision
+            and r.get("decision") == "approved"
+        ]
+        if not qualifying:
             return {
                 "ok": False,
                 "error": "approval requires an approved review record for the current revision",
                 "current_state": manifest.state,
                 "current_revision": manifest.revision,
+            }
+        # R2: a registration after the review changes render bytes without
+        # bumping revision — the approval bound the old registry. Any
+        # review at the current registry_version cures a stale one.
+        if not any(r.get("registry_version", 0) == manifest.registry_version
+                   for r in qualifying):
+            return {
+                "ok": False,
+                "error": ("registry changed since the approved review "
+                          f"(registry v{qualifying[-1].get('registry_version', 0)} "
+                          f"-> v{manifest.registry_version}); re-review before approval"),
+                "current_state": manifest.state,
+                "current_revision": manifest.revision,
+                "current_registry_version": manifest.registry_version,
             }
     manifest.state = to_state
     manifest.updated = _now_iso()
@@ -384,6 +400,7 @@ def add_review(manifest: Manifest, revision: int, reviewer: str, decision: str,
     manifest.reviews.append(
         {
             "revision": revision,
+            "registry_version": manifest.registry_version,
             "timestamp": _now_iso(),
             "reviewer": reviewer,
             "decision": decision,

@@ -199,3 +199,18 @@ def test_double_load_does_not_bump(proj):
     M.create(proj, title="T")
     assert M.load(proj).revision == 1
     assert M.load(proj).revision == 1
+
+
+def test_approval_blocked_when_registry_changed_since_review(proj):
+    # R2: review records bind registry_version; registering a source after
+    # the review but before approval must fail loudly, not ship stale bytes.
+    m = M.create(proj, title="T")
+    M.transition(m, "review", actor="a")
+    M.add_review(m, m.revision, "r", "approved", "ship it")
+    assert M.transition(m, "approved", actor="a")["ok"] is True
+    M.transition(m, "review", actor="a")
+    M.add_review(m, m.revision, "r2", "approved", "ship it again")
+    m.registry_version += 1  # a registration landed after the review
+    res = M.transition(m, "approved", actor="a")
+    assert res["ok"] is False
+    assert "registry" in res["error"]
