@@ -1744,9 +1744,24 @@ def delete_section(project: str, section_id: str,
 # --- Milestone A Task 1.4: readiness + review records (RF-04) ------------------
 
 REQUIRED_SECTIONS = {
+    # Per-template mandatory-heading keywords (substring-matched, lowercase).
+    # Derived from each template's scaffold body; content-neutral / caller-owned
+    # bodies (portfolio-*, ledger-*, bespoke) intentionally have no list — the
+    # structure check emits STRUCT-NO-REQUIRED-LIST (info) for those.
     "standard": ["executive summary", "analysis", "recommendations"],
     "memo": ["purpose"],
     "whitepaper": ["investment thesis", "analysis"],
+    "earnings-recap": ["results at a glance", "guidance", "risks"],
+    "sector-outlook": ["executive summary", "valuation", "risks"],
+    "thematic-deepdive": ["key takeaways", "risks to the theme", "method and data"],
+    "macro-outlook": ["executive summary", "scenarios", "asset implications"],
+    "quant-factor-brief": ["signal summary", "performance", "risks"],
+    "technical-brief": ["setup", "invalidation", "scenario levels"],
+    "esg-sustainability": ["executive summary", "controversies", "financial materiality"],
+    "crypto-digital": ["executive summary", "risks", "scenarios"],
+    "desk-synthesis": ["executive summary", "recommendation", "scenarios"],
+    "modern": ["the signal", "portfolio actions", "risks and invalidation"],
+    "studio": ["overview", "figures and tables"],
 }
 
 ILLUSTRATIVE_MARKERS = ("ILLUSTRATIVE", "example-data", "Lorem", "Add a short abstract here")
@@ -1804,12 +1819,18 @@ def _body_text(text: str) -> str:
 
 def _readiness_structure(text: str, spans: list[dict], template: str) -> list[dict]:
     issues = []
-    required = REQUIRED_SECTIONS.get(template or "", [])
-    titles = " ".join(s["title"].lower() for s in spans)
-    for keyword in required:
-        if keyword.lower() not in titles:
-            issues.append(_issue("structure", "error", "STRUCT-MISSING-SECTION",
-                                 f"mandatory section missing for template {template!r}: {keyword}"))
+    required = REQUIRED_SECTIONS.get(template or "")
+    if required is None:
+        # Contract §4.1 honest branch: content-neutral / caller-owned bodies
+        # have no required-heading list — say so instead of silently passing.
+        issues.append(_issue("structure", "info", "STRUCT-NO-REQUIRED-LIST",
+                             f"no required-section list defined for template {template!r}"))
+    else:
+        titles = " ".join(s["title"].lower() for s in spans)
+        for keyword in required:
+            if keyword.lower() not in titles:
+                issues.append(_issue("structure", "error", "STRUCT-MISSING-SECTION",
+                                     f"mandatory section missing for template {template!r}: {keyword}"))
     if not spans:
         issues.append(_issue("structure", "error", "STRUCT-NO-SECTIONS",
                              "no sections found in index.qmd"))
@@ -1818,116 +1839,439 @@ def _readiness_structure(text: str, spans: list[dict], template: str) -> list[di
 
 def _readiness_evidence(text: str, spans: list[dict]) -> list[dict]:
     issues = []
+    total = 0
     for i, line in enumerate(text.splitlines(), start=1):
         for marker in ILLUSTRATIVE_MARKERS:
-            if marker in line and len([x for x in issues if x["code"] == "EVID-ILLUSTRATIVE"]) < 10:
-                issues.append(_issue("evidence", "warning", "EVID-ILLUSTRATIVE",
-                                     f"illustrative content marker {marker!r} (line {i}) — never silently passed"))
+            if marker in line:
+                total += 1
+                if len([x for x in issues if x["code"] == "EVID-ILLUSTRATIVE"]) < 10:
+                    issues.append(_issue("evidence", "warning", "EVID-ILLUSTRATIVE",
+                                         f"illustrative content marker {marker!r} (line {i}) — never silently passed"))
                 break
+    if total > 10:
+        # The 10-issue cap is display-only; the count itself stays visible so
+        # a marker-heavy draft can never look cleaner than it is.
+        issues.append(_issue("evidence", "info", "EVID-ILLUSTRATIVE-OVERFLOW",
+                             f"{total} illustrative markers found; showing first 10"))
     return issues
 
 
-def _spots_in_text(text: str) -> list[dict]:
-    """Money values near price keywords, grouped by nearby as-of date."""
-    spots = []
-    for m in _MONEY_RE.finditer(text):
-        window = text[max(0, m.start() - 120):m.end() + 60]
-        if not re.search(r"close|price|spot|target|usd", window, re.IGNORECASE):
-            continue
+# --- quantity keying (readiness-numerics-v1 §2, stdlib only) --------------------
+
+_TICKER_RE = re.compile(r"\b[A-Z]{2,5}\b")
+_TICKER_STOP = frozenset({
+    # English words, units, months, and verbs that match [A-Z]{2,5} but are
+    # never tickers. Conservative by design: missing a ticker means fewer
+    # comparisons, never a false error.
+    "USD", "EUR", "GBP", "AND", "THE", "FOR", "WITH", "FROM", "TOTAL",
+    "SUM", "NET", "ALL", "PER", "ARE", "WAS", "HAS", "HAVE", "THIS",
+    "THAT", "WITH", "WILL", "BE", "BY", "ON", "IN", "TO", "OF", "AS",
+    "OR", "AT", "AN", "UP", "ROSE", "FELL", "LOST", "GAINED", "HOLD",
+    "BUY", "SELL", "OVER", "UNDER", "OUT", "FIG", "TABLE", "NOTE",
+    "YTD", "QOQ", "YOY", "TTM", "EPS", "IPO", "CEO", "CFO",
+    "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP",
+    "OCT", "NOV", "DEC", "MON", "TUE", "WED", "THU", "FRI",
+})
+_WINDOW_WORDS = ("21d", "21-day", "63d", "126d", "252d", "12-month", "monthly",
+                 "weekly", "daily", "ytd", "qoq", "yoy", "ttm")
+_METRIC_WORDS = ("return", "returns", "vol", "volatility", "close", "closing",
+                 "target", "capex", "revenue", "revenues", "margin", "margins",
+                 "upside", "downside", "drawdown", "sharpe", "beta", "alpha",
+                 "price", "prices", "spot", "dividend", "yield", "sales",
+                 "ebitda", "rsi", "macd", "growth", "momentum")
+_SPOT_WORDS_RE = re.compile(r"clos(?:e|ing)|prices?|spot\b", re.IGNORECASE)
+_TARGET_PHRASE_RE = re.compile(r"target price|price target|fair value|price objective",
+                               re.IGNORECASE)
+_TARGET_WORD_RE = re.compile(r"\btarget\b", re.IGNORECASE)
+_PRICEISH_RE = re.compile(r"clos(?:e|ing)|prices?|spot|target|fair value", re.IGNORECASE)
+_HEDGE_RE = re.compile(r"\babout\b|~|roughly|approximately|around|nearly|almost|c\. ?",
+                       re.IGNORECASE)
+_SIGN_POS_RE = re.compile(r"\b(plus|positive|gained|rose|up|rallied|higher)\b", re.IGNORECASE)
+_BARE_NUM_RE = re.compile(r"(?<![\w$.,/-])([\d,]+\.\d+|[\d,]+)(?![\w%-/])")
+
+
+def _label_tokens(window: str, line: str = "") -> dict:
+    """Discriminating tokens near a number: tickers + window/metric words.
+
+    Tickers come from the number's own line only — a ±120-char window
+    spans adjacent table rows and would glue peer tickers onto every
+    quantity in the block. Metric/window words use the wider window.
+    """
+    tickers = {t for t in _TICKER_RE.findall(line or window)
+               if t not in _TICKER_STOP}
+    low = window.lower()
+    words = {w for w in _WINDOW_WORDS + _METRIC_WORDS if w in low}
+    return {"tickers": tickers, "words": words}
+
+
+def _same_key(a: dict, b: dict) -> bool:
+    """Conservative overlap (§2): same quantity only on shared discriminators.
+
+    Same ticker on both sides, or — when neither side names a ticker —
+    shared window/metric words. Anything else: no comparison is made.
+    """
+    if a["tickers"] and b["tickers"]:
+        return bool(a["tickers"] & b["tickers"])
+    if a["tickers"] or b["tickers"]:
+        return False
+    return bool(a["words"] & b["words"])
+
+
+def _is_table_row(line: str) -> bool:
+    return line.lstrip().startswith("|")
+
+
+def _governor_kind(before: str, after: str, header_word: str = "") -> str | None:
+    """The word governing a number: nearest price/metric language before it.
+
+    Whole-window presence tests misfire on mixed sentences ("closed at $S.
+    Price target $T" — both words sit in both windows). The rightmost match
+    in the ~40 chars before the number is what the number belongs to; a
+    trailing target phrase ("$X price target") and the table column header
+    are the only fallbacks. Returns spot/target/other/None.
+    """
+    cands: list[tuple[int, str]] = []
+    for m in _TARGET_PHRASE_RE.finditer(before):
+        cands.append((m.end(), "target"))
+    for m in _SPOT_WORDS_RE.finditer(before):
+        cands.append((m.end(), "spot"))
+    for m in _TARGET_WORD_RE.finditer(before):
+        cands.append((m.end(), "target"))
+    if cands:
+        return sorted(cands)[-1][1]
+    if _TARGET_PHRASE_RE.search(after) or _TARGET_WORD_RE.search(after):
+        return "target"
+    low = before.lower()
+    if any(w in low for w in _METRIC_WORDS):
+        return "other"
+    hw = header_word.lower()
+    if _TARGET_PHRASE_RE.search(hw) or _TARGET_WORD_RE.search(hw):
+        return "target"
+    if _SPOT_WORDS_RE.search(hw):
+        return "spot"
+    if any(w in hw for w in _METRIC_WORDS):
+        return "other"
+    return None
+
+
+def _header_cell_for(lines: list[str], line_no: int, pos: int, line_start: int) -> str:
+    """Column-header cell above a table-row number (empty when not a table)."""
+    idx = line_no - 1
+    if idx < 0 or idx >= len(lines) or not _is_table_row(lines[idx]):
+        return ""
+    start = 0
+    while idx > 0 and _is_table_row(lines[idx - 1]):
+        idx -= 1
+    header = [c.strip() for c in lines[idx].strip().strip("|").split("|")]
+    col = lines[line_no - 1][:pos - line_start].count("|")
+    return header[col] if col < len(header) else ""
+
+
+def _pipe_tables(body: str) -> list[list[list[str]]]:
+    """Consecutive pipe-row blocks parsed into rows of cells."""
+    tables = []
+    current: list[list[str]] = []
+    for line in body.splitlines():
+        if _is_table_row(line):
+            current.append([c.strip() for c in line.strip().strip("|").split("|")])
+        elif current:
+            if len(current) >= 2:
+                tables.append(current)
+            current = []
+    if len(current) >= 2:
+        tables.append(current)
+    return tables
+
+
+def _extract_quantities(body: str) -> list[dict]:
+    """Every comparable number with its §2 key.
+
+    Money is a price mention only beside spot/target language — a target is
+    never a spot (§3 NUM-DERIVED-PCT / NUM-SPOT-DISAGREE scoping). Money
+    beside other metric words (revenue, margin, …) gets kind "other" so
+    NUM-PROSE-TABLE can still key it. Bare numbers count only within 3
+    tokens of a price word (spec §1).
+    """
+    quantities = []
+    claimed = []  # (start, end) spans already claimed by money/pct matches
+    lines = body.splitlines()
+    line_starts = [0]
+    for ln in lines:
+        line_starts.append(line_starts[-1] + len(ln.encode("utf-8")) + 1)
+
+    def line_of(pos: int) -> int:
+        import bisect
+        return min(bisect.bisect_right(line_starts, pos), len(lines))
+
+    for m in _MONEY_RE.finditer(body):
+        window = body[max(0, m.start() - 120):m.end() + 60]
+        line_no = line_of(m.start())
+        before = body[max(0, m.start() - 40):m.start()]
+        after = body[m.end():m.end() + 30]
+        header = _header_cell_for(lines, line_no, m.start(),
+                                  line_starts[line_no - 1])
+        kind = _governor_kind(before, after, header)
+        if kind is None:
+            continue  # money without quantity language is not comparable
         v = _num_value(m.group(0))
         if v is None:
             continue
-        near = text[max(0, m.start() - 300):m.start()]
+        near = body[max(0, m.start() - 300):m.start()]
         dates = _ASOF_RE.findall(near)
-        spots.append({"value": v, "asof": dates[-1] if dates else None,
-                      "pos": m.start()})
-    return spots
+        quantities.append({"value": v, "kind": kind,
+                           "labels": _label_tokens(window, lines[line_no - 1]),
+                           "asof": dates[-1] if dates else None,
+                           "line": line_no, "pos": m.start(),
+                           "table": _is_table_row(lines[line_no - 1])})
+        claimed.append((m.start(), m.end()))
+    for m in _PCT_RE.finditer(body):
+        if any(s <= m.start() < e for s, e in claimed):
+            continue
+        window = body[max(0, m.start() - 120):m.end() + 60]
+        low = window.lower()
+        if "vol" in low or "volatility" in low or "std" in low.split():
+            kind = "vol_pct"
+        elif re.search(r"weight|probability|allocation|scenario", low):
+            kind = "weight_pct"
+        else:
+            kind = "return_pct"
+        v = _num_value(m.group(0))
+        if v is None or v == 0:
+            continue
+        before = body[max(0, m.start() - 40):m.start()]
+        sign = ("neg" if _SIGN_NEG_RE.search(before)
+                else "pos" if _SIGN_POS_RE.search(before) else None)
+        line_no = line_of(m.start())
+        quantities.append({"value": v, "kind": kind,
+                           "labels": _label_tokens(window, lines[line_no - 1]),
+                           "asof": None, "line": line_no,
+                           "pos": m.start(), "sign": sign,
+                           "table": _is_table_row(lines[line_no - 1]),
+                           "hedged": _HEDGE_RE.search(window) is not None})
+        claimed.append((m.start(), m.end()))
+    for m in _BARE_NUM_RE.finditer(body):
+        if any(s <= m.start() < e for s, e in claimed):
+            continue
+        ctx = body[max(0, m.start() - 40):m.end() + 40]
+        if _PRICEISH_RE.search(ctx) is None:
+            continue
+        try:
+            v = float(m.group(1).replace(",", ""))
+        except ValueError:
+            continue
+        window = body[max(0, m.start() - 120):m.end() + 60]
+        line_no = line_of(m.start())
+        before = body[max(0, m.start() - 40):m.start()]
+        after = body[m.end():m.end() + 30]
+        header = _header_cell_for(lines, line_no, m.start(),
+                                  line_starts[line_no - 1])
+        kind = _governor_kind(before, after, header)
+        # Bare numbers count only as price mentions (spec §1); a bare
+        # metric-word number ("revenue 152") is too ambiguous to key.
+        if kind not in ("spot", "target"):
+            continue
+        near = body[max(0, m.start() - 300):m.start()]
+        dates = _ASOF_RE.findall(near)
+        quantities.append({"value": v, "kind": kind,
+                           "labels": _label_tokens(window, lines[line_no - 1]),
+                           "asof": dates[-1] if dates else None,
+                           "line": line_no, "pos": m.start(),
+                           "table": _is_table_row(lines[line_no - 1])})
+    return quantities
 
 
-def _readiness_numerical(text: str, front: dict) -> list[dict]:
+def _section_for_line(spans: list[dict], full_line: int) -> str | None:
+    current = None
+    for s in spans:
+        if s.get("line_start", 0) <= full_line:
+            current = s.get("id")
+        else:
+            break
+    return current
+
+
+def _readiness_numerical(body: str, front: dict, spans: list[dict] | None = None,
+                         body_offset: int = 0) -> list[dict]:
+    """All ten numerics-v1 checks over body quantities + frontmatter.
+
+    Posture per spec: exact-label conflicts and arithmetic contradictions
+    are error; fuzzy matches are warning; passes stay silent (the category
+    `pass: true` verdict is the signal, so quiet fixtures stay quiet).
+    One quantity with N disagreeing mentions yields ONE issue.
+    """
     issues = []
+    quants = _extract_quantities(body)
+    spans = spans or []
+
+    def sec(line: int) -> str | None:
+        return _section_for_line(spans, body_offset + line) if spans else None
+
+    def detail_line(line: int) -> str:
+        return f"index.qmd:{body_offset + line}"
+
+    # -- NUM-DERIVED-PCT: cover target +Y% vs a body spot $S ------------------
     verdict = str(front.get("verdict", ""))
     target_raw = front.get("target", "")
     pct_m = _PCT_RE.search(verdict)
     tgt_m = _MONEY_RE.search(str(target_raw) + " " + verdict)
-    spots = _spots_in_text(text)
-    if pct_m and tgt_m and spots:
+    if tgt_m is None and isinstance(target_raw, (int, float)):
+        target = float(target_raw)
+    elif tgt_m is None and re.fullmatch(r"[\d,]+(?:\.\d+)?", str(target_raw).strip()):
+        # Frontmatter `target: 300` is an exact-value field even without a
+        # dollar sign — zero tolerance still applies (spec §3 TARGET-AGREE).
+        target = float(str(target_raw).strip().replace(",", ""))
+    else:
+        target = _num_value(tgt_m.group(0)) if tgt_m else None
+    spots = [q for q in quants if q["kind"] == "spot"]
+    if pct_m and target and spots:
         claimed = _num_value(pct_m.group(0))
-        target = _num_value(tgt_m.group(0))
-        spot = spots[0]["value"]
-        if claimed is not None and target and spot:
-            derived = (target / spot - 1) * 100
+        spot = spots[0]  # document-order first true spot — never a target
+        if claimed is not None and spot["value"]:
+            derived = (target / spot["value"] - 1) * 100
             if abs(claimed - derived) > 0.5:
                 issues.append(_issue(
                     "numerical", "error", "NUM-DERIVED-PCT",
-                    f"cover claims {claimed:g}% to ${target:g} but spot ${spot:g} implies {derived:+.1f}%",
-                    detail="frontmatter:verdict/target vs body spot"))
-    # Spot clustering within shared as-of groups only (undated together).
+                    f"cover claims {claimed:g}% to ${target:g} but spot "
+                    f"${spot['value']:g} implies {derived:+.1f}%",
+                    section_id=sec(spot["line"]),
+                    detail=f"frontmatter:verdict/target vs {detail_line(spot['line'])}"))
+    # -- NUM-SPOT-DISAGREE: clusters keyed by ticker+as-of --------------------
     groups: dict = {}
+    order: list = []
     for s in spots:
-        groups.setdefault(s["asof"], []).append(s["value"])
-    for key, vals in groups.items():
-        if len(vals) < 2:
+        key = (s["asof"], frozenset(s["labels"]["tickers"]))
+        placed = False
+        for i, (ka, _) in enumerate(order):
+            same_asof = ka[0] == key[0]
+            tick_ok = (ka[1] == key[1] or (not ka[1] and not key[1]))
+            if same_asof and tick_ok:
+                groups[i].append(s)
+                placed = True
+                break
+        if not placed:
+            order.append((key, None))
+            groups[len(order) - 1] = [s]
+    for members in groups.values():
+        if len(members) < 2:
             continue
+        vals = [m["value"] for m in members]
         spread = max(vals) - min(vals)
+        locs = ", ".join(detail_line(m["line"]) for m in members[:6])
         if spread > 1.0:
             issues.append(_issue(
                 "numerical", "error", "NUM-SPOT-DISAGREE",
-                f"spot mentions disagree by ${spread:.2f} (as-of {key or 'unstated'}): "
-                + ", ".join(f"${v:g}" for v in sorted(set(vals))[:6])))
+                f"spot mentions disagree by ${spread:.2f} "
+                f"(as-of {members[0]['asof'] or 'unstated'})",
+                section_id=sec(members[0]["line"]), detail=locs))
         elif spread > 0.05:
             issues.append(_issue(
                 "numerical", "warning", "NUM-SPOT-DISAGREE",
-                f"spot mentions differ by ${spread:.2f} — rounding gray zone"))
-    # As-of dates vs frontmatter date + mode outliers.
+                f"spot mentions differ by ${spread:.2f} — rounding gray zone",
+                section_id=sec(members[0]["line"]), detail=locs))
+    # -- price-fact as-of dates (tables, captions, price windows) -------------
+    price_dates: list[tuple[str, int]] = []  # (date, body line)
+    for m in _ASOF_RE.finditer(body):
+        line_no = body.count("\n", 0, m.start()) + 1
+        line = body.splitlines()[line_no - 1]
+        is_price_fact = (
+            _is_table_row(line)
+            or "fig" in line.lower() or "caption" in line.lower()
+            or any(q["kind"] in ("spot", "target")
+                   and m.start() <= q["pos"] < m.start() + 400
+                   for q in quants)
+        )
+        if is_price_fact:
+            price_dates.append((m.group(1), line_no))
     fm_date = front.get("date")
     fm_date = str(fm_date) if fm_date is not None else None
-    asofs = _ASOF_RE.findall(text)
-    for d in set(asofs):
+    for d, line_no in sorted(set(price_dates)):
         if fm_date and d > fm_date:
-            issues.append(_issue("numerical", "error", "NUM-ASOF-FUTURE",
-                                 f"as-of {d} is later than frontmatter date {fm_date}"))
-    if asofs:
+            issues.append(_issue(
+                "numerical", "error", "NUM-ASOF-FUTURE",
+                f"as-of {d} is later than frontmatter date {fm_date}",
+                section_id=sec(line_no), detail=detail_line(line_no)))
+    if price_dates:
         from collections import Counter
-        mode = Counter(asofs).most_common(1)[0][0]
-        outliers = sorted({d for d in asofs if d != mode})
+        mode = Counter(d for d, _ in price_dates).most_common(1)[0][0]
+        outliers = sorted({d for d, _ in price_dates if d != mode})
         if outliers:
-            issues.append(_issue("numerical", "warning", "NUM-ASOF-MIXED",
-                                 f"as-of mode {mode}; outliers: {', '.join(outliers)}"))
-    # Sign conflicts: prose sign word + value vs table row opposite sign.
-    prose_vals: dict[float, str] = {}
-    for line in text.splitlines():
-        if line.lstrip().startswith("|"):
-            continue
-        for pm in _PCT_RE.finditer(line):
-            v = _num_value(pm.group(0))
-            if v is None or v == 0:
+            issues.append(_issue(
+                "numerical", "warning", "NUM-ASOF-MIXED",
+                f"as-of mode {mode}; outliers: {', '.join(outliers)}"))
+    # -- NUM-SIGN-CONFLICT: prose sign vs same-key table row ------------------
+    prose_pcts = [q for q in quants
+                  if q["kind"] == "return_pct" and not q["table"] and q.get("sign")]
+    if prose_pcts:
+        for line in body.splitlines():
+            if not _is_table_row(line):
                 continue
-            before = line[max(0, pm.start() - 40):pm.start()]
-            sign = "neg" if _SIGN_NEG_RE.search(before) else None
-            if sign:
-                prose_vals[round(abs(v), 4)] = sign
-    if prose_vals:
-        for line in text.splitlines():
             cells = [c.strip() for c in line.strip().strip("|").split("|")]
-            if len(cells) < 2 or not line.lstrip().startswith("|"):
+            if len(cells) < 2:
                 continue
+            row_labels = _label_tokens(" ".join(cells))
             for cell in cells[1:]:
                 cm = _PCT_RE.search(cell) or _MONEY_RE.search(cell)
                 if not cm:
                     continue
                 v = _num_value(cm.group(0))
-                if v is None or round(abs(v), 4) not in prose_vals:
+                if v is None:
                     continue
                 cell_neg = cell.strip().startswith(("-", "−")) or \
                     _SIGN_NEG_RE.search(cell) is not None
-                if prose_vals[round(abs(v), 4)] == "neg" and not cell_neg \
-                        and "+" in cell:
-                    issues.append(_issue(
-                        "numerical", "error", "NUM-SIGN-CONFLICT",
-                        f"prose states -{abs(v):g} but table shows +{abs(v):g}",
-                        detail=line.strip()[:160]))
-    # Scenario weights: frontmatter scenarios values must sum to 100 ± 0.5.
+                cell_pos = cell.strip().startswith("+") or \
+                    _SIGN_POS_RE.search(cell) is not None
+                for p in prose_pcts:
+                    if round(abs(p["value"]), 4) != round(abs(v), 4):
+                        continue
+                    if not _same_key(p["labels"], row_labels):
+                        continue
+                    conflict = ((p["sign"] == "neg" and cell_pos and not cell_neg)
+                                or (p["sign"] == "pos" and cell_neg and not cell_pos))
+                    if conflict:
+                        issues.append(_issue(
+                            "numerical", "error", "NUM-SIGN-CONFLICT",
+                            f"prose states {'-' if p['sign'] == 'neg' else '+'}{abs(v):g} "
+                            f"but table shows {cell.strip()[:24]}",
+                            detail=f"{detail_line(p['line'])} vs table row: {line.strip()[:120]}"))
+                        break
+    # -- NUM-PROSE-TABLE: prose repeats a table quantity, mismatch ------------
+    # Best-match pairing per table quantity: the closest same-key prose
+    # mention decides. An exact repeat elsewhere must not let a distant
+    # prose number fire against this cell (or vice versa).
+    _COMPARABLE = ("spot", "target", "other", "return_pct")
+    table_quants = [q for q in quants if q["table"] and q["kind"] in _COMPARABLE]
+    prose_quants = [q for q in quants if not q["table"] and q["kind"] in _COMPARABLE]
+    for t in table_quants:
+        best = None  # (delta, prose_quant, threshold)
+        for p in prose_quants:
+            if t["kind"] != p["kind"] or not _same_key(t["labels"], p["labels"]):
+                continue
+            delta = abs(t["value"] - p["value"])
+            if t["kind"] == "return_pct":
+                threshold = 2.0 if p.get("hedged", False) else 0.05
+            else:
+                threshold = 0.5  # precise quote vs rounded cell: pass
+            if best is None or delta < best[0]:
+                best = (delta, p, threshold)
+        if best is None:
+            continue
+        delta, p, threshold = best
+        if delta <= threshold:
+            continue
+        if t["kind"] == "return_pct":
+            issues.append(_issue(
+                "numerical", "warning", "NUM-PROSE-TABLE",
+                f"prose {p['value']:g} vs table {t['value']:g} "
+                f"(Δ {delta:g}pp{', hedged' if p.get('hedged', False) else ''})",
+                section_id=sec(p["line"]),
+                detail=f"{detail_line(p['line'])} vs {detail_line(t['line'])}"))
+        else:
+            issues.append(_issue(
+                "numerical", "warning", "NUM-PROSE-TABLE",
+                f"prose ${p['value']:g} vs table ${t['value']:g}",
+                section_id=sec(p["line"]),
+                detail=f"{detail_line(p['line'])} vs {detail_line(t['line'])}"))
+    # -- NUM-SCENARIO-WEIGHTS: weights sum to 100 ± 0.5 ------------------------
     weights = []
     scenarios = front.get("scenarios")
     if isinstance(scenarios, list):
@@ -1937,7 +2281,173 @@ def _readiness_numerical(text: str, front: dict) -> list[dict]:
     if len(weights) >= 2 and abs(sum(weights) - 100) > 0.5:
         issues.append(_issue("numerical", "error", "NUM-SCENARIO-WEIGHTS",
                              f"scenario weights sum to {sum(weights):g}, not 100"))
+    # -- NUM-SCENARIO-RECOMPUTE: weights × returns vs stated figure -----------
+    pairs, tail_open = _scenario_pairs(front, body)
+    stated, stated_hedged = _stated_weighted_return(front, body)
+    if pairs and stated is not None:
+        lo = sum(w * (r if r is not None else -20.0) for w, r, _ in pairs) / 100.0
+        hi = sum(w * (r if r is not None else 20.0) for w, r, _ in pairs) / 100.0
+        tol = 4.0 if stated_hedged else 2.0
+        if tail_open:
+            # Bounded, not exact: warn only when the stated figure sits
+            # outside the whole feasible band by more than tolerance.
+            if stated < lo - tol or stated > hi + tol:
+                issues.append(_issue(
+                    "numerical", "warning", "NUM-SCENARIO-RECOMPUTE",
+                    f"weights × returns recompute to {lo:.1f}–{hi:.1f}% "
+                    f"but stated {stated:g}% (tail scenario unparseable — bounded)",
+                    detail="frontmatter:scenarios vs body/scenario prose"))
+        elif abs(sum(w * r for w, r, _ in pairs) / 100.0 - stated) > tol:
+            recomputed = sum(w * r for w, r, _ in pairs) / 100.0
+            issues.append(_issue(
+                "numerical", "error", "NUM-SCENARIO-RECOMPUTE",
+                f"weights × returns recompute to {recomputed:.1f}% "
+                f"but stated {stated:g}% (Δ > {tol:g}pp)",
+                detail="frontmatter:scenarios vs stated weighted figure"))
+    # -- NUM-TARGET-AGREE: cover target vs scenario-table base target ---------
+    if target is not None:
+        cover_target = target
+        for table in _pipe_tables(body):
+            for row in table[1:]:
+                if not row or not re.search(r"\bbase\b", row[0], re.IGNORECASE):
+                    continue
+                for cell in row[1:]:
+                    cm = _MONEY_RE.search(cell)
+                    if not cm:
+                        continue
+                    base_target = _num_value(cm.group(0))
+                    if (cover_target is not None and base_target is not None
+                            and abs(cover_target - base_target) > 0):
+                        issues.append(_issue(
+                            "numerical", "error", "NUM-TARGET-AGREE",
+                            f"cover target ${cover_target:g} vs scenario-table "
+                            f"base ${base_target:g}",
+                            detail=f"frontmatter:target vs {cell.strip()[:60]}"))
+                        break
+                else:
+                    continue
+                break
+    # -- NUM-TABLE-TOTAL: total/sum/net rows recompute -------------------------
+    for table in _pipe_tables(body):
+        if len(table) < 3:
+            continue
+        header, rows = table[0], table[1:]
+        total_idx = next((i for i, r in enumerate(rows)
+                          if r and re.match(r"(?i)^(total|sum|net|combined)\b",
+                                            r[0])), None)
+        if total_idx is None:
+            continue
+        data_rows = [r for i, r in enumerate(rows) if i != total_idx]
+        for col in range(1, max(len(r) for r in rows)):
+            tcell = rows[total_idx][col] if col < len(rows[total_idx]) else ""
+            tm = _MONEY_RE.search(tcell) or _PCT_RE.search(tcell)
+            if not tm:
+                continue
+            tval = _num_value(tm.group(0))
+            parts = []
+            for r in data_rows:
+                if col >= len(r):
+                    break
+                cm = _MONEY_RE.search(r[col]) or _PCT_RE.search(r[col])
+                if not cm:
+                    break
+                v = _num_value(cm.group(0))
+                if v is None:
+                    break
+                parts.append(v)
+            else:
+                if tval is None or not parts:
+                    continue
+                is_pct = "%" in tm.group(0) or "percent" in tm.group(0).lower()
+                if is_pct:
+                    bad = abs(sum(parts) - tval) > 0.5
+                else:
+                    bad = abs(sum(parts) - tval) > max(0.5, abs(tval) * 0.01)
+                if bad:
+                    issues.append(_issue(
+                        "numerical", "error", "NUM-TABLE-TOTAL",
+                        f"{header[col] if col < len(header) else 'column'} total "
+                        f"{tval:g} vs recomputed {sum(parts):g}",
+                        detail=f"row: {rows[total_idx][0][:60]}"))
     return issues
+
+
+def _scenario_pairs(front: dict, body: str) -> tuple[list, bool]:
+    """(weight, return-or-None, label) per scenario + tail-open flag."""
+    pairs: list = []
+    scenarios = front.get("scenarios")
+    if isinstance(scenarios, list):
+        for s in scenarios:
+            if not isinstance(s, dict):
+                continue
+            w = s.get("value")
+            if isinstance(w, bool) or not isinstance(w, (int, float)):
+                for k in ("weight", "probability"):
+                    if isinstance(s.get(k), (int, float)):
+                        w = s[k]
+                        break
+            if isinstance(w, bool) or not isinstance(w, (int, float)):
+                continue
+            r = None
+            for k in ("return", "pct", "percent", "upside", "expected"):
+                v = s.get(k)
+                if isinstance(v, bool):
+                    continue
+                if isinstance(v, (int, float)):
+                    r = float(v)
+                    break
+                if isinstance(v, str):
+                    m = _PCT_RE.search(v)
+                    if m:
+                        r = _num_value(m.group(0))
+                        break
+            pairs.append((float(w), r, str(s.get("label", "?"))))
+    for table in _pipe_tables(body):
+        header = [c.lower() for c in table[0]]
+        has_label = any("scenario" in h or "case" in h for h in header)
+        wi = next((i for i, h in enumerate(header)
+                   if "weight" in h or "prob" in h), None)
+        ri = next((i for i, h in enumerate(header)
+                   if "return" in h or "upside" in h or "pct" in h or "%" in h),
+                  None)
+        if not (has_label and wi is not None and ri is not None):
+            continue
+        for row in table[1:]:
+            if max(wi, ri) >= len(row):
+                continue
+            wm = _PCT_RE.search(row[wi]) or _BARE_NUM_RE.search(row[wi])
+            rm = _PCT_RE.search(row[ri])
+            if not wm:
+                continue
+            w = _num_value(wm.group(0)) if "%" in wm.group(0) else None
+            try:
+                w = float(wm.group(1).replace(",", "")) if w is None else w
+            except (ValueError, AttributeError):
+                continue
+            r = _num_value(rm.group(0)) if rm else None
+            pairs.append((w, r, row[0][:40]))
+    tail_open = any(r is None for _, r, _ in pairs)
+    return pairs, tail_open
+
+
+def _stated_weighted_return(front: dict, body: str) -> tuple[float | None, bool]:
+    """The report's own stated blended/expected return, if any."""
+    for k in ("expected_return", "weighted_return", "blended_return", "expected"):
+        v = front.get(k)
+        if isinstance(v, bool):
+            continue
+        if isinstance(v, (int, float)):
+            return float(v), False
+        if isinstance(v, str):
+            m = _PCT_RE.search(v)
+            if m:
+                return _num_value(m.group(0)), _HEDGE_RE.search(v) is not None
+    m = re.search(
+        r"(?:weighted|expected|blended)[^.\n]{0,60}?([+-]?[\d,]+(?:\.\d+)?\s?(?:percent|pct|%))",
+        body, re.IGNORECASE)
+    if m:
+        return _num_value(m.group(1)), _HEDGE_RE.search(m.group(0)) is not None
+    return None, False
 
 
 def _readiness_presentation(root: Path, text: str) -> list[dict]:
@@ -2013,11 +2523,12 @@ def check_readiness(project: str) -> dict:
     spans = _section_spans(text)
     front = _frontmatter_dict(text)
     body = _body_text(text)
+    body_offset = len(text.splitlines()) - len(body.splitlines())
     template = manifest.to_dict().get("profile", {}).get("report_type", "")
     categories = {
         "structure": _readiness_structure(text, spans, template),
         "evidence": _readiness_evidence(text, spans),
-        "numerical": _readiness_numerical(body, front),
+        "numerical": _readiness_numerical(body, front, spans, body_offset),
         "presentation": _readiness_presentation(root, text),
         "editorial": _readiness_editorial(manifest),
     }

@@ -67,7 +67,9 @@ def test_asof_future_and_mixed(tmp_path, monkeypatch):
                "As of 2026-09-05\n\n| Metric | Value |\n| Close | 100 |\n" + BASE_SECTIONS)
     assert _codes(engine.check_readiness(p1), "numerical") == ["NUM-ASOF-FUTURE"]
     p2 = _make(tmp_path, "p-mixed", fm,
-               ("As of 2026-09-02\n\nAs of 2026-09-02\n\nAs of 2026-09-01\n"
+               ("As of 2026-09-02\n\n| Metric | Close |\n| AMZN | $254.98 |\n\n"
+                "As of 2026-09-02\n\n| Metric | Close |\n| AMZN | $254.98 |\n\n"
+                "As of 2026-09-01\n\n| Metric | Close |\n| AMZN | $254.90 |\n"
                 + BASE_SECTIONS))
     res2 = engine.check_readiness(p2)
     assert _codes(res2, "numerical") == ["NUM-ASOF-MIXED"]
@@ -134,3 +136,108 @@ def test_structure_and_review_flow(tmp_path, monkeypatch):
                for i in res2["categories"]["editorial"]["issues"])
     bad = engine.record_review("p-struct", 1, "human:fire", "maybe")
     assert bad["ok"] is False
+
+
+# --- critic-2 RF-04 review: spec grounding + missing codes -------------------
+
+def test_grounding_pass_cover_spot_target(tmp_path, monkeypatch):
+    """Numerics-v1 §4: '+18% to $300' with spot $254.98 → derived +17.65%,
+    Δ0.35 ≤ 0.5 → no error. The target must never be mistaken for the spot."""
+    monkeypatch.setattr(engine, "REPORTS_DIR", tmp_path)
+    fm = ("title: T\nreportforge-template: standard\ndate: 2026-09-04\n"
+          "target: 300\nverdict: '+18% to $300'\n")
+    body = ("AMZN closed at $254.98. Price target $300.\n" + BASE_SECTIONS)
+    proj = _make(tmp_path, "p-ground", fm, body)
+    res = engine.check_readiness(proj)
+    assert res["categories"]["numerical"]["issues"] == []
+    assert res["categories"]["numerical"]["pass"] is True
+
+
+def test_peer_comp_table_does_not_cluster(tmp_path, monkeypatch):
+    """§2 keying: different tickers never cluster, even at equal as-of."""
+    monkeypatch.setattr(engine, "REPORTS_DIR", tmp_path)
+    fm = "title: T\nreportforge-template: standard\ndate: 2026-09-04\n"
+    body = ("| Name | Close |\n| AMZN | $254.98 |\n| MSFT | $420.10 |\n"
+            + BASE_SECTIONS)
+    proj = _make(tmp_path, "p-peers", fm, body)
+    res = engine.check_readiness(proj)
+    assert res["categories"]["numerical"]["issues"] == []
+
+
+def test_scenario_recompute_error_all_parse(tmp_path, monkeypatch):
+    monkeypatch.setattr(engine, "REPORTS_DIR", tmp_path)
+    fm = ("title: T\nreportforge-template: standard\ndate: 2026-09-04\n"
+          "scenarios:\n  - {label: bear, value: 20, return: -18}\n"
+          "  - {label: base, value: 50, return: 18}\n"
+          "  - {label: bull, value: 25, return: 35}\n"
+          "  - {label: tail, value: 5, return: 10}\n"
+          "expected_return: 7\n")
+    proj = _make(tmp_path, "p-recomp", fm, BASE_SECTIONS)
+    res = engine.check_readiness(proj)
+    codes = _codes(res, "numerical")
+    assert codes == ["NUM-SCENARIO-RECOMPUTE"]
+    assert res["categories"]["numerical"]["issues"][0]["severity"] == "error"
+
+
+def test_scenario_recompute_warning_tail_open(tmp_path, monkeypatch):
+    monkeypatch.setattr(engine, "REPORTS_DIR", tmp_path)
+    fm = ("title: T\nreportforge-template: standard\ndate: 2026-09-04\n"
+          "scenarios:\n  - {label: bear, value: 20, return: -18}\n"
+          "  - {label: base, value: 50, return: 18}\n"
+          "  - {label: bull, value: 25, return: 35}\n"
+          "  - {label: tail, value: 5}\n"
+          "expected_return: 99\n")
+    proj = _make(tmp_path, "p-recomp-tail", fm, BASE_SECTIONS)
+    res = engine.check_readiness(proj)
+    issues = res["categories"]["numerical"]["issues"]
+    assert [i["code"] for i in issues] == ["NUM-SCENARIO-RECOMPUTE"]
+    assert issues[0]["severity"] == "warning"
+
+
+def test_target_agree_fires(tmp_path, monkeypatch):
+    monkeypatch.setattr(engine, "REPORTS_DIR", tmp_path)
+    fm = ("title: T\nreportforge-template: standard\ndate: 2026-09-04\n"
+          "target: 300\n")
+    body = ("| Scenario | Target |\n| Base | $310 |\n" + BASE_SECTIONS)
+    proj = _make(tmp_path, "p-tagree", fm, body)
+    res = engine.check_readiness(proj)
+    assert _codes(res, "numerical") == ["NUM-TARGET-AGREE"]
+
+
+def test_table_total_fires(tmp_path, monkeypatch):
+    monkeypatch.setattr(engine, "REPORTS_DIR", tmp_path)
+    fm = "title: T\nreportforge-template: standard\ndate: 2026-09-04\n"
+    body = ("| Segment | Revenue |\n| Cloud | $100 |\n| Ads | $50 |\n"
+            "| Total | $999 |\n" + BASE_SECTIONS)
+    proj = _make(tmp_path, "p-total", fm, body)
+    res = engine.check_readiness(proj)
+    assert _codes(res, "numerical") == ["NUM-TABLE-TOTAL"]
+
+
+def test_prose_table_warning_and_hedged_pass(tmp_path, monkeypatch):
+    monkeypatch.setattr(engine, "REPORTS_DIR", tmp_path)
+    fm = "title: T\nreportforge-template: standard\ndate: 2026-09-04\n"
+    body = ("Revenue was $152.4. The segment revenue stands at about $160.\n\n"
+            "| Segment | Revenue |\n| Cloud | $152.4 |\n| Ads | $161.5 |\n"
+            + BASE_SECTIONS)
+    proj = _make(tmp_path, "p-pt", fm, body)
+    res = engine.check_readiness(proj)
+    issues = res["categories"]["numerical"]["issues"]
+    assert [i["code"] for i in issues] == ["NUM-PROSE-TABLE"]
+    assert issues[0]["severity"] == "warning"
+
+
+def test_required_sections_per_genre_and_bespoke_info(tmp_path, monkeypatch):
+    monkeypatch.setattr(engine, "REPORTS_DIR", tmp_path)
+    fm = "title: T\nreportforge-template: earnings-recap\ndate: 2026-09-04\n"
+    root = _write(tmp_path, "p-genre", fm, "# Executive summary\n\nOnly this.\n")
+    manifest_mod.import_dir(str(root))
+    res = engine.check_readiness("p-genre")
+    assert "STRUCT-MISSING-SECTION" in _codes(res, "structure")
+    fm2 = "title: T\nreportforge-template: bespoke\ndate: 2026-09-04\n"
+    root2 = _write(tmp_path, "p-bespoke", fm2, "# Anything\n\nFreeform.\n")
+    manifest_mod.import_dir(str(root2))
+    res2 = engine.check_readiness("p-bespoke")
+    struct = res2["categories"]["structure"]
+    assert struct["pass"] is True  # info only, never blocks
+    assert "STRUCT-NO-REQUIRED-LIST" in _codes(res2, "structure")
