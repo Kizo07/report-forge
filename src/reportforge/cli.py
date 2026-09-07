@@ -12,6 +12,7 @@ from reportforge.engine import (
     list_templates,
     open_report,
     project_status,
+    register_source,
     render_preview,
     render_report,
     reportforge_capabilities,
@@ -73,6 +74,18 @@ def main(argv: list[str] | None = None) -> int:
     p_export.add_argument("--include-data", action="store_true")
 
     p_caps = sub.add_parser("capabilities", help="show capability discovery response")
+
+    p_source = sub.add_parser("source", help="register a citable source (RF-03)")
+    p_source.add_argument("project")
+    p_source.add_argument("key", help="citekey, must match src-<slug>")
+    p_source.add_argument("kind")
+    p_source.add_argument("title")
+    p_source.add_argument("--date", default=None)
+    p_source.add_argument("--url", default=None)
+    p_source.add_argument("--publisher", default=None)
+    p_source.add_argument("--accessed", default=None)
+    p_source.add_argument("--as-of", default=None)
+    p_source.add_argument("--overwrite", action="store_true")
 
     args = parser.parse_args(argv)
     if args.cmd == "templates":
@@ -143,6 +156,15 @@ def main(argv: list[str] | None = None) -> int:
     elif args.cmd == "capabilities":
         print(json.dumps(reportforge_capabilities(), indent=2))
         return 0
+    elif args.cmd == "source":
+        result = register_source(args.project, args.key, args.kind, args.title,
+                                 date=args.date, url=args.url,
+                                 publisher=args.publisher,
+                                 accessed=args.accessed,
+                                 as_of=getattr(args, "as_of"),
+                                 overwrite=args.overwrite)
+        print(json.dumps(result, indent=2))
+        return 0 if result.get("ok") else 1
     return 0
 
 

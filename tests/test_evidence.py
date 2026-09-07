@@ -5,6 +5,7 @@ import os
 
 import pytest
 
+from reportforge import engine
 from reportforge import manifest as M
 
 QMD = """---
@@ -153,3 +154,83 @@ def test_validate_fact_ok_and_rejects():
     no_value = dict(good)
     del no_value["value"]
     assert M.validate_fact(no_value)[0] is False
+
+
+# --- B-2: register_source -----------------------------------------------------
+
+def _scaffold(monkeypatch, tmp_path, slug="ev-probe", template="standard"):
+    monkeypatch.setattr(engine, "REPORTS_DIR", tmp_path / "reports")
+    res = engine.scaffold_report(slug, template=template, formats=["html", "pdf"])
+    assert res["ok"] is True
+    return tmp_path / "reports" / slug
+
+
+SRC = dict(key="src-fed-sep-2026-dots", kind="dataset",
+           title="FOMC dot plot, September 2026", date="2026-09-17")
+
+
+def test_register_source_persists_and_writes_bib(tmp_path, monkeypatch):
+    root = _scaffold(monkeypatch, tmp_path)
+    res = engine.register_source("ev-probe", **SRC)
+    assert res["ok"] is True
+    assert res["key"] == "src-fed-sep-2026-dots"
+    m = M.load(str(root))
+    assert m.sources["src-fed-sep-2026-dots"]["title"] == SRC["title"]
+    assert m.registry_version == 1
+    bib = (root / "sources.bib").read_text(encoding="utf-8")
+    assert "@misc{src-fed-sep-2026-dots," in bib
+    assert "FOMC dot plot" in bib
+
+
+def test_register_source_duplicate_fails_loudly(tmp_path, monkeypatch):
+    _scaffold(monkeypatch, tmp_path)
+    assert engine.register_source("ev-probe", **SRC)["ok"] is True
+    dup = engine.register_source("ev-probe", **SRC)
+    assert dup["ok"] is False  # names existing title, no silent overwrite
+    assert "already registered" in dup["error"]
+    ok2 = engine.register_source("ev-probe", key=SRC["key"], kind=SRC["kind"],
+                                 title="FOMC dots (revised)", date=SRC["date"],
+                                 overwrite=True)
+    assert ok2["ok"] is True
+
+
+def test_register_source_bad_kind_fails(tmp_path, monkeypatch):
+    _scaffold(monkeypatch, tmp_path)
+    res = engine.register_source("ev-probe", **dict(SRC, kind="tweet"))
+    assert res["ok"] is False
+
+
+def test_register_source_rewrites_whole_bib(tmp_path, monkeypatch):
+    root = _scaffold(monkeypatch, tmp_path)
+    engine.register_source("ev-probe", **SRC)
+    engine.register_source("ev-probe", key="src-bea-gdp-q2", kind="dataset",
+                           title="BEA GDP Q2 2026", date="2026-07-30")
+    bib = (root / "sources.bib").read_text(encoding="utf-8")
+    assert "@misc{src-fed-sep-2026-dots," in bib  # first entry survives
+    assert "@misc{src-bea-gdp-q2," in bib
+
+
+def test_register_source_yml_top_level_bibliography(tmp_path, monkeypatch):
+    root = _scaffold(monkeypatch, tmp_path)
+    engine.register_source("ev-probe", **SRC)
+    engine.register_source("ev-probe", key="src-x", kind="article",
+                           title="X", date="2026-01-01")
+    lines = (root / "_quarto.yml").read_text(encoding="utf-8").splitlines()
+    bib_lines = [ln for ln in lines if ln.strip().startswith("bibliography:")]
+    assert len(bib_lines) == 1  # exactly one, never duplicated
+    assert bib_lines[0].startswith("bibliography:")  # top-level, not nested
+    assert bib_lines[0].strip() == "bibliography: sources.bib"
+
+
+def test_source_to_bibtex_escapes_and_year(tmp_path, monkeypatch):
+    bib = engine._source_to_bibtex({
+        "key": "src-tricky", "kind": "article",
+        "title": "Growth {Q3} & 100% {real} results",
+        "publisher": "Desk", "date": "2026-09-17",
+        "url": "https://example.invalid/x", "as_of": "2026-09-18",
+        "accessed": "2026-09-19"})
+    assert "@misc{src-tricky," in bib
+    assert "year = {2026}" in bib
+    # Raw braces must not leak into the bib entry unescaped.
+    assert "{Q3}" not in bib and "{real}" not in bib
+    assert "as-of 2026-09-18" in bib and "accessed 2026-09-19" in bib

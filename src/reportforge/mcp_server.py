@@ -19,6 +19,7 @@ from reportforge.engine import (
     publish_report,
     read_project_file,
     record_review,
+    register_source,
     render_preview,
     render_report,
     replace_section,
@@ -648,6 +649,41 @@ def reportforge_check_readiness(
         project: Report slug (project directory name).
     """
     return check_readiness(project)
+
+
+@mcp.tool
+def reportforge_register_source(
+    project: str,
+    key: str,
+    kind: str,
+    title: str,
+    date: str | None = None,
+    url: str | None = None,
+    publisher: str | None = None,
+    accessed: str | None = None,
+    as_of: str | None = None,
+    overwrite: bool = False,
+) -> dict[str, Any]:
+    """Register a citable source in the report's evidence registry (RF-03).
+
+    Persists the record, rewrites sources.bib, and wires a top-level
+    bibliography entry in _quarto.yml. Cite the key from prose as [@key].
+
+    Args:
+        project: Report slug (project directory name).
+        key: Citekey, must match src-<slug>.
+        kind: filing, article, dataset, price-feed, transcript, report, other.
+        title: Human-readable source title.
+        date: Publication date (one of date/as_of required).
+        url: Source URL (stored verbatim, never fetched).
+        publisher: Publisher/author for the bib entry.
+        accessed: Retrieval date for the bib note.
+        as_of: Data vintage when it differs from publication date.
+        overwrite: Replace an existing record with the same key.
+    """
+    return register_source(project, key, kind, title, date=date, url=url,
+                           publisher=publisher, accessed=accessed,
+                           as_of=as_of, overwrite=overwrite)
 
 
 @mcp.tool

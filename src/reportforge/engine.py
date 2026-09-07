@@ -2616,6 +2616,115 @@ def record_review(project: str, revision: int, reviewer: str, decision: str,
             "revision": revision, "decision": decision}
 
 
+# --- Milestone B: evidence & exhibit registry (RF-03) -------------------------
+
+_BIB_YEAR_RE = re.compile(r"(\d{4})")
+
+
+def _bibtex_escape(text: str) -> str:
+    """Escape a free-text value for a braced BibTeX field."""
+    return (text.replace("\\", "\\textbackslash{}")
+                .replace("{", "\\{").replace("}", "\\}"))
+
+
+def _source_to_bibtex(record: dict) -> str:
+    """Render one source record as a minimal @misc BibTeX entry (stdlib)."""
+    key = record.get("key", "unknown")
+    out = [f"@misc{{{key},"]
+    out.append(f"  title = {{{{{_bibtex_escape(str(record.get('title', '')))}}}}},")
+    if record.get("publisher"):
+        out.append(f"  author = {{{{{_bibtex_escape(str(record['publisher']))}}}}},")
+    year_m = _BIB_YEAR_RE.search(
+        str(record.get("date") or "") or str(record.get("as_of") or ""))
+    if year_m:
+        out.append(f"  year = {{{year_m.group(1)}}},")
+    if record.get("url"):
+        out.append(f"  url = {{{record['url']}}},")
+    notes = []
+    if record.get("as_of"):
+        notes.append(f"as-of {record['as_of']}")
+    if record.get("accessed"):
+        notes.append(f"accessed {record['accessed']}")
+    if notes:
+        out.append(f"  note = {{{'; '.join(notes)}}},")
+    out.append("}")
+    return "\n".join(out) + "\n"
+
+
+def _ensure_bibliography(root: Path) -> str | None:
+    """Ensure a TOP-LEVEL `bibliography: sources.bib` line in _quarto.yml.
+
+    Critic-1 finding 1: Quarto reads bibliography as a top-level document
+    option — nested under `project:` it is silently ignored and every
+    [@key] renders as literal text. Single idempotent line-append only;
+    the file is never rewritten. Returns an error string or None.
+    """
+    yml = root / "_quarto.yml"
+    if not yml.is_file():
+        return "project has no _quarto.yml — cannot wire bibliography"
+    text = yml.read_text(encoding="utf-8")
+    for line in text.splitlines():
+        if line[:1].isspace():
+            continue  # nested key: not ours, never touch it
+        if line.strip().startswith("bibliography:"):
+            return None  # top-level entry already present
+    if text and not text.endswith("\n"):
+        text += "\n"
+    yml.write_text(text + "bibliography: sources.bib\n", encoding="utf-8")
+    return None
+
+
+@_section_op_errors
+def register_source(project: str, key: str, kind: str, title: str,
+                    date: str | None = None, url: str | None = None,
+                    publisher: str | None = None, accessed: str | None = None,
+                    as_of: str | None = None,
+                    overwrite: bool = False) -> dict:
+    """Register a citable source: persist record, rewrite sources.bib, wire yml.
+
+    Check-then-write runs under the project lock. Registry writes bump
+    registry_version (render inputs change) but never content revision.
+    """
+    root, err = _project_root_or_error(project)
+    if err:
+        return err
+    assert root is not None
+    with _project_lock(root):
+        manifest, err = _load_or_import(root)
+        if err:
+            return err
+        assert manifest is not None
+        record: dict = {"key": key, "kind": kind, "title": title}
+        for opt_key, opt_val in (("date", date), ("url", url),
+                                 ("publisher", publisher),
+                                 ("accessed", accessed), ("as_of", as_of)):
+            if opt_val is not None:
+                record[opt_key] = opt_val
+        ok, verr = manifest_mod.validate_source(record)
+        if not ok:
+            return {"ok": False, "error": verr}
+        if key in manifest.sources and not overwrite:
+            existing = manifest.sources[key].get("title", "")
+            return {"ok": False,
+                    "error": f"source {key!r} already registered "
+                             f"(title: {existing!r}); pass overwrite=True to replace"}
+        manifest.sources[key] = record
+        manifest.registry_version += 1
+        bib = "".join(_source_to_bibtex(manifest.sources[k])
+                      for k in sorted(manifest.sources))
+        try:
+            (root / "sources.bib").write_text(bib, encoding="utf-8")
+        except OSError as exc:
+            return {"ok": False, "error": f"sources.bib write failed: {exc}"}
+        yml_err = _ensure_bibliography(root)
+        if yml_err is not None:
+            return {"ok": False, "error": yml_err}
+        manifest_mod.save(manifest, str(root))
+        return {"ok": True, "report_id": manifest.report_id, "key": key,
+                "bib_path": "sources.bib",
+                "registry_version": manifest.registry_version}
+
+
 # --- Milestone A Task 1.6: portable export bundle (RF-06) ----------------------
 
 _BUNDLE_FORMATS = ("html", "pdf", "docx")
@@ -2813,6 +2922,7 @@ MCP_TOOL_NAMES_FALLBACK = [
     "reportforge_move_section", "reportforge_delete_section",
     "reportforge_export_release", "reportforge_check_readiness",
     "reportforge_record_review", "reportforge_render_preview",
+    "reportforge_register_source",
     "reportforge_capabilities",
 ]
 
