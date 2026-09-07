@@ -9,12 +9,16 @@ from fastmcp import FastMCP
 
 from reportforge.engine import (
     append_section,
+    delete_section,
+    get_section,
     list_templates,
+    move_section,
     project_status,
     publish_report,
     read_project_file,
     render_preview,
     render_report,
+    replace_section,
     run_code,
     run_file,
     save_asset,
@@ -472,6 +476,8 @@ def reportforge_append_section(
     project: str,
     markdown: str,
     before: str | None = None,
+    before_section_id: str | None = None,
+    idempotency_key: str | None = None,
 ) -> dict[str, Any]:
     """Append a markdown section to a project's index.qmd without rewriting it.
 
@@ -513,10 +519,90 @@ def reportforge_append_section(
         markdown: Markdown section(s) to add (headings, prose, code chunks,
             image embeds).
         before: Optional heading text to insert above.
+        before_section_id: Optional exact section id to insert above.
+        idempotency_key: Optional caller-chosen key; repeats are no-op replays.
 
     Returns ok flag, action taken, new file size, and next_step (render).
     """
-    return append_section(project, markdown, before=before)
+    return append_section(project, markdown, before=before,
+                          before_section_id=before_section_id,
+                          idempotency_key=idempotency_key)
+
+
+@mcp.tool
+def reportforge_get_section(
+    project: str,
+    section_id: str,
+) -> dict[str, Any]:
+    """Read one report section's markdown, heading level, and byte range.
+
+    Read-only: never bumps the manifest revision. Address sections by stable
+    id (s- + slugified heading); get ids from project_status (manifest view).
+
+    Args:
+        project: Report slug (project directory name).
+        section_id: Stable section id, e.g. 's-executive-summary'.
+    """
+    return get_section(project, section_id)
+
+
+@mcp.tool
+def reportforge_replace_section(
+    project: str,
+    section_id: str,
+    markdown: str,
+    expected_revision: int,
+) -> dict[str, Any]:
+    """Replace a section's heading + body wholesale; other bytes preserved.
+
+    Optimistic concurrency: pass the manifest revision you read. A stale
+    revision fails loudly with changed_sections context — never clobbers.
+
+    Args:
+        project: Report slug (project directory name).
+        section_id: Stable section id to replace.
+        markdown: Replacement block (heading + body).
+        expected_revision: Manifest revision the change applies on top of.
+    """
+    return replace_section(project, section_id, markdown,
+                           expected_revision=expected_revision)
+
+
+@mcp.tool
+def reportforge_move_section(
+    project: str,
+    section_id: str,
+    before_section_id: str | None = None,
+    to_end: bool = False,
+    expected_revision: int | None = None,
+) -> dict[str, Any]:
+    """Move a section block before another section or to the document end.
+
+    Args:
+        project: Report slug (project directory name).
+        section_id: Stable section id to move.
+        before_section_id: Move above this section id (omit with to_end).
+        to_end: Move to the document end.
+        expected_revision: Manifest revision the change applies on top of.
+    """
+    return move_section(project, section_id, before_section_id=before_section_id,
+                        to_end=to_end, expected_revision=expected_revision)
+
+
+@mcp.tool
+def reportforge_delete_section(
+    project: str,
+    section_id: str,
+    expected_revision: int | None = None,
+) -> dict[str, Any]:
+    """Remove a section block from a project's index.qmd.
+
+    Args:
+        project: Report slug (project directory name).
+        section_id: Stable section id to remove.
+        expected_revision: Manifest revision the change applies on top of.
+    """
+    return delete_section(project, section_id, expected_revision=expected_revision)
 
 
 @mcp.tool

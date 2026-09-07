@@ -37,6 +37,7 @@ REVIEWS_CAP = 100
 
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
 _SLUG_BAD_RE = re.compile(r"[^a-z0-9]+")
+_ATTR_SUFFIX_RE = re.compile(r"\s*\{[^}]*\}\s*$")
 
 
 class ManifestError(Exception):
@@ -77,7 +78,8 @@ def scan_sections(qmd_text: str) -> list[dict]:
         if not m:
             continue
         level = len(m.group(1))
-        title = m.group(2).strip()
+        # Strip quarto span attributes ({.appendix}, {-}) for a clean title/id.
+        title = _ATTR_SUFFIX_RE.sub("", m.group(2)).strip()
         if not title:
             continue
         sections.append(
@@ -141,6 +143,7 @@ def _read_qmd(root: str) -> str | None:
 
 def save(manifest: Manifest, root: str) -> dict:
     """Atomically persist the manifest (temp file + os.replace)."""
+    root = os.fspath(root)
     manifest.updated = _now_iso()
     path = _manifest_path(root)
     fd, tmp = tempfile.mkstemp(dir=root, prefix=".report.json.", suffix=".tmp")
@@ -168,6 +171,7 @@ def load(root: str) -> Manifest:
     Manual heading edits are reconciled: a drifted index is repaired and the
     revision bumped (an edit is an edit, whoever made it).
     """
+    root = os.fspath(root)
     path = _manifest_path(root)
     if not os.path.exists(path):
         raise ManifestError(f"no manifest at {path} — scaffold or import_dir first")
@@ -301,6 +305,7 @@ def create(root: str, title: str, brief: str = "", profile: dict | None = None,
            formats: list | None = None, sections: list | None = None,
            actor: str = "tool:scaffold") -> Manifest:
     """Build a fresh revision-1 draft manifest and save it."""
+    root = os.fspath(root)
     now = _now_iso()
     if sections is None:
         qmd = _read_qmd(root)
@@ -346,6 +351,7 @@ def _profile_from_template(template: str | None) -> dict:
 
 def import_dir(root: str) -> Manifest:
     """Adopt a pre-manifest report dir. Never rewrites index.qmd."""
+    root = os.fspath(root)
     qmd = _read_qmd(root)
     if qmd is None:
         raise ManifestError(f"import needs {_qmd_path(root)} and it is missing")

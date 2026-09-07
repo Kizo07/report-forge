@@ -10,6 +10,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from html import escape as html_escape
 from dataclasses import dataclass
@@ -19,6 +20,7 @@ from pathlib import Path
 import yaml
 from jinja2 import Template
 
+from reportforge import manifest as manifest_mod
 from reportforge import templates
 
 REPORTS_DIR = Path(
@@ -535,7 +537,87 @@ def scaffold_report(
     ref = _default_reference_docx()
     if ref is not None and "docx" in kept_formats:
         shutil.copy(ref, root / "assets" / "reference-doc.docx")
+    _write_scaffold_manifest(
+        root,
+        title=title or slug.replace("-", " ").replace("_", " ").title(),
+        brief=subtitle or "",
+        template=template,
+        formats=kept_formats + (["pdf-web"] if pdf_web_requested else []),
+    )
     return {"ok": True, "path": str(root), "source": str(root / "index.qmd"), "formats": kept_formats, "jupyter_kernel": kernel}
+
+
+# --- Milestone A Task 1.2: manifest on scaffold + manifest views ------------
+
+_GENRE_TYPES = {
+    "standard", "memo", "whitepaper", "bespoke",
+    "earnings-recap", "sector-outlook", "thematic-deepdive", "macro-outlook",
+    "quant-factor-brief", "technical-brief", "esg-sustainability",
+    "crypto-digital", "desk-synthesis",
+}
+
+
+def _profile_for_template(template: str, pdf_web_requested: bool = False) -> dict:
+    """Derive the §1.2 profile from the one template selector (constants only)."""
+    if template in _GENRE_TYPES:
+        report_type = template
+    elif template == "studio":
+        report_type = "studio-editorial"
+    else:
+        report_type = template  # portfolio/ledger/modern keep their own name
+    return {
+        "report_type": report_type,
+        "brand": "quantflow",
+        "theme": "dark" if "dark" in template else "light",
+        "layout": "magazine",
+        "output_profile": "web" if pdf_web_requested else "editorial",
+        "policy": "draft",
+    }
+
+
+def _write_scaffold_manifest(root: Path, title: str, brief: str,
+                             template: str, formats: list[str]) -> None:
+    pdf_web = "pdf-web" in formats
+    manifest_mod.create(
+        str(root),
+        title=title,
+        brief=brief,
+        profile=_profile_for_template(template, pdf_web),
+        formats=list(formats),
+        actor="tool:scaffold",
+    )
+
+
+def _manifest_view(root: Path) -> dict | None:
+    """Manifest projection for status responses; auto-imports legacy dirs."""
+    try:
+        if not (root / manifest_mod.MANIFEST_FILENAME).is_file():
+            manifest_mod.import_dir(str(root))
+        m = manifest_mod.load(str(root))
+    except manifest_mod.ManifestError:
+        return None
+    d = m.to_dict()
+    return {
+        "report_id": d["report_id"],
+        "title": d["title"],
+        "brief": d["brief"],
+        "profile": d["profile"],
+        "revision": d["revision"],
+        "state": d["state"],
+        "sections": d["sections"],
+        "formats": d["formats"],
+    }
+
+
+def open_report(project: str) -> dict:
+    """Open a report by slug: brief, profile, sections, revision, state."""
+    root = REPORTS_DIR / project.strip("/")
+    if not root.is_dir():
+        return {"ok": False, "error": f"project not found: {project}"}
+    view = _manifest_view(root)
+    if view is None:
+        return {"ok": False, "error": f"project has no readable manifest: {project}"}
+    return {"ok": True, **view}
 
 
 def _venv_python() -> Path | None:
@@ -825,7 +907,7 @@ QUANTFLOW_PLOTLY_THEMES = {
         "ramp": ["#6b5a26", "#a3853c", "#e3ac55", "#08bfff", "#3fbfae"],
     },
     "ledger-light": {
-        "paper_bg": "#eef3f6", "plot_bg": "#e7edf2", "font": "#1b2634",
+        "paper_bg": "#eef3f6", "plot_bg": "#eef3f6", "font": "#22303c",
         "grid": "#cfd9e1", "primary": "#8f621f", "secondary": "#009ed9",
         "positive": "#237a57", "negative": "#c05563", "muted": "#5a6b7a",
         "ramp": ["#b09a5e", "#8f621f", "#6d4c17", "#009ed9", "#3fbfae"],
@@ -1158,6 +1240,19 @@ def project_status(project: str) -> dict:
             last_render = None
     out_dir = _output_dir_of(root)
     render_logs = sorted(p.name for p in out_dir.glob(".render-log-*.txt")) if out_dir.is_dir() else []
+    view = _manifest_view(root)
+    artifacts: list[dict] = []
+    if out_dir.is_dir():
+        for name in ("index.pdf", "index.html", "index.docx"):
+            p = out_dir / name
+            if p.is_file():
+                try:
+                    artifacts.append(_file_descriptor(
+                        out_dir, name, Path(name).stem,
+                        "deliverable", _mime_for_name(name)))
+                except OSError:
+                    pass
+    missing_work = _missing_work_summary(root, view, artifacts)
     return {
         "ok": True,
         "project": project.strip("/"),
@@ -1167,7 +1262,29 @@ def project_status(project: str) -> dict:
         "output_dir": str(out_dir),
         "render_logs": render_logs,
         "last_render": last_render,
+        "manifest": view,
+        "artifacts": artifacts,
+        "missing_work": missing_work,
     }
+
+
+def _mime_for_name(name: str) -> str:
+    return {
+        ".pdf": "application/pdf",
+        ".html": "text/html",
+        ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        ".png": "image/png",
+    }.get(Path(name).suffix.lower(), "application/octet-stream")
+
+
+def _missing_work_summary(root: Path, view: dict | None, artifacts: list[dict]) -> dict:
+    """Compact readiness projection (§4.2): unrendered formats + error counts."""
+    if view is None:
+        return {"manifest": False, "unrendered_formats": [], "error_counts": {}}
+    rendered = {a["id"] for a in artifacts}
+    unrendered = [f for f in view.get("formats", [])
+                  if f in ("html", "pdf", "docx") and f not in rendered]
+    return {"manifest": True, "unrendered_formats": unrendered, "error_counts": {}}
 
 
 def read_project_file(project: str, relpath: str, max_bytes: int = 32768) -> dict:
@@ -1210,12 +1327,17 @@ def read_project_file(project: str, relpath: str, max_bytes: int = 32768) -> dic
 
 # --- WS-4: incremental composition -------------------------------------------
 
-def append_section(project: str, markdown: str, before: str | None = None) -> dict:
+def append_section(project: str, markdown: str, before: str | None = None,
+                   before_section_id: str | None = None,
+                   idempotency_key: str | None = None,
+                   actor: str = "tool:append_section") -> dict:
     """Append a markdown section to index.qmd, or insert before a heading.
 
     Additive edits without rewriting the whole body: the YAML frontmatter is
     preserved untouched. With `before` given, the section is inserted above
-    the first heading whose text matches (case-insensitive substring).
+    the first heading whose text matches (case-insensitive substring);
+    `before_section_id` instead addresses an exact section id. With
+    `idempotency_key`, a repeat call with the same key is a no-op replay.
     """
     root = REPORTS_DIR / project.strip("/")
     if not root.is_dir():
@@ -1223,6 +1345,18 @@ def append_section(project: str, markdown: str, before: str | None = None) -> di
     qmd_path = root / "index.qmd"
     if not qmd_path.is_file():
         return {"ok": False, "error": f"project has no index.qmd: {project}"}
+    manifest, err = _load_or_import(root)
+    if err:
+        return err
+    assert manifest is not None
+    if idempotency_key and idempotency_key in manifest.idempotency_ledger:
+        prior = manifest.idempotency_ledger[idempotency_key]
+        return {
+            "ok": True,
+            "idempotent_replay": True,
+            "revision": prior.get("revision", manifest.revision),
+            "section_id": prior.get("section_id"),
+        }
     text = qmd_path.read_text()
     # Split frontmatter: only when the file opens with a '---' line.
     fm_end = 0
@@ -1235,7 +1369,16 @@ def append_section(project: str, markdown: str, before: str | None = None) -> di
                 fm_end = fence_end + 1 if fence_end != -1 else len(text)
     head, body = text[:fm_end], text[fm_end:]
     section = "\n" + markdown.strip() + "\n"
-    if before:
+    if before_section_id:
+        target = _find_span(_section_spans(text), before_section_id)
+        if target is None:
+            return {"ok": False, "error": f"unknown section {before_section_id!r}"}
+        raw = text.encode("utf-8")
+        new_text = (raw[:target["start_byte"]] + section.lstrip("\n").encode("utf-8")
+                    + b"\n" + raw[target["start_byte"]:]).decode("utf-8")
+        head, body = new_text[:fm_end], new_text[fm_end:]
+        action = f"inserted before section {before_section_id!r}"
+    elif before:
         pattern = re.compile(r"^#{1,6}[^\n]*" + re.escape(before) + r"[^\n]*$", re.IGNORECASE | re.MULTILINE)
         m = pattern.search(body)
         if not m:
@@ -1246,14 +1389,252 @@ def append_section(project: str, markdown: str, before: str | None = None) -> di
     else:
         body = body.rstrip("\n") + section
         action = "appended to end of body"
-    qmd_path.write_text(head + body)
+    _write_qmd_atomic(qmd_path, head + body)
+    new_id = _first_heading_id(markdown)
+    manifest.sections = manifest_mod.scan_sections(head + body)
+    manifest_mod.bump(manifest, f"append section {new_id or 'unnamed'}",
+                      actor=actor, op="append", section_id=new_id)
+    if idempotency_key:
+        manifest.idempotency_ledger[idempotency_key] = {
+            "revision": manifest.revision, "section_id": new_id}
+        while len(manifest.idempotency_ledger) > manifest_mod.IDEMPOTENCY_CAP:
+            manifest.idempotency_ledger.pop(next(iter(manifest.idempotency_ledger)))
+    manifest_mod.save(manifest, str(root))
     return {
         "ok": True,
         "source": str(qmd_path),
         "action": action,
         "bytes": qmd_path.stat().st_size,
+        "idempotent_replay": False,
+        "revision": manifest.revision,
+        "section_id": new_id,
         "next_step": "render_report to verify the composition",
     }
+
+
+def _first_heading_id(markdown: str) -> str | None:
+    for line in markdown.splitlines():
+        m = manifest_mod._HEADING_RE.match(line)
+        if m and m.group(2).strip():
+            return manifest_mod.slugify_section_id(m.group(2).strip())
+    return None
+
+
+# --- Milestone A Task 1.3: precise section operations (RF-02) ----------------
+
+def _project_root_or_error(project: str) -> tuple[Path | None, dict | None]:
+    root = REPORTS_DIR / project.strip("/")
+    if not root.is_dir():
+        return None, {"ok": False, "error": f"project not found: {project}"}
+    if not (root / "index.qmd").is_file():
+        return None, {"ok": False, "error": f"project has no index.qmd: {project}"}
+    return root, None
+
+
+def _section_spans(text: str) -> list[dict]:
+    """Sections with byte ranges: heading + lines until next heading of level <=."""
+    lines = text.splitlines(keepends=True)
+    byte_at = [0]
+    for ln in lines:
+        byte_at.append(byte_at[-1] + len(ln.encode("utf-8")))
+    scanned = manifest_mod.scan_sections(text)
+    spans = []
+    for i, s in enumerate(scanned):
+        start_line = s["line_start"]  # 1-based
+        end_line = len(lines) + 1
+        for later in scanned[i + 1:]:
+            if later["level"] <= s["level"]:
+                end_line = later["line_start"]
+                break
+        spans.append({
+            "id": s["id"], "title": s["title"], "level": s["level"],
+            "start_byte": byte_at[start_line - 1],
+            "end_byte": byte_at[end_line - 1],
+        })
+    return spans
+
+
+def _find_span(spans: list[dict], section_id: str) -> dict | None:
+    for s in spans:
+        if s["id"] == section_id:
+            return s
+    return None
+
+
+def _load_or_import(root: Path):
+    try:
+        if not (root / manifest_mod.MANIFEST_FILENAME).is_file():
+            manifest_mod.import_dir(str(root))
+        return manifest_mod.load(str(root)), None
+    except manifest_mod.ManifestError as exc:
+        return None, {"ok": False, "error": str(exc)}
+
+
+def _stale_response(manifest) -> dict:
+    changed = []
+    for e in manifest_mod.events_since(manifest, 0)["events"]:
+        op = e.get("op") or ""
+        event = {"replace": "replaced", "move": "moved", "delete": "deleted",
+                 "append": "added", "create": "added", "import": "added"}.get(op)
+        if event and e.get("section_id"):
+            changed.append({"id": e["section_id"], "event": event,
+                            "revision": e.get("revision")})
+    return {
+        "ok": False,
+        "error": "stale revision",
+        "stale_revision": True,
+        "current_revision": manifest.revision,
+        "changed_sections": changed[-50:],
+        "hint": f"re-read the section, re-apply your change on top of revision {manifest.revision}",
+    }
+
+
+def _check_expected(manifest, expected_revision) -> dict | None:
+    if expected_revision is None:
+        return {"ok": False, "error": "expected_revision is required (pass the manifest revision you read)"}
+    if expected_revision != manifest.revision:
+        return _stale_response(manifest)
+    return None
+
+
+def _write_qmd_atomic(qmd_path: Path, text: str) -> None:
+    fd, tmp = tempfile.mkstemp(dir=str(qmd_path.parent), prefix=".index.qmd.",
+                               suffix=".tmp")
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write(text)
+    os.replace(tmp, qmd_path)
+
+
+def _commit_qmd_change(root: Path, manifest, new_text: str, reason: str,
+                       actor: str, op: str, section_id: str | None) -> dict:
+    """Single transaction: in-memory transform already done; write QMD + bump."""
+    _write_qmd_atomic(root / "index.qmd", new_text)
+    manifest.sections = manifest_mod.scan_sections(new_text)
+    manifest_mod.bump(manifest, reason, actor=actor, op=op, section_id=section_id)
+    manifest_mod.save(manifest, str(root))
+    return {"ok": True, "revision": manifest.revision, "section_id": section_id}
+
+
+def get_section(project: str, section_id: str) -> dict:
+    """Read one section's markdown, level, and byte range. Read-only."""
+    root, err = _project_root_or_error(project)
+    if err:
+        return err
+    assert root is not None
+    manifest, err = _load_or_import(root)
+    if err:
+        return err
+    assert manifest is not None
+    text = (root / "index.qmd").read_text(encoding="utf-8")
+    span = _find_span(_section_spans(text), section_id)
+    if span is None:
+        return {"ok": False, "error": f"unknown section {section_id!r}"}
+    raw = text.encode("utf-8")
+    return {
+        "ok": True,
+        "section_id": section_id,
+        "title": span["title"],
+        "level": span["level"],
+        "markdown": raw[span["start_byte"]:span["end_byte"]].decode("utf-8"),
+        "byte_range": [span["start_byte"], span["end_byte"]],
+        "revision": manifest.revision,
+    }
+
+
+def replace_section(project: str, section_id: str, markdown: str,
+                    expected_revision: int | None = None,
+                    actor: str = "tool:replace_section") -> dict:
+    """Replace a section's heading + body wholesale; other bytes preserved."""
+    root, err = _project_root_or_error(project)
+    if err:
+        return err
+    assert root is not None
+    manifest, err = _load_or_import(root)
+    if err:
+        return err
+    assert manifest is not None
+    gate = _check_expected(manifest, expected_revision)
+    if gate:
+        return gate
+    text = (root / "index.qmd").read_text(encoding="utf-8")
+    raw = text.encode("utf-8")
+    span = _find_span(_section_spans(text), section_id)
+    if span is None:
+        return {"ok": False, "error": f"unknown section {section_id!r}"}
+    new_block = markdown if markdown.endswith("\n") else markdown + "\n"
+    new_text = (raw[:span["start_byte"]] + new_block.encode("utf-8")
+                + raw[span["end_byte"]:]).decode("utf-8")
+    return _commit_qmd_change(root, manifest, new_text,
+                              f"replace section {section_id}",
+                              actor, "replace", section_id)
+
+
+def move_section(project: str, section_id: str, before_section_id: str | None = None,
+                 to_end: bool = False, expected_revision: int | None = None,
+                 actor: str = "tool:move_section") -> dict:
+    """Move a section block before another section or to the document end."""
+    root, err = _project_root_or_error(project)
+    if err:
+        return err
+    assert root is not None
+    manifest, err = _load_or_import(root)
+    if err:
+        return err
+    assert manifest is not None
+    gate = _check_expected(manifest, expected_revision)
+    if gate:
+        return gate
+    if before_section_id is None and not to_end:
+        return {"ok": False,
+                "error": "pass before_section_id or to_end=True"}
+    text = (root / "index.qmd").read_text(encoding="utf-8")
+    raw = text.encode("utf-8")
+    spans = _section_spans(text)
+    span = _find_span(spans, section_id)
+    if span is None:
+        return {"ok": False, "error": f"unknown section {section_id!r}"}
+    block = raw[span["start_byte"]:span["end_byte"]]
+    rest = raw[:span["start_byte"]] + raw[span["end_byte"]:]
+    if to_end:
+        if not rest.endswith(b"\n"):
+            rest += b"\n"
+        new_raw = rest + block
+    else:
+        assert before_section_id is not None
+        # Locate the target in the shortened text (offsets shift after removal).
+        target = _find_span(_section_spans(rest.decode("utf-8")), before_section_id)
+        if target is None:
+            return {"ok": False, "error": f"unknown section {before_section_id!r}"}
+        new_raw = rest[:target["start_byte"]] + block + rest[target["start_byte"]:]
+    return _commit_qmd_change(root, manifest, new_raw.decode("utf-8"),
+                              f"move section {section_id}",
+                              actor, "move", section_id)
+
+
+def delete_section(project: str, section_id: str,
+                   expected_revision: int | None = None,
+                   actor: str = "tool:delete_section") -> dict:
+    """Remove a section block."""
+    root, err = _project_root_or_error(project)
+    if err:
+        return err
+    assert root is not None
+    manifest, err = _load_or_import(root)
+    if err:
+        return err
+    assert manifest is not None
+    gate = _check_expected(manifest, expected_revision)
+    if gate:
+        return gate
+    text = (root / "index.qmd").read_text(encoding="utf-8")
+    raw = text.encode("utf-8")
+    span = _find_span(_section_spans(text), section_id)
+    if span is None:
+        return {"ok": False, "error": f"unknown section {section_id!r}"}
+    new_raw = raw[:span["start_byte"]] + raw[span["end_byte"]:]
+    return _commit_qmd_change(root, manifest, new_raw.decode("utf-8"),
+                              f"delete section {section_id}",
+                              actor, "delete", section_id)
 
 
 # --- Milestone A Task 1.5: preview artifacts (RF-05) --------------------------
