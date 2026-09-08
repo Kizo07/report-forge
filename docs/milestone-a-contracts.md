@@ -341,18 +341,25 @@ lock; dangling source/fact links fail loudly naming the missing key.
 `save_chart` with a project anchors output into `figures/` (explicit
 in-project absolute paths honored; sandbox paths translated as before),
 pre-validates links before writing, and auto-registers the exhibit
-(`fig-<stem>`, re-saves inherit existing links).
+(`fig-<stem>`, slugified). On re-save, omitted link lists inherit the
+existing record while an explicit empty list clears it. `update_fact` with
+no changed fields returns `changed: false` and touches neither history nor
+`registry_version`.
 
 ### 8.3 Coverage codes (`evidence` category)
 
-Scanner rules: fenced code blocks stripped before scanning (error-severity
-FPs would block release); cite scan = every `@src-<key>` occurrence in any
-bracket style (bracketed, compound `[@a; @b]`, suppress-author `[-@k]`,
-bare in-text); exhibit scan = `@fig-` refs AND `{#fig-}` embed definitions;
-`fig-/tbl-/sec-/eq-` crossref prefixes are never citekeys. Cover matching:
-`target`, `scenarios[].value`, `metrics[].value` normalized to floats
-(tolerance 1e-6 relative); ranges and non-numerics unchecked; unit-blind by
-design with the matched fact id named in the issue.
+Scanner rules: fenced code blocks, `code spans`, and `<!-- -->` comments
+stripped before scanning (documentation is not claims); cite scan = every
+`@src-<key>` occurrence in any bracket style (bracketed, compound `[@a; @b]`,
+suppress-author `[-@k]`, bare in-text); exhibit scan = `@fig-` refs AND
+`{#fig-}` embed definitions (anchors with attributes match); `fig-/tbl-/
+sec-/eq-` crossref prefixes are never citekeys. The presentation path strips
+fences for its ref/anchor check too. Cover matching: `target`,
+`scenarios[].value`, `metrics[].value` normalized to floats (tolerance 1e-6
+relative); scenario probability weights (2+ values summing 99–101) skipped;
+ranges and non-numerics unchecked; unit-blind and silent by design (unit
+judgment stays editorial); a non-illustrative fact wins ties over an
+illustrative shadow.
 
 | Code | Severity | Fires when | Rationale |
 | --- | --- | --- | --- |
@@ -384,6 +391,8 @@ desk-synthesis (desk inputs), modern (signal evidence).
   not by cover linkage (structured target/scenarios/metrics only).
 - Source-quality judgment stays editorial/human (review §7 note); no URL
   metadata fetching (local-first, no network in the registry path).
+- Kind `other` never satisfies REQUIRED_EVIDENCE, even the standard/memo
+  catch-all: a scored body must ground at least one typed source.
 
 ---
 

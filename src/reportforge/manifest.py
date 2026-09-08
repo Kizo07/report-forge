@@ -188,7 +188,9 @@ SOURCE_KINDS = ("filing", "article", "dataset", "price-feed",
 FACT_KINDS = ("observed", "calculated", "estimated", "illustrative")
 
 _SOURCE_KEY_RE = re.compile(r"^src-[a-z0-9][a-z0-9-]*$")
-_EXHIBIT_ID_RE = re.compile(r"^fig-[\w-]+$")
+# F5: one namespace rule everywhere — exhibit ids are lowercase slugs too,
+# matching src- and fact- keys.
+_EXHIBIT_ID_RE = re.compile(r"^fig-[a-z0-9][a-z0-9-]*$")
 _FACT_ID_RE = re.compile(r"^fact-[a-z0-9][a-z0-9-]*$")
 
 
@@ -238,8 +240,12 @@ def validate_fact(rec: object) -> tuple[bool, str]:
         return False, "fact record is not an object"
     if not isinstance(rec.get("id"), str) or not _FACT_ID_RE.match(rec["id"]):
         return False, f"id {rec.get('id')!r} must match fact-<slug>"
-    if rec.get("value") is None:
+    value = rec.get("value")
+    if value is None:
         return False, "value is required (numeric or string)"
+    # F3: an empty/blank string is a vacuous fact, not a value.
+    if isinstance(value, str) and not value.strip():
+        return False, "value must not be an empty string"
     if not isinstance(rec.get("unit", ""), str):
         return False, "unit must be a string"
     if rec.get("kind") not in FACT_KINDS:

@@ -486,3 +486,56 @@ def test_content_neutral_genres_emit_no_required_list_info(tmp_path,
     res = engine.check_readiness(proj)
     assert "EVID-NO-REQUIRED-LIST" in _codes(res, "evidence")
     assert res["categories"]["evidence"]["pass"] is True
+
+
+# --- Subagent review findings (RF-04 half) -------------------------------------
+
+def test_evid_code_span_and_comment_cites_ignored(tmp_path, monkeypatch):
+    # Finding 1: cites inside `code spans` and <!-- comments --> document
+    # syntax; they must not fire error-severity UNREGISTERED-CITE.
+    monkeypatch.setattr(engine, "REPORTS_DIR", tmp_path)
+    proj = _ev_make(tmp_path, "p-codespan", EV_FM_STD,
+                    "Use the `[@src-doc]` syntax.\n<!-- [@src-hidden] -->\n"
+                    "Real claim [@src-real].\n" + BASE_SECTIONS)
+    engine.register_source(proj, key="src-real", kind="article",
+                           title="R", date="2026-01-01")
+    assert _codes(engine.check_readiness(proj), "evidence") == []
+
+
+def test_presentation_fenced_figref_ignored(tmp_path, monkeypatch):
+    # Finding 2: the presentation path strips fences too — a @fig- inside a
+    # code chunk must not fire PRES-DANGLING-REF.
+    monkeypatch.setattr(engine, "REPORTS_DIR", tmp_path)
+    proj = _ev_make(tmp_path, "p-presfence", EV_FM_STD,
+                    "```python\n# plot ref @fig-ghost\n```\n\nClean.\n"
+                    + BASE_SECTIONS)
+    res = engine.check_readiness(proj)
+    assert "PRES-DANGLING-REF" not in _codes(res, "presentation")
+
+
+def test_cover_prefers_non_illustrative_match(tmp_path, monkeypatch):
+    # Finding 3: when an illustrative and a calculated fact share the cover
+    # value, the legitimate one links — no ILLUSTRATIVE misfire.
+    monkeypatch.setattr(engine, "REPORTS_DIR", tmp_path)
+    proj = _ev_make(tmp_path, "p-shadow", EV_FM_STD + "target: 310\n",
+                    BASE_SECTIONS)
+    assert engine.register_fact(proj, fact_id="fact-a", value=310,
+                                unit="USD", kind="illustrative")["ok"] is True
+    assert engine.register_fact(proj, fact_id="fact-b", value=310,
+                                unit="USD", kind="calculated")["ok"] is True
+    res = engine.check_readiness(proj)
+    assert "EVID-COVER-ILLUSTRATIVE" not in _codes(res, "evidence")
+    assert "EVID-COVER-UNLINKED" not in _codes(res, "evidence")
+
+
+def test_scenario_weights_do_not_demand_facts(tmp_path, monkeypatch):
+    # Finding 5: scenario probability weights (sum ~100) are not thesis
+    # facts — they must not each demand an equal-value fact record.
+    monkeypatch.setattr(engine, "REPORTS_DIR", tmp_path)
+    fm = (EV_FM_STD + "scenarios:\n"
+          "  - {label: bear, value: 20, detail: down}\n"
+          "  - {label: base, value: 50, detail: flat}\n"
+          "  - {label: bull, value: 30, detail: up}\n")
+    proj = _ev_make(tmp_path, "p-weights", fm, BASE_SECTIONS)
+    assert "EVID-COVER-UNLINKED" not in _codes(
+        engine.check_readiness(proj), "evidence")

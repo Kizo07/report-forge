@@ -990,6 +990,13 @@ def _apply_quantflow_plotly_template(fig, name: str) -> None:
     fig.update_layout(template=tmpl)
 
 
+def _slugify_exhibit_id(stem: str) -> str:
+    """F5 companion: slugify an auto-derived exhibit stem into the shared
+    lowercase namespace (same rule as _SOURCE_KEY_RE/_FACT_ID_RE)."""
+    slug = re.sub(r"[^a-z0-9]+", "-", stem.lower()).strip("-")
+    return f"fig-{slug or 'chart'}"
+
+
 def _anchor_chart_output(out_basename: str, project: str | None,
                          root: Path | None) -> str:
     """Precedence rule for chart output paths (critic-1 compat finding).
@@ -1080,10 +1087,15 @@ def save_chart(fig_json: str, out_basename: str, width: int = 1400, height: int 
         return {"ok": False, "error": f"chart export failed: {exc}", "partial": {"png": str(png)}}
     result: dict = {"ok": True, "png": str(png), "html": str(html_path), "embed_snippet": f"![caption.]({png.name}){{width=90%}}", "template_applied": template_applied}
     if root is not None:
-        # Auto-register the exhibit (B-3): id defaults to the file stem in
-        # the fig- namespace; the just-written file grounds the record.
+        # Auto-register the exhibit (B-3): id defaults to the slugified file
+        # stem in the fig- namespace; the just-written file grounds it.
         stem = png.stem
-        eid = exhibit_id or (stem if stem.startswith("fig-") else f"fig-{stem}")
+        if exhibit_id is not None:
+            eid = exhibit_id
+        elif stem.startswith("fig-"):
+            eid = _slugify_exhibit_id(stem[4:])
+        else:
+            eid = _slugify_exhibit_id(stem)
         try:
             rel = str(png.resolve().relative_to(root.resolve()))
         except (ValueError, OSError):
@@ -1093,15 +1105,15 @@ def save_chart(fig_json: str, out_basename: str, width: int = 1400, height: int 
             if err:
                 return err
             assert manifest is not None
-            # Re-saving a chart is an update, not a duplicate: inherit the
-            # existing record's links/title unless the caller overrides them.
+            # Re-saving a chart is an update, not a duplicate: None inherits
+            # the existing record's links/title (F4: explicit [] clears).
             existing = manifest.exhibits.get(eid, {})
+            sk = list(existing.get("source_keys", [])) if source_keys is None else list(source_keys)
+            fi = list(existing.get("fact_ids", [])) if fact_ids is None else list(fact_ids)
             reg = _register_exhibit_locked(
                 root, manifest, eid,
                 exhibit_title or existing.get("title", eid), rel,
-                source_keys or list(existing.get("source_keys", [])),
-                fact_ids or list(existing.get("fact_ids", [])),
-                existing.get("as_of"), existing.get("alt"), True)
+                sk, fi, existing.get("as_of"), existing.get("alt"), True)
             if not reg.get("ok"):
                 return reg
             manifest_mod.save(manifest, str(root))
@@ -2064,15 +2076,29 @@ def _readiness_evidence(text: str, spans: list[dict]) -> list[dict]:
 # kills every blind spot the bracket-only form had. The capture group
 # yields the bare citekey (no @ prefix) for registry lookup.
 _SRC_CITE_RE = re.compile(r"@(src-[\w-]+)")
+_CODE_SPAN_RE = re.compile(r"`[^`\n]+`")
+_HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
+
+
+def _strip_code_spans_and_comments(text: str) -> str:
+    """Remove `code spans` and <!-- comments --> before evidence scanning.
+
+    Finding 1: backticked syntax docs (`use [@src-key]`) and commented-out
+    cites are documentation, not claims — same error-FP class as fenced
+    blocks. Documented heuristic: a cite you want checked must be real prose.
+    """
+    return "\n".join(
+        _CODE_SPAN_RE.sub("", ln) for ln in _HTML_COMMENT_RE.sub("", text).splitlines())
 
 
 def _cover_number(value) -> float | None:
     """Normalize a cover/fact value for linkage; None means unchecked.
 
     Ranges ("300-310", "300 to 320") and non-numerics ("Q3'26") are
-    documented unchecked in the contract; unit-blind by design (a "300
-    bps" fact and a "$300" target compare as 300 — the issue names the
-    matched fact id so the ambiguity stays visible, never silent).
+    documented unchecked in the contract. Unit-blind and silent by design:
+    a "300 bps" fact and a "$300" target compare as 300 with no issue —
+    readiness is heuristic (charter §3.6), and unit judgment stays
+    editorial. Only the ILLUSTRATIVE link names its fact id.
     """
     if isinstance(value, bool):
         return None
@@ -2104,14 +2130,30 @@ def _cover_numeric_candidates(front: dict) -> list[tuple[str, float]]:
     t = _cover_number(front.get("target"))
     if t is not None:
         cands.append(("target", t))
-    for seq_key in ("scenarios", "metrics"):
-        seq = front.get(seq_key)
-        if isinstance(seq, list):
-            for i, item in enumerate(seq):
-                if isinstance(item, dict):
-                    v = _cover_number(item.get("value"))
-                    if v is not None:
-                        cands.append((f"{seq_key}[{i}].value", v))
+    scenarios = front.get("scenarios")
+    scen_vals: list[tuple[int, float]] = []
+    if isinstance(scenarios, list):
+        for i, item in enumerate(scenarios):
+            if isinstance(item, dict):
+                v = _cover_number(item.get("value"))
+                if v is not None:
+                    scen_vals.append((i, v))
+    # Finding 5: scenario probability weights (bear/base/bull shares summing
+    # to ~100) are not thesis facts — demanding a fact record for each
+    # degrades every scenario-bearing genre to noise. Two or more numeric
+    # values summing to 99..101 are treated as weights and skipped.
+    scen_total = sum(v for _, v in scen_vals)
+    weights = (len(scen_vals) >= 2 and 99.0 <= scen_total <= 101.0)
+    if not weights:
+        for i, v in scen_vals:
+            cands.append((f"scenarios[{i}].value", v))
+    metrics = front.get("metrics")
+    if isinstance(metrics, list):
+        for i, item in enumerate(metrics):
+            if isinstance(item, dict):
+                v = _cover_number(item.get("value"))
+                if v is not None:
+                    cands.append((f"metrics[{i}].value", v))
     return cands
 
 
@@ -2124,8 +2166,9 @@ def _readiness_evidence_coverage(root: Path, body: str, front: dict,
     facts = registries.get("facts", {}) or {}
     # Fenced code blocks are never prose: an [@key] inside a python chunk
     # is documentation, and an error-severity FP would block release.
-    scanned = "\n".join(
-        line for _, line in manifest_mod._iter_prose_lines(body.splitlines()))
+    # Code spans and HTML comments get the same treatment (finding 1).
+    scanned = _strip_code_spans_and_comments("\n".join(
+        line for _, line in manifest_mod._iter_prose_lines(body.splitlines())))
     cited = set(_SRC_CITE_RE.findall(scanned))
     for key in sorted(cited):
         if key not in sources:
@@ -2159,9 +2202,15 @@ def _readiness_evidence_coverage(root: Path, body: str, front: dict,
                     f"exhibit {eid!r} is anchor-grounded but {{#fig-{short}}} "
                     "no longer exists in index.qmd"))
     for field, number in _cover_numeric_candidates(front):
+        # Finding 3: two-pass match — a legitimate non-illustrative fact
+        # wins over an illustrative shadow with the same value, so the
+        # message never misstates the report's actual grounding.
         match_id: str | None = None
         match_kind = ""
-        for fid in sorted(facts):
+        ordered = sorted(facts,
+                         key=lambda fid: (facts[fid].get("kind")
+                                          == "illustrative", fid))
+        for fid in ordered:
             fv = _cover_number(facts[fid].get("value"))
             if fv is not None and _cover_values_match(number, fv):
                 match_id, match_kind = fid, facts[fid].get("kind", "")
@@ -2798,8 +2847,14 @@ def _readiness_presentation(root: Path, text: str) -> list[dict]:
             if stem not in text and name not in text:
                 issues.append(_issue("presentation", "warning", "PRES-UNREFERENCED-CHART",
                                      f"charts/{name} is never referenced in index.qmd"))
-    anchors = set(_FIGANCHOR_RE.findall(text))
-    for ref in sorted(set(_FIGREF_RE.findall(text))):
+    # Finding 2: refs/anchors scan fence-stripped prose (a @fig- inside a
+    # code chunk is documentation, not a dangling cross-ref). The charts/
+    # check above intentionally keeps raw text: a filename mentioned
+    # anywhere still counts as referenced.
+    prose = "\n".join(
+        line for _, line in manifest_mod._iter_prose_lines(text.splitlines()))
+    anchors = set(_FIGANCHOR_RE.findall(prose))
+    for ref in sorted(set(_FIGREF_RE.findall(prose))):
         if ref not in anchors:
             issues.append(_issue("presentation", "error", "PRES-DANGLING-REF",
                                  f"@fig-{ref} has no matching figure anchor"))
@@ -2919,6 +2974,17 @@ def _bibtex_escape(text: str) -> str:
                 .replace("{", "\\{").replace("}", "\\}"))
 
 
+def _bibtex_escape_url(url: str) -> str:
+    # F6: URLs are code, not prose — escape the BibTeX specials that break
+    # builds (% starts a comment, _ needs math mode, # & ~ ^ are active).
+    out = url.replace("\\", "\\textbackslash{}")
+    for ch, esc in (("%", "\\%"), ("_", "\\_"), ("#", "\\#"),
+                    ("&", "\\&"), ("~", "\\~{}"), ("^", "\\^{}"),
+                    ("{", "\\{"), ("}", "\\}")):
+        out = out.replace(ch, esc)
+    return out
+
+
 def _source_to_bibtex(record: dict) -> str:
     """Render one source record as a minimal @misc BibTeX entry (stdlib)."""
     key = record.get("key", "unknown")
@@ -2931,7 +2997,7 @@ def _source_to_bibtex(record: dict) -> str:
     if year_m:
         out.append(f"  year = {{{year_m.group(1)}}},")
     if record.get("url"):
-        out.append(f"  url = {{{record['url']}}},")
+        out.append(f"  url = {{{_bibtex_escape_url(str(record['url']))}}},")
     notes = []
     if record.get("as_of"):
         notes.append(f"as-of {record['as_of']}")
@@ -3002,15 +3068,17 @@ def register_source(project: str, key: str, kind: str, title: str,
                              f"(title: {existing!r}); pass overwrite=True to replace"}
         manifest.sources[key] = record
         manifest.registry_version += 1
+        # F1: wire the yml BEFORE touching sources.bib — a missing _quarto.yml
+        # must fail with zero drift (no updated-but-unregistered bib on disk).
+        yml_err = _ensure_bibliography(root)
+        if yml_err is not None:
+            return {"ok": False, "error": yml_err}
         bib = "".join(_source_to_bibtex(manifest.sources[k])
                       for k in sorted(manifest.sources))
         try:
             (root / "sources.bib").write_text(bib, encoding="utf-8")
         except OSError as exc:
             return {"ok": False, "error": f"sources.bib write failed: {exc}"}
-        yml_err = _ensure_bibliography(root)
-        if yml_err is not None:
-            return {"ok": False, "error": yml_err}
         manifest_mod.save(manifest, str(root))
         return {"ok": True, "report_id": manifest.report_id, "key": key,
                 "bib_path": "sources.bib",
@@ -3199,21 +3267,35 @@ def update_fact(project: str, fact_id: str, value=None, unit=None,
         assert manifest is not None
         if fact_id not in manifest.facts:
             return {"ok": False, "error": f"unknown fact id: {fact_id!r}"}
-        record = dict(manifest.facts[fact_id])
+        old = manifest.facts[fact_id]
+        # F2: detect the no-op BEFORE touching history — an update that
+        # changes no field must not pollute history or invalidate approvals.
+        new_value = old["value"] if value is None else value
+        new_unit = old.get("unit", "") if unit is None else unit
+        new_kind = old.get("kind", "") if kind is None else kind
+        new_links = old.get("source_keys", []) if source_keys is None else list(source_keys)
+        new_asof = old.get("as_of") if as_of is None else as_of
+        new_note = old.get("note", "") if note is None else note
+        if (new_value == old.get("value") and new_unit == old.get("unit", "")
+                and new_kind == old.get("kind", "")
+                and new_links == old.get("source_keys", [])
+                and new_asof == old.get("as_of") and new_note == old.get("note", "")):
+            return {"ok": True, "report_id": manifest.report_id,
+                    "fact_id": fact_id, "value": old.get("value"),
+                    "illustrative": old.get("kind") == "illustrative",
+                    "changed": False,
+                    "registry_version": manifest.registry_version}
+        record = dict(old)
         history = list(record.get("history", []))
-        new_value = record["value"] if value is None else value
-        history.append({"value": record["value"], "unit": record.get("unit", ""),
-                        "kind": record.get("kind", ""),
+        history.append({"value": old["value"], "unit": old.get("unit", ""),
+                        "kind": old.get("kind", ""),
                         "superseded_by": new_value})
         del history[:-FACT_HISTORY_CAP]
         record["history"] = history
         record["value"] = new_value
-        if unit is not None:
-            record["unit"] = unit
-        if kind is not None:
-            record["kind"] = kind
-        if source_keys is not None:
-            record["source_keys"] = list(source_keys)
+        record["unit"] = new_unit
+        record["kind"] = new_kind
+        record["source_keys"] = new_links
         if as_of is not None:
             record["as_of"] = as_of
         if note is not None:
@@ -3231,6 +3313,7 @@ def update_fact(project: str, fact_id: str, value=None, unit=None,
         return {"ok": True, "report_id": manifest.report_id,
                 "fact_id": fact_id, "value": new_value,
                 "illustrative": record.get("kind") == "illustrative",
+                "changed": True,
                 "registry_version": manifest.registry_version}
 
 
@@ -3601,6 +3684,12 @@ def render_preview(project: str, revision: int | None = None) -> dict:
             "pdf_rendered_at_registry_version": pdf_reg,
             "current_registry_version": current_reg,
         }
+    if pdf_rev is not None and pdf_reg is None:
+        # Finding 6: symmetric leniency — a stamped revision with no
+        # registry stamp (hand-edited or pre-binding state) warns rather
+        # than silently skipping the R2 binding.
+        warnings.append("state file predates registry binding; re-render to bind "
+                        "previews to an exact registry version")
 
     pdftoppm = shutil.which("pdftoppm")
     if not pdftoppm:

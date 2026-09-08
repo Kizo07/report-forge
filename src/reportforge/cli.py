@@ -58,8 +58,9 @@ def main(argv: list[str] | None = None) -> int:
     p_chart.add_argument("--project", default=None)
     p_chart.add_argument("--exhibit-id", default=None)
     p_chart.add_argument("--exhibit-title", default=None)
-    p_chart.add_argument("--source-keys", default="")
-    p_chart.add_argument("--fact-ids", default="")
+    # None (flag absent) inherits existing links on re-save; pass "" to clear.
+    p_chart.add_argument("--source-keys", default=None)
+    p_chart.add_argument("--fact-ids", default=None)
 
     p_status = sub.add_parser("status", help="show a report's manifest view + artifacts")
     p_status.add_argument("project")
@@ -168,8 +169,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if result.get("ok") else 1
     elif args.cmd == "chart":
         fig_json = open(args.fig_json_file).read()
-        sk = [s.strip() for s in args.source_keys.split(",") if s.strip()]
-        fi = [s.strip() for s in args.fact_ids.split(",") if s.strip()]
+        sk = ([s.strip() for s in args.source_keys.split(",") if s.strip()]
+              if args.source_keys is not None else None)
+        fi = ([s.strip() for s in args.fact_ids.split(",") if s.strip()]
+              if args.fact_ids is not None else None)
         result = save_chart(fig_json, args.out_basename, args.width, args.height,
                             project=args.project, exhibit_id=args.exhibit_id,
                             exhibit_title=args.exhibit_title,

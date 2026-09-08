@@ -233,7 +233,9 @@ def test_render_preview_stamped_pdf_binds_revision(
     result = engine.render_preview("preview-fixture")
     assert result["ok"] is True, result.get("error")
     assert result["pdf_rendered_at_revision"] == 1
-    assert result["warnings"] == []
+    # The faked legacy state has no registry stamp → one symmetric warning.
+    assert len(result["warnings"]) == 1
+    assert "registry" in result["warnings"][0]
 
 
 def test_render_preview_unstamped_pdf_warns(
@@ -268,6 +270,18 @@ def test_render_preview_refuses_registry_stale_pdf(
     assert "registry" in result["error"]
     assert result["pdf_rendered_at_registry_version"] == 0
     assert result["current_registry_version"] == 1
+
+
+def test_render_preview_unstamped_registry_warns(
+    rendered_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Finding 6: stamped revision but no registry stamp (hand-edited or
+    # pre-binding state) warns symmetrically instead of skipping silently.
+    _write_render_state(rendered_project, 1)
+    monkeypatch.setattr(engine.subprocess, "run", _fake_pdftoppm())
+    result = engine.render_preview("preview-fixture")
+    assert result["ok"] is True, result.get("error")
+    assert any("registry" in w for w in result["warnings"])
 
 
 def _fake_pdftoppm_single_page() -> object:

@@ -312,7 +312,8 @@ def reportforge_save_chart(
     Returns png/html paths plus a ready-to-paste Markdown embed snippet.
         When project is given the exhibit auto-registers (id defaults to the
         file stem in the fig- namespace); pass exhibit_id/title/links to
-        attribute it at save time.
+        attribute it at save time. On re-save, omitted link lists inherit
+        the existing record; pass an explicit empty list to clear them.
     """
     return save_chart(fig_json, out_basename, width, height, scale, project=project or None, template=template or None, exhibit_id=exhibit_id or None, exhibit_title=exhibit_title or None, source_keys=_coerce_id_list(source_keys), fact_ids=_coerce_id_list(fact_ids))
 

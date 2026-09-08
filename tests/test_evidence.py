@@ -439,3 +439,92 @@ def test_source_to_bibtex_escapes_and_year(tmp_path, monkeypatch):
     # Raw braces must not leak into the bib entry unescaped.
     assert "{Q3}" not in bib and "{real}" not in bib
     assert "as-of 2026-09-18" in bib and "accessed 2026-09-19" in bib
+
+
+# --- Subagent review findings (RF-03 half) -------------------------------------
+
+def test_register_source_missing_yml_leaves_no_drift(tmp_path, monkeypatch):
+    # F1: yml wiring is checked BEFORE the bib write — a missing _quarto.yml
+    # fails without leaving an updated-but-unregistered sources.bib behind.
+    monkeypatch.setattr(engine, "REPORTS_DIR", tmp_path)
+    root = tmp_path / "noyml"
+    root.mkdir()
+    (root / "index.qmd").write_text("# T\n\nBody.\n", encoding="utf-8")
+    M.create(str(root), title="T")
+    res = engine.register_source("noyml", **SRC)
+    assert res["ok"] is False
+    assert not (root / "sources.bib").exists()
+    assert M.load(str(root)).sources == {}
+
+
+def test_update_fact_noop_changes_nothing(tmp_path, monkeypatch):
+    # F2: an update that changes no field appends no history and bumps
+    # nothing (no-op updates must not invalidate approvals).
+    root = _scaffold(monkeypatch, tmp_path)
+    engine.register_source("ev-probe", **SRC)
+    engine.register_fact("ev-probe", **FACT)
+    before = M.load(str(root)).registry_version
+    res = engine.update_fact("ev-probe", "fact-target-300", value=300)
+    assert res["ok"] is True and res["changed"] is False
+    m = M.load(str(root))
+    assert m.facts["fact-target-300"].get("history", []) == []
+    assert m.registry_version == before
+
+
+def test_register_fact_rejects_empty_value(tmp_path, monkeypatch):
+    # F3: vacuous fact values fail shape checks, not just None.
+    _scaffold(monkeypatch, tmp_path)
+    assert engine.register_fact(
+        "ev-probe", fact_id="fact-empty", value="",
+        unit="USD", kind="observed")["ok"] is False
+    assert engine.register_fact(
+        "ev-probe", fact_id="fact-blank", value="   ",
+        unit="USD", kind="observed")["ok"] is False
+
+
+def test_save_chart_resave_link_semantics(tmp_path, monkeypatch):
+    # F4: None inherits existing links on re-save; explicit [] clears them.
+    root = _scaffold(monkeypatch, tmp_path)
+    engine.register_source("ev-probe", **SRC)
+    assert engine.save_chart(
+        _white_fig_json(), "trend", project="ev-probe",
+        source_keys=["src-fed-sep-2026-dots"])["ok"] is True
+    assert M.load(str(root)).exhibits["fig-trend"]["source_keys"] == [
+        "src-fed-sep-2026-dots"]
+    assert engine.save_chart(
+        _white_fig_json(), "trend", project="ev-probe")["ok"] is True
+    assert M.load(str(root)).exhibits["fig-trend"]["source_keys"] == [
+        "src-fed-sep-2026-dots"]
+    assert engine.save_chart(
+        _white_fig_json(), "trend", project="ev-probe",
+        source_keys=[])["ok"] is True
+    assert M.load(str(root)).exhibits["fig-trend"]["source_keys"] == []
+
+
+def test_exhibit_id_namespace_is_lowercase_slug(tmp_path, monkeypatch):
+    # F5: exhibit ids share the lowercase-slug rule with src-/fact- keys.
+    _scaffold(monkeypatch, tmp_path)
+    bad = engine.register_exhibit("ev-probe", exhibit_id="fig-Bad_ID",
+                                  title="X", file=None)
+    assert bad["ok"] is False
+
+
+def test_save_chart_slugifies_default_exhibit_id(tmp_path, monkeypatch):
+    # F5 companion: auto-derived ids are slugified so odd stems stay valid.
+    root = _scaffold(monkeypatch, tmp_path)
+    out = engine.save_chart(_white_fig_json(), "Weird Name",
+                            project="ev-probe")
+    assert out["ok"] is True, out
+    assert out["exhibit_id"] == "fig-weird-name"
+    assert "fig-weird-name" in M.load(str(root)).exhibits
+
+
+def test_bibtex_url_escaped(tmp_path, monkeypatch):
+    # F6: URL field escapes BibTeX specials like title/publisher do.
+    root = _scaffold(monkeypatch, tmp_path)
+    assert engine.register_source(
+        "ev-probe", key="src-u", kind="article", title="U",
+        date="2026-01-01",
+        url="https://example.invalid/a%20b_c")["ok"] is True
+    bib = (root / "sources.bib").read_text(encoding="utf-8")
+    assert "a\\%20b\\_c" in bib
