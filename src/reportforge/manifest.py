@@ -18,7 +18,7 @@ import tempfile
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 MANIFEST_FILENAME = "report.json"
 QMD_FILENAME = "index.qmd"
 
@@ -148,6 +148,9 @@ class Manifest:
     # so each mutation bumps this; preview/review bindings record it and
     # warn on mismatch (content revision is for prose edits only).
     registry_version: int = 0
+    # Milestone C (schema 3): content hash of the template sources that
+    # scaffolded this report — old reports keep their stamp forever.
+    template_version: str = ""
     schema_version: int = SCHEMA_VERSION
 
     def to_dict(self) -> dict:
@@ -181,6 +184,11 @@ class Manifest:
         ok, err = validate_profile(init.get("profile", {}))
         if not ok:
             raise ManifestError(f"manifest profile invalid: {err}")
+        # C-2 R1-F5: migrated manifests are stamped the current schema HERE,
+        # in-memory — so whatever saves next persists 3, never the old 2.
+        init["schema_version"] = SCHEMA_VERSION
+        if version < 3 and "template_version" not in init:
+            init["template_version"] = "pre-c"
         return cls(**init)
 
 
@@ -492,7 +500,8 @@ def _title_from_qmd(qmd_text: str, fallback: str) -> str:
 
 def create(root: str, title: str, brief: str = "", profile: dict | None = None,
            formats: list | None = None, sections: list | None = None,
-           actor: str = "tool:scaffold", overwrite: bool = False) -> Manifest:
+           actor: str = "tool:scaffold", overwrite: bool = False,
+           template_version: str = "") -> Manifest:
     """Build a fresh revision-1 draft manifest and save it.
 
     Refuses to clobber an existing manifest unless ``overwrite=True`` —
@@ -529,6 +538,7 @@ def create(root: str, title: str, brief: str = "", profile: dict | None = None,
         state="draft",
         sections=sections or [],
         formats=formats or ["html", "pdf", "docx"],
+        template_version=template_version,
         created=now,
         updated=now,
         revision_log=[
@@ -611,6 +621,8 @@ def import_dir(root: str) -> Manifest:
         revision=1,
         state="draft",
         sections=scan_sections(qmd),
+        # C-2: adopted dirs predate version stamps — marked, never guessed.
+        template_version="pre-c",
         # Contract §1.2: formats derive from _quarto.yml at import time.
         formats=_formats_from_quarto_yml(root) or ["html", "pdf", "docx"],
         created=datetime.fromtimestamp(

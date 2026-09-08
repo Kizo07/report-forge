@@ -23,6 +23,7 @@ import yaml
 from jinja2 import Template
 
 from reportforge import manifest as manifest_mod
+from reportforge import __version__ as _REPORTFORGE_VERSION
 from reportforge import templates
 
 REPORTS_DIR = Path(
@@ -644,7 +645,39 @@ def _write_scaffold_manifest(root: Path, title: str, brief: str,
         profile=profile,
         formats=list(formats),
         actor="tool:scaffold",
+        template_version=template_version(),
     )
+
+
+def template_version() -> str:
+    """C-2 R1-F4: content hash (12-hex) of the template sources.
+
+    A version constant would never move on template edits (``__version__``
+    is ``0.1.0`` regardless) — the hash makes every template change
+    visible in every future manifest. Computed live so working-tree edits
+    stamp honestly; old manifests keep theirs forever.
+    """
+    h = hashlib.sha256()
+    base = Path(__file__).resolve().parent
+    for name in ("templates.py", "templates_domain.py"):
+        h.update((base / name).read_bytes())
+    return h.hexdigest()[:12]
+
+
+def _quarto_version() -> str | None:
+    """Best-effort `quarto --version`; None when quarto is absent/broken."""
+    if shutil.which("quarto") is None:
+        return None
+    try:
+        proc = subprocess.run(
+            ["quarto", "--version"], capture_output=True, text=True,
+            timeout=30)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if proc.returncode != 0:
+        return None
+    first = (proc.stdout or "").strip().splitlines()
+    return first[0].strip() if first else None
 
 
 def _manifest_view(root: Path) -> tuple[dict | None, str | None]:
@@ -880,7 +913,23 @@ def render_report(source: str, formats: list[str] | None = None, project: str | 
             "formats": wanted + (["pdf-web"] if pdf_web_requested else []),
             "outputs": sorted(rendered_outputs),
             "source": str(src),
+            # Toolchain binding (C-2, RF-09): the exact renderer that
+            # produced these bytes. Lives in state (artifacts), never the
+            # manifest (§1.3). A stamp failure fails loudly — silently
+            # omitting it would fake reproducibility.
+            "toolchain": {
+                "quarto": _quarto_version(),
+                "python": sys.version.split()[0],
+                "reportforge": _REPORTFORGE_VERSION,
+            },
         }
+        if state["toolchain"]["quarto"] is None:
+            return {
+                "ok": False,
+                "error": "quarto version undetectable after a successful render: "
+                         "re-render once quarto is on PATH",
+                "outputs": sorted(rendered_outputs),
+            }
         (workdir / ".reportforge-state.json").write_text(json.dumps(state, indent=2))
     except OSError:
         pass

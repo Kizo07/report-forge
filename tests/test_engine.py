@@ -140,8 +140,10 @@ def test_render_directory_resolves_project_and_returns_created_output(
     calls: list[tuple[list[str], Path]] = []
 
     def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
-        cwd = Path(str(kwargs["cwd"]))
+        cwd = Path(str(kwargs.get("cwd", project)))
         calls.append((command, cwd))
+        if command[:2] == ["quarto", "--version"]:
+            return subprocess.CompletedProcess(command, 0, "1.7.0\n", "")
         output = project / "output" / "index.html"
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text("<html><body>created</body></html>")
@@ -153,12 +155,13 @@ def test_render_directory_resolves_project_and_returns_created_output(
 
     assert result["ok"] is True
     assert result["outputs"] == [str(project / "output" / "index.html")]
-    assert calls == [
-        (
-            ["quarto", "render", str(project / "index.qmd"), "--to", "html"],
-            project,
-        )
-    ]
+    # C-2: the render itself, then the toolchain version stamp.
+    assert [c[0][:2] for c in calls] == [["quarto", "render"],
+                                         ["quarto", "--version"]]
+    assert calls[0] == (
+        ["quarto", "render", str(project / "index.qmd"), "--to", "html"],
+        project,
+    )
 
 
 def test_render_returns_only_outputs_requested_in_current_run(

@@ -26,7 +26,7 @@ def test_scaffold_writes_manifest(tmp_path, monkeypatch):
     assert m["profile"]["theme"] == "light"
     assert m["formats"] == ["html", "pdf"]
     assert len(m["sections"]) > 0
-    assert m["schema_version"] == 2  # Milestone B: registries ride schema 2
+    assert m["schema_version"] == 3  # Milestone C: version stamps ride schema 3
 
 
 def test_status_and_open_expose_manifest_view(tmp_path, monkeypatch):
