@@ -1066,12 +1066,38 @@ _PORTFOLIO_TO_QUANTFLOW_TEMPLATE = {
 }
 
 
+# --- Milestone C Task C-3: brand tokens ------------------------------------
+# Single-key story (R1-F1): palettes are keyed by PALETTE name, never by
+# (brand, theme) — ledger-dark and quantflow-dark share brand+theme but
+# are different palettes, and a coarser key would silently re-palette
+# ledger reports. accent == primary: the one cover/chart shared record.
+BRAND_TOKENS = {
+    name: {"accent": pal["primary"], **pal}
+    for name, pal in QUANTFLOW_PLOTLY_THEMES.items()
+}
+
+
+def tokens_for_keys() -> list[str]:
+    """Palette names the token map covers (pinned; a new palette extends it)."""
+    return sorted(BRAND_TOKENS)
+
+
+def tokens_for(palette: str) -> dict:
+    """Resolve a palette name to its token record; unknown names fail
+    loudly with the supported set (never a bare KeyError)."""
+    try:
+        return BRAND_TOKENS[palette]
+    except KeyError:
+        raise ValueError(
+            f"unknown palette {palette!r}; supported: {sorted(BRAND_TOKENS)}")
+
+
 def _apply_quantflow_plotly_template(fig, name: str) -> None:
     """Style a figure with the QuantFlow plotly identity (in place)."""
     import plotly.graph_objects as go
     import plotly.io as pio
 
-    pal = QUANTFLOW_PLOTLY_THEMES[name]
+    pal = tokens_for(name)
     colorway = ([pal["primary"], pal["secondary"], pal["positive"],
                  pal["negative"]] + pal["ramp"] + [pal["muted"]])
     tmpl = go.layout.Template(layout=dict(
@@ -1132,7 +1158,10 @@ def save_chart(fig_json: str, out_basename: str, width: int = 1400, height: int 
     template_applied: str | None = None
     try:
         if template:
-            if template in QUANTFLOW_PLOTLY_THEMES:
+            # C-3: explicit template= maps through the token keys first
+            # (quantflow-dark/light, ledger-dark/light); anything else is
+            # a stock/custom plotly template name handled by plotly itself.
+            if template in BRAND_TOKENS:
                 _apply_quantflow_plotly_template(fig, template)
                 template_applied = template
             else:
