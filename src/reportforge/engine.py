@@ -680,6 +680,20 @@ def _quarto_version() -> str | None:
     return first[0].strip() if first else None
 
 
+def _release_summary(root: Path) -> dict | None:
+    """Sealed-release projection for status views; None when unsealed."""
+    try:
+        record = _read_release_record(_output_dir_of(root))
+    except (OSError, ValueError):
+        return None
+    if not record:
+        return None
+    return {"release_id": record.get("release_id"),
+            "revision": record.get("revision"),
+            "registry_version": record.get("registry_version"),
+            "artifacts": sorted(record.get("artifacts", {}))}
+
+
 def _manifest_view(root: Path) -> tuple[dict | None, str | None]:
     """Manifest projection for status responses; auto-imports legacy dirs.
 
@@ -713,6 +727,8 @@ def _manifest_view(root: Path) -> tuple[dict | None, str | None]:
             "facts": d.get("facts", {}),
             "registry_version": d.get("registry_version", 0),
         },
+        # C-4: sealed release (None until render_report seals one).
+        "release": _release_summary(root),
     }, None
 
 
@@ -741,6 +757,74 @@ def _venv_python() -> Path | None:
         candidates.append(Path(sys.executable))
     candidates.append(Path(__file__).resolve().parents[2] / ".venv" / "bin" / "python")
     return next((candidate for candidate in candidates if candidate.is_file()), None)
+
+
+# --- Milestone C Task C-4: release snapshot ---------------------------------
+# One frozen input set per release: every format renders from it, and the
+# sealed record proves it. R1-F8: the registry hash covers CONTENT
+# (sources.bib bytes + figures listing), never the bare counter — the
+# same version number on two machines is indistinguishable.
+
+def _registry_content_hash(root: Path) -> str:
+    """sha256 over registry render inputs (sources.bib + figures/)."""
+    h = hashlib.sha256()
+    bib = root / "sources.bib"
+    if bib.is_file():
+        try:
+            h.update(bib.read_bytes())
+        except OSError:
+            pass
+    figs = root / "figures"
+    if figs.is_dir():
+        try:
+            members = sorted(figs.rglob("*"))
+        except OSError:
+            members = []
+        for p in members:
+            if p.is_file():
+                try:
+                    h.update(str(p.relative_to(root)).encode())
+                    h.update(b"\0")
+                    h.update(hashlib.sha256(p.read_bytes()).digest())
+                except OSError:
+                    pass
+    return h.hexdigest()
+
+
+def _release_inputs(workdir: Path, manifest, toolchain: dict) -> dict:
+    """Compute the snapshot identity (no I/O beyond hashing)."""
+    qmd_bytes = (workdir / "index.qmd").read_bytes()
+    qmd_sha = hashlib.sha256(qmd_bytes).hexdigest()
+    reg_sha = _registry_content_hash(workdir)
+    rid = hashlib.sha256(
+        f"{qmd_sha}|{reg_sha}|{toolchain.get('quarto')}|"
+        f"{toolchain.get('python')}|{toolchain.get('reportforge')}|"
+        f"{manifest.template_version}".encode()).hexdigest()[:12]
+    return {"release_id": rid, "qmd_sha256": qmd_sha,
+            "registry_sha256": reg_sha, "toolchain": toolchain,
+            "template_version": manifest.template_version,
+            "revision": manifest.revision,
+            "registry_version": manifest.registry_version}
+
+
+def _read_release_record(out_dir: Path) -> dict | None:
+    try:
+        return json.loads((out_dir / "release.json").read_text())
+    except (OSError, ValueError):
+        return None
+
+
+def _write_release_record(out_dir: Path, record: dict) -> None:
+    tmp = out_dir / f".release.json.tmp-{os.getpid()}"
+    tmp.write_text(json.dumps(record, indent=2, ensure_ascii=False))
+    os.replace(tmp, out_dir / "release.json")
+
+
+def _public_format_name(fmt: str) -> str:
+    # R1-F12: the release map keys on the PUBLIC name — modern projects
+    # render pdf via the internal `typst` quarto format, and that alias
+    # must never leak into the release record.
+    return "pdf" if fmt == "typst" else fmt
 
 
 def _ensure_reportforge_kernel() -> str:
@@ -831,11 +915,40 @@ def render_report(source: str, formats: list[str] | None = None, project: str | 
     if not wanted:
         return {"ok": False, "error": "project config contains no supported formats"}
 
+    # C-4: seal the snapshot identity BEFORE invoking quarto. Renders of a
+    # bare qmd with no manifest skip the release record (nothing to bind).
+    release_manifest, release_manifest_err = _load_or_import(workdir)
+    release_seal = None
+    if release_manifest_err is None and release_manifest is not None:
+        try:
+            release_seal = _release_inputs(workdir, release_manifest, {
+                "quarto": _quarto_version(),
+                "python": sys.version.split()[0],
+                "reportforge": _REPORTFORGE_VERSION,
+            })
+        except OSError:
+            release_seal = None
+
     tails: list[str] = []
     rendered_outputs: list[str] = []
+    sealed_artifacts: dict = {}
     out_dir = _output_dir_of(workdir)
     out_dir.mkdir(parents=True, exist_ok=True)
     for fmt in wanted:
+        if release_seal is not None:
+            # The qmd must not move under a running render — a mid-loop
+            # edit would seal formats from two different inputs.
+            try:
+                current_qmd = hashlib.sha256(src.read_bytes()).hexdigest()
+            except OSError as exc:
+                return {"ok": False, "error": f"index.qmd unreadable mid-render: {exc}"}
+            if current_qmd != release_seal["qmd_sha256"]:
+                return {
+                    "ok": False,
+                    "error": (f"index.qmd changed mid-render (snapshot {release_seal['release_id']} "
+                              "no longer valid): re-render all formats together so the release stays one snapshot"),
+                    "outputs": sorted(rendered_outputs),
+                }
         cmd = ["quarto", "render", str(src), "--to", fmt]
         try:
             proc = subprocess.run(
@@ -874,6 +987,17 @@ def render_report(source: str, formats: list[str] | None = None, project: str | 
                 "log_tail": tail,
             }
         rendered_outputs.append(str(expected))
+        if release_seal is not None:
+            try:
+                artifact_bytes = expected.read_bytes()
+            except OSError:
+                return {"ok": False,
+                        "error": f"rendered output vanished before sealing: {expected}"}
+            sealed_artifacts[_public_format_name(fmt)] = {
+                "path": str(expected),
+                "sha256": hashlib.sha256(artifact_bytes).hexdigest(),
+                "bytes": len(artifact_bytes),
+            }
 
     pdf_web_note = None
     if pdf_web_requested:
@@ -890,6 +1014,37 @@ def render_report(source: str, formats: list[str] | None = None, project: str | 
             }
         rendered_outputs.append(result_pw["pdf"])
         pdf_web_note = result_pw["note"]
+
+    # C-4: merge this run's formats into output/release.json under the
+    # project lock (R1-F7). A sealed record from a DIFFERENT snapshot that
+    # still covers formats outside this run is a stale mix — refuse loudly,
+    # never merge across inputs. Re-rendering the same set re-seals.
+    if release_seal is not None:
+        with _project_lock(workdir):
+            existing = _read_release_record(out_dir)
+            if (existing is not None
+                    and existing.get("release_id") != release_seal["release_id"]):
+                foreign = sorted(set(existing.get("artifacts", {}))
+                                 - set(sealed_artifacts))
+                if foreign:
+                    return {
+                        "ok": False,
+                        "error": (f"stale snapshot mix: release {existing.get('release_id')} already covers "
+                                  f"{foreign}, but the inputs changed (now {release_seal['release_id']}): "
+                                  "re-render all formats together so the release stays one snapshot"),
+                        "outputs": sorted(rendered_outputs),
+                    }
+            merged = {}
+            if (existing is not None
+                    and existing.get("release_id") == release_seal["release_id"]):
+                merged = dict(existing.get("artifacts", {}))
+            merged.update(sealed_artifacts)
+            try:
+                _write_release_record(out_dir, {**release_seal, "artifacts": merged})
+            except OSError as exc:
+                return {"ok": False,
+                        "error": f"could not seal release record: {exc}",
+                        "outputs": sorted(rendered_outputs)}
 
     # WS-3: machine-readable project state for reportforge_project_status.
     try:
@@ -942,6 +1097,63 @@ def render_report(source: str, formats: list[str] | None = None, project: str | 
     if pdf_web_note:
         result["pdf_web_note"] = pdf_web_note
     return result
+
+
+def freeze_release(project: str) -> dict:
+    """Re-seal + verify output/release.json against CURRENT inputs (RF-09).
+
+    Fails loudly when the inputs drifted (qmd/registry/toolchain/template)
+    or an artifact is missing/changed on disk — a stale seal must never
+    pass as verified. Rewriting the sealed file is the explicit re-seal.
+    """
+    slug = project.strip("/")
+    root = REPORTS_DIR / slug
+    if not root.is_dir():
+        return {"ok": False, "error": f"project not found: {project}"}
+    out_dir = _output_dir_of(root)
+    with _project_lock(root):
+        record = _read_release_record(out_dir)
+        if record is None:
+            return {"ok": False,
+                    "error": "no release snapshot sealed yet: render_report first"}
+        manifest, err = _load_or_import(root)
+        if err:
+            return err
+        assert manifest is not None
+        try:
+            current = _release_inputs(root, manifest, {
+                "quarto": _quarto_version(),
+                "python": sys.version.split()[0],
+                "reportforge": _REPORTFORGE_VERSION,
+            })
+        except OSError as exc:
+            return {"ok": False, "error": f"cannot hash release inputs: {exc}"}
+        if current["release_id"] != record.get("release_id"):
+            return {
+                "ok": False,
+                "error": (f"render inputs changed since release {record.get('release_id')} "
+                          f"(now {current['release_id']}): re-render all formats together, then freeze again"),
+                "sealed_release_id": record.get("release_id"),
+                "current_release_id": current["release_id"],
+            }
+        for fmt in sorted(record.get("artifacts", {})):
+            art = record["artifacts"][fmt]
+            p = Path(art.get("path", ""))
+            try:
+                digest = hashlib.sha256(p.read_bytes()).hexdigest()
+            except OSError:
+                return {"ok": False,
+                        "error": f"release artifact missing on disk: {fmt} -> {art.get('path')}"}
+            if digest != art.get("sha256"):
+                return {"ok": False,
+                        "error": f"release artifact changed on disk: {fmt} -> {art.get('path')}"}
+        try:
+            _write_release_record(out_dir, record)
+        except OSError as exc:
+            return {"ok": False, "error": f"could not re-seal release record: {exc}"}
+        return {"ok": True, "report_id": manifest.report_id,
+                "release_id": record.get("release_id"), "verified": True,
+                "artifacts": sorted(record.get("artifacts", {}))}
 
 
 def write_report_body(source: str, content: str) -> dict:
@@ -3539,6 +3751,13 @@ def _export_release_locked(slug: str, root: Path, revision: int | None,
                 shutil.copytree(companion, tmp / companion.name)
         (tmp / "manifest.json").write_text(
             json.dumps(manifest.to_dict(), indent=2, ensure_ascii=False))
+        # C-4: bundles carry the sealed release record; a report sealed
+        # before Milestone C warns (grandfathered) instead of failing.
+        if (out_dir / "release.json").is_file():
+            shutil.copy2(out_dir / "release.json", tmp / "release.json")
+        else:
+            warnings.append("no release snapshot sealed for this revision "
+                            "(pre-C report?): re-render to bind artifacts to exact inputs")
         prev_src = out_dir / "previews" / f"r{current}"
         if prev_src.is_dir():
             shutil.copytree(prev_src, tmp / "previews")
@@ -3641,6 +3860,7 @@ MCP_TOOL_NAMES_FALLBACK = [
     "reportforge_record_review", "reportforge_render_preview",
     "reportforge_register_source", "reportforge_register_exhibit",
     "reportforge_register_fact", "reportforge_update_fact",
+    "reportforge_freeze_release",
     "reportforge_capabilities",
 ]
 

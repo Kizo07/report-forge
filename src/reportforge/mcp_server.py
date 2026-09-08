@@ -12,6 +12,7 @@ from reportforge.engine import (
     check_readiness,
     delete_section,
     export_release,
+    freeze_release,
     get_section,
     list_templates,
     move_section,
@@ -244,6 +245,20 @@ def reportforge_render_report(
     Returns ok flag, absolute output file paths, and a log tail on failure.
     """
     return render_report(source, _coerce_list(formats, _FORMAT_TOKENS))
+
+
+@mcp.tool
+def reportforge_freeze_release(project: str) -> dict[str, Any]:
+    """Re-seal + verify output/release.json against current inputs (RF-09).
+
+    Args:
+        project: Report slug (project directory name).
+
+    Fails loudly when the inputs drifted since the seal (qmd, registry,
+    toolchain, template) or an artifact is missing/changed on disk.
+    Run after rendering all formats; re-run after any re-render.
+    """
+    return freeze_release(project)
 
 
 @mcp.tool
