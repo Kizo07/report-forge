@@ -45,6 +45,8 @@ def main(argv: list[str] | None = None) -> int:
     p_new.add_argument("--kpis", default="", help="legacy modern metric strip as a JSON list")
     p_new.add_argument("--metrics", default="", help="studio metrics as a JSON list of value/label objects (0-6)")
     p_new.add_argument("--formats", default="", help="comma list, e.g. html,pdf,docx")
+    p_new.add_argument("--profile", default="",
+                       help="profile axis overrides as JSON, e.g. '{\"policy\": \"release\"}'")
 
     p_render = sub.add_parser("render", help="render a report")
     p_render.add_argument("source")
@@ -150,12 +152,20 @@ def main(argv: list[str] | None = None) -> int:
             except json.JSONDecodeError as exc:
                 print(json.dumps({"ok": False, "error": f"--metrics is not valid JSON: {exc}"}), file=sys.stderr)
                 return 1
+        profile = None
+        if args.profile.strip():
+            try:
+                profile = json.loads(args.profile)
+            except json.JSONDecodeError as exc:
+                print(json.dumps({"ok": False, "error": f"--profile is not valid JSON: {exc}"}), file=sys.stderr)
+                return 1
         result = scaffold_report(
             args.slug, args.title or None, args.subtitle, args.author, args.abstract,
             args.template, formats, args.firm,
             kpis=kpis, confidential_mark=args.confidential_mark,
             organization=args.organization, eyebrow=args.eyebrow,
             title_layout=args.title_layout, accent=args.accent, metrics=metrics,
+            profile=profile,
         )
         print(
             json.dumps(result, indent=2),

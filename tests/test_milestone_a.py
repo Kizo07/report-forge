@@ -99,8 +99,8 @@ def test_capabilities_env_dependence(tmp_path, monkeypatch):
     assert caps["execution"]["run_code"] is True
     assert caps["execution"]["disabled_reason"] is None
     assert caps["preview"]["available"] == (engine.shutil.which("pdftoppm") is not None)
-    # Stored-profile taxonomy agrees with discovery (F5).
-    assert caps["profiles"]["report_type_map"] == {"studio": "studio-editorial"}
+    # Stored-profile taxonomy agrees with discovery (F5); C-1: no renames.
+    assert caps["profiles"]["report_type_map"] == {}
 
 
 def test_status_unrendered_clears_after_render(tmp_path, monkeypatch):

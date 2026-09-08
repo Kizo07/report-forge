@@ -178,6 +178,9 @@ class Manifest:
         if not isinstance(reg, int) or isinstance(reg, bool):
             raise ManifestError(
                 f"manifest registry_version is not an int: {reg!r}")
+        ok, err = validate_profile(init.get("profile", {}))
+        if not ok:
+            raise ManifestError(f"manifest profile invalid: {err}")
         return cls(**init)
 
 
@@ -192,6 +195,37 @@ _SOURCE_KEY_RE = re.compile(r"^src-[a-z0-9][a-z0-9-]*$")
 # matching src- and fact- keys.
 _EXHIBIT_ID_RE = re.compile(r"^fig-[a-z0-9][a-z0-9-]*$")
 _FACT_ID_RE = re.compile(r"^fact-[a-z0-9][a-z0-9-]*$")
+
+
+# --- Milestone C Task C-1: profile matrix validation -------------------------
+# Mirrors engine._PROFILE_AXES (manifest stays stdlib-only, no import).
+_PROFILE_AXIS_ALLOWED = {
+    "brand": ("quantflow",),
+    "theme": ("light", "dark"),
+    "layout": ("magazine",),
+    "output_profile": ("editorial", "web"),
+    "policy": ("draft", "release"),
+}
+
+
+def validate_profile(prof: object) -> tuple[bool, str]:
+    """Shape-check a §1.2 profile map against the C-1 matrix."""
+    if not isinstance(prof, dict):
+        return False, "profile is not an object"
+    if not isinstance(prof.get("report_type"), str) or not prof["report_type"].strip():
+        return False, "profile.report_type must be a non-empty template name"
+    for axis, allowed in _PROFILE_AXIS_ALLOWED.items():
+        if axis in prof and prof[axis] not in allowed:
+            return False, (f"profile {axis}={prof[axis]!r} not supported; "
+                           f"allowed: {list(allowed)}")
+    return True, ""
+
+
+def default_profile() -> dict:
+    """Fresh-manifest default: the standard preset (scaffold's default)."""
+    return {"report_type": "standard", "brand": "quantflow", "theme": "light",
+            "layout": "magazine", "output_profile": "editorial",
+            "policy": "draft"}
 
 
 def _nonempty_str(rec: dict, key: str) -> bool:
@@ -312,6 +346,12 @@ def load(root: str) -> Manifest:
     except (json.JSONDecodeError, UnicodeDecodeError) as e:
         raise ManifestError(f"corrupt manifest at {path}: {e}")
     manifest = Manifest.from_dict(data)
+    if (isinstance(manifest.profile, dict)
+            and manifest.profile.get("report_type") == "studio-editorial"):
+        # C-1: undo the rename bug (R1-F2) — one-time, no revision bump
+        # (it's a data fix, not an edit).
+        manifest.profile["report_type"] = "studio"
+        save(manifest, root)
     qmd = _read_qmd(root)
     if qmd is not None:
         fresh = scan_sections(qmd)
@@ -458,6 +498,11 @@ def create(root: str, title: str, brief: str = "", profile: dict | None = None,
     Refuses to clobber an existing manifest unless ``overwrite=True`` —
     revision history is immutable per contract §1.2, so a silent reset to
     revision 1 is never acceptable.
+
+    A missing profile defaults to the standard preset (scaffold's default
+    template) — stamping a fresh report, not guessing about an existing
+    one. An explicitly invalid profile raises loudly at creation so
+    ``load`` never has to.
     """
     root = os.fspath(root)
     if not overwrite and os.path.isfile(_manifest_path(root)):
@@ -465,6 +510,12 @@ def create(root: str, title: str, brief: str = "", profile: dict | None = None,
             f"manifest already exists at {_manifest_path(root)}; "
             "pass overwrite=True to reset it (revision history will be lost)"
         )
+    if profile is None:
+        profile = default_profile()
+    ok, err = validate_profile(profile)
+    if not ok:
+        raise ManifestError(
+            f"refusing to create manifest with invalid profile: {err}")
     now = _now_iso()
     if sections is None:
         qmd = _read_qmd(root)
@@ -473,7 +524,7 @@ def create(root: str, title: str, brief: str = "", profile: dict | None = None,
         report_id=os.path.basename(os.path.abspath(root)),
         title=title,
         brief=brief,
-        profile=profile or {},
+        profile=profile,
         revision=1,
         state="draft",
         sections=sections or [],

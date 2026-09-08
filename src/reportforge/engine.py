@@ -234,6 +234,7 @@ def scaffold_report(
     frontmatter_yaml: str | None = None,
     body: str | None = None,
     engine_charts_only: bool = False,
+    profile: dict | None = None,
 ) -> dict:
     specs = {t["name"]: t for t in list_templates()}
     if template not in specs:
@@ -265,6 +266,15 @@ def scaffold_report(
         formats = [f for f in formats if f != "pdf-web"]
         if "html" not in formats:
             formats.insert(0, "html")
+    # C-1: resolve + validate the profile BEFORE touching the disk — a bad
+    # override fails with zero side effects.
+    if profile is not None and not isinstance(profile, dict):
+        return {"ok": False, "error": "profile must be a map of axis overrides"}
+    preset, profile_error = _profile_for_template(
+        template, pdf_web_requested, profile)
+    if profile_error:
+        return {"ok": False, "error": profile_error}
+    assert preset is not None  # error branch returned above
 
     if metrics is not None and kpis is not None:
         return {"ok": False, "error": "use either metrics or kpis, not both"}
@@ -349,7 +359,7 @@ def scaffold_report(
             root,
             title=title or slug.replace("-", " ").replace("_", " ").title(),
             brief=subtitle or "",
-            template="bespoke",
+            profile=preset,
             formats=kept_formats + (["pdf-web"] if pdf_web_requested else []),
         )
         return {
@@ -553,7 +563,7 @@ def scaffold_report(
         root,
         title=title or slug.replace("-", " ").replace("_", " ").title(),
         brief=subtitle or "",
-        template=template,
+        profile=preset,
         formats=kept_formats + (["pdf-web"] if pdf_web_requested else []),
     )
     return {"ok": True, "path": str(root), "source": str(root / "index.qmd"), "formats": kept_formats, "jupyter_kernel": kernel}
@@ -569,32 +579,69 @@ _GENRE_TYPES = {
 }
 
 
-def _profile_for_template(template: str, pdf_web_requested: bool = False) -> dict:
-    """Derive the §1.2 profile from the one template selector (constants only)."""
-    if template in _GENRE_TYPES:
-        report_type = template
-    elif template == "studio":
-        report_type = "studio-editorial"
-    else:
-        report_type = template  # portfolio/ledger/modern keep their own name
-    return {
-        "report_type": report_type,
+# --- Milestone C Task C-1: explicit profile matrix ---------------------------
+# Presets enumerate today's templates as data (behavior-preserving); only
+# output_profile/policy are overridable — theme/layout are fixed per preset
+# (axes reserved, unpopulated). report_type is ALWAYS the template's own
+# name: the old studio → studio-editorial rename broke the
+# REQUIRED_SECTIONS lookup (studio reports got STRUCT-NO-REQUIRED-LIST).
+
+_PROFILE_BRANDS = ("quantflow",)
+_PROFILE_THEMES = ("light", "dark")
+_PROFILE_LAYOUTS = ("magazine",)
+_PROFILE_OUTPUTS = ("editorial", "web")
+_PROFILE_POLICIES = ("draft", "release")
+_PROFILE_OVERRIDABLE = ("output_profile", "policy")
+_PROFILE_AXES = {
+    "report_type": None,  # template name; never overridden, validated non-empty
+    "brand": _PROFILE_BRANDS,
+    "theme": _PROFILE_THEMES,
+    "layout": _PROFILE_LAYOUTS,
+    "output_profile": _PROFILE_OUTPUTS,
+    "policy": _PROFILE_POLICIES,
+}
+
+
+def _profile_matrix_error(key: str, value) -> str:
+    supported = {axis: list(vals) if vals else "<template-name>"
+                 for axis, vals in _PROFILE_AXES.items()}
+    return (f"profile {key}={value!r} not supported; supported matrix: "
+            f"{supported}; overridable axes: {list(_PROFILE_OVERRIDABLE)} "
+            "(theme/layout/brand/report_type are fixed per preset)")
+
+
+def _profile_for_template(template: str, pdf_web_requested: bool = False,
+                          overrides: dict | None = None) -> tuple[dict | None, str | None]:
+    """Resolve the §1.2 profile preset for a template + legal overrides.
+
+    Returns (profile, error): error names the supported matrix, never a
+    bare rejection. Unknown templates still resolve (report_type echoes the
+    name, e.g. bespoke) — template existence is scaffold's job, not the
+    matrix's.
+    """
+    base = {
+        "report_type": template,
         "brand": "quantflow",
         "theme": "dark" if "dark" in template else "light",
         "layout": "magazine",
         "output_profile": "web" if pdf_web_requested else "editorial",
         "policy": "draft",
     }
+    for key, value in (overrides or {}).items():
+        allowed = _PROFILE_AXES.get(key, "unknown-axis")
+        if key not in _PROFILE_OVERRIDABLE or value not in (allowed or ()):
+            return None, _profile_matrix_error(key, value)
+        base[key] = value
+    return base, None
 
 
 def _write_scaffold_manifest(root: Path, title: str, brief: str,
-                             template: str, formats: list[str]) -> None:
-    pdf_web = "pdf-web" in formats
+                             profile: dict, formats: list[str]) -> None:
     manifest_mod.create(
         str(root),
         title=title,
         brief=brief,
-        profile=_profile_for_template(template, pdf_web),
+        profile=profile,
         formats=list(formats),
         actor="tool:scaffold",
     )
@@ -3550,9 +3597,10 @@ def reportforge_capabilities() -> dict:
             "layouts": ["magazine", "single-column", "chartbook", "compact"],
             "output_profiles": ["editorial", "web", "editable-docx"],
             # Template name → stored manifest profile.report_type for the
-            # cases where they differ (only studio today). Discovery and
-            # stored profile must agree on the same report (RF-08 inherits).
-            "report_type_map": {"studio": "studio-editorial"},
+            # cases where they differ. C-1: no renames remain (studio stays
+            # studio) — the map is empty and pinned so any future rename
+            # must update discovery + stored profiles together.
+            "report_type_map": {},
         },
         "support_matrix": matrix,
         "execution": {

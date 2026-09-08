@@ -141,6 +141,7 @@ def reportforge_scaffold_report(
     frontmatter_yaml: str | None = None,
     body: str | None = None,
     engine_charts_only: bool = False,
+    profile: dict[str, str] | str | None = None,
 ) -> dict[str, Any]:
     """Create a new branded report project under ~/Documents/report-forge/reports/<slug>/.
 
@@ -206,6 +207,13 @@ def reportforge_scaffold_report(
 
     Returns paths and the source file to fill with content before rendering.
     """
+    if isinstance(profile, str) and profile.strip():
+        try:
+            profile = json.loads(profile)
+        except json.JSONDecodeError:
+            # Not a map and not JSON: route through the matrix error so the
+            # caller sees the supported set instead of a bare rejection.
+            profile = {"_unparsed": profile}
     return scaffold_report(
         slug, title or None, subtitle, author, abstract, template,
         _coerce_list(formats, _FORMAT_TOKENS), firm,
@@ -215,7 +223,7 @@ def reportforge_scaffold_report(
         verdict=verdict, key_points=_coerce_str_list(key_points),
         scenarios=_coerce_list(scenarios),
         frontmatter_yaml=frontmatter_yaml, body=body,
-        engine_charts_only=engine_charts_only,
+        engine_charts_only=engine_charts_only, profile=profile,
     )
 
 
