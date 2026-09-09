@@ -31,6 +31,7 @@ from reportforge.engine import (
     save_asset,
     save_chart,
     scaffold_report,
+    rollforward_report,
     update_fact,
     write_report_body,
 )
@@ -259,6 +260,38 @@ def reportforge_freeze_release(project: str) -> dict[str, Any]:
     Run after rendering all formats; re-run after any re-render.
     """
     return freeze_release(project)
+
+
+@mcp.tool
+def reportforge_rollforward_report(
+    project: str,
+    new_slug: str,
+    brief: str = "",
+    params: dict[str, str] | str | None = None,
+) -> dict[str, Any]:
+    """Birth a next-period report from a finished one (RF-09).
+
+    Args:
+        project: Source report slug.
+        new_slug: Slug for the new period report.
+        brief: REQUIRED new mandate for the period (empty fails loudly).
+        params: Map with period label, as_of ISO date (REQUIRED — drives
+            the stale-facts checklist), optional title override. A
+            JSON-encoded string is also accepted.
+
+    Registries deep-copy with registry_version preserved; output/, state,
+    and the old manifest never cross. Returns carried counts plus the
+    stale / unknown_vintage refresh checklist.
+    """
+    if isinstance(params, str) and params.strip():
+        try:
+            params = json.loads(params)
+        except json.JSONDecodeError:
+            return {"ok": False,
+                    "error": "params is not valid JSON: pass a map with period/as_of"}
+    return rollforward_report(project, new_slug, brief,
+                              params if isinstance(params, (dict, type(None)))
+                              else {"_unparsed": params})
 
 
 @mcp.tool

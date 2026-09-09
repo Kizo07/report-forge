@@ -27,7 +27,7 @@ def test_scaffold_records_template_version(tmp_path, monkeypatch):
                                  formats=["html"])
     assert res["ok"] is True
     m = json.loads((tmp_path / "reports" / "ver-probe" / "report.json").read_text())
-    assert m["schema_version"] == 3
+    assert m["schema_version"] == 4
     assert m["template_version"] == _expected_template_version()
 
 
@@ -58,9 +58,9 @@ def test_render_stamps_toolchain_in_state(tmp_path, monkeypatch):
     assert "toolchain" not in m  # §1.3: render writes artifacts, not the manifest
 
 
-def test_schema2_migrates_and_stamps_3(tmp_path):
-    """C-2 R1-F5: a schema-2 manifest migrates with template_version
-    pre-c AND the save persists schema 3 (no silent stick at 2)."""
+def test_schema2_migrates_and_stamps_4(tmp_path):
+    """C-2 R1-F5 + C-5: a schema-2 manifest migrates with template_version
+    pre-c AND supersedes {}, and the save persists schema 4."""
     root = tmp_path / "mig"
     root.mkdir()
     (root / "index.qmd").write_text("---\ntitle: T\n---\n\n# T\n")
@@ -68,22 +68,24 @@ def test_schema2_migrates_and_stamps_3(tmp_path):
     raw = json.loads((root / "report.json").read_text())
     raw["schema_version"] = 2
     del raw["template_version"]
+    del raw["supersedes"]
     (root / "report.json").write_text(json.dumps(raw))
     m = M.load(str(root))
-    assert m.schema_version == 3
+    assert m.schema_version == 4
     assert m.template_version == "pre-c"
+    assert m.supersedes == {}
     M.save(m, str(root))
     raw2 = json.loads((root / "report.json").read_text())
-    assert raw2["schema_version"] == 3  # migration sticks
+    assert raw2["schema_version"] == 4  # migration sticks
 
 
-def test_schema4_rejected_loudly(tmp_path):
+def test_schema5_rejected_loudly(tmp_path):
     root = tmp_path / "v4"
     root.mkdir()
     (root / "index.qmd").write_text("---\ntitle: T\n---\n\n# T\n")
     M.create(str(root), title="T")
     raw = json.loads((root / "report.json").read_text())
-    raw["schema_version"] = 4
+    raw["schema_version"] = 5
     (root / "report.json").write_text(json.dumps(raw))
     with pytest.raises(M.ManifestError):
         M.load(str(root))

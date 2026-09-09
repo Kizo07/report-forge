@@ -3624,9 +3624,12 @@ def update_fact(project: str, fact_id: str, value=None, unit=None,
                     "registry_version": manifest.registry_version}
         record = dict(old)
         history = list(record.get("history", []))
+        # R2-F2: stamp WHEN — without it the rollforward account can say
+        # what changed but never when.
         history.append({"value": old["value"], "unit": old.get("unit", ""),
                         "kind": old.get("kind", ""),
-                        "superseded_by": new_value})
+                        "superseded_by": new_value,
+                        "at": datetime.now().astimezone().isoformat()})
         del history[:-FACT_HISTORY_CAP]
         record["history"] = history
         record["value"] = new_value
@@ -3652,6 +3655,159 @@ def update_fact(project: str, fact_id: str, value=None, unit=None,
                 "illustrative": record.get("kind") == "illustrative",
                 "changed": True,
                 "registry_version": manifest.registry_version}
+
+
+# --- Milestone C Task C-5: rollforward (RF-09 recurring updates) ---------------
+# A next-period report is a COPY with its own mandate: registries carry
+# forward (provenance survives), content revision restarts at 1, and the
+# stale-facts checklist tells the agent exactly what to refresh. No
+# network, no auto-refresh (B decision stands) — values update by hand.
+
+_ROLLFORWARD_SKIP = ("output", ".reportforge-state.json", "report.json",
+                     ".reportforge.lock")
+
+
+def _parse_asof(value) -> date | None:
+    """ISO-8601 date prefix or None.
+
+    R2-F1: as_of is free-form and optional, so lexicographic compare is
+    wrong ('2026-7-1' < '2026-10-30' is False). Unparseable/missing
+    vintage is NEVER silently fresh — callers bucket it as unknown.
+    """
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        return date.fromisoformat(value.strip()[:10])
+    except ValueError:
+        return None
+
+
+def _set_frontmatter_description(qmd_path: Path, brief: str) -> None:
+    """Point the copied QMD's description at the new brief (best-effort)."""
+    try:
+        lines = qmd_path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return
+    if not lines or lines[0].strip() != "---":
+        return
+    end = None
+    title_at = None
+    for i in range(1, len(lines)):
+        stripped = lines[i].strip()
+        if stripped in ("---", "..."):
+            end = i
+            break
+        if re.match(r"^description\s*:", lines[i]):
+            lines[i] = f"description: {json.dumps(brief, ensure_ascii=False)}"
+            qmd_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            return
+        if title_at is None and re.match(r"^title\s*:", lines[i]):
+            title_at = i
+    if end is None:
+        return
+    insert_at = (title_at + 1) if title_at is not None else 1
+    lines.insert(insert_at,
+                 f"description: {json.dumps(brief, ensure_ascii=False)}")
+    try:
+        qmd_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    except OSError:
+        pass
+
+
+@_section_op_errors
+def rollforward_report(project: str, new_slug: str, brief: str = "",
+                       params: dict | None = None) -> dict:
+    """Birth a next-period report from a finished one (RF-09).
+
+    Copies index.qmd/_quarto.yml/sources.bib/figures(+styles/brand/assets)
+    but NEVER output/, state, lock, or the old manifest. Registries
+    deep-copy with registry_version preserved (independent counters —
+    content revision restarts at 1); supersedes records the lineage.
+    Returns carried counts plus the stale / unknown_vintage refresh
+    checklist against params.as_of (required ISO-8601 date).
+    """
+    if not isinstance(brief, str) or not brief.strip():
+        return {"ok": False,
+                "error": "a new brief is required: the next period needs its own mandate"}
+    if params is None:
+        params = {}
+    if not isinstance(params, dict):
+        return {"ok": False, "error": "params must be a map (period, as_of, ...)"}
+    cutoff = _parse_asof(params.get("as_of"))
+    if cutoff is None:
+        return {"ok": False,
+                "error": f"params.as_of must be an ISO-8601 date (got {params.get('as_of')!r}): "
+                         "the stale-facts checklist needs a reference date"}
+    slug = "".join(c if c.isalnum() or c in "-_" else "-"
+                   for c in new_slug.strip().lower())
+    if not slug:
+        return {"ok": False,
+                "error": "new_slug must contain at least one letter, number, '-' or '_'"}
+    src_root, err = _project_root_or_error(project)
+    if err:
+        return err
+    assert src_root is not None
+    dst = REPORTS_DIR / slug
+    if dst.exists():
+        return {"ok": False, "error": f"report {slug!r} already exists at {dst}"}
+    with _project_lock(src_root):
+        src_manifest, err = _load_or_import(src_root)
+        if err:
+            return err
+        assert src_manifest is not None
+        src_reg = src_manifest.registry_version
+        src_profile = json.loads(json.dumps(src_manifest.profile))
+        src_formats = list(src_manifest.formats)
+        src_title = src_manifest.title
+        sealed = _read_release_record(_output_dir_of(src_root))
+        src_release_id = (sealed or {}).get("release_id")
+    try:
+        shutil.copytree(src_root, dst,
+                        ignore=shutil.ignore_patterns(*_ROLLFORWARD_SKIP))
+    except OSError as exc:
+        return {"ok": False, "error": f"could not copy report tree: {exc}"}
+    _set_frontmatter_description(dst / "index.qmd", brief.strip())
+    title = params.get("title") or src_title
+    with _project_lock(dst):
+        new_manifest = manifest_mod.create(
+            str(dst), title=title, brief=brief.strip(),
+            profile=src_profile, formats=src_formats,
+            actor="tool:rollforward", template_version=template_version())
+        # Provenance survives the period boundary (JSON round-trip =
+        # deep copy; records are JSON by construction).
+        new_manifest.sources = json.loads(json.dumps(src_manifest.sources))
+        new_manifest.exhibits = json.loads(json.dumps(src_manifest.exhibits))
+        new_manifest.facts = json.loads(json.dumps(src_manifest.facts))
+        new_manifest.registry_version = src_reg
+        new_manifest.supersedes = {
+            "report": src_manifest.report_id,
+            "release_id": src_release_id,
+            "period": params.get("period", ""),
+            "as_of": params.get("as_of"),
+        }
+        new_manifest.revision_log.append({
+            "revision": 1,
+            "timestamp": new_manifest.updated,
+            "actor": "tool:rollforward",
+            "op": "rollforward",
+            "section_id": None,
+            "summary": (f"rolled from {src_manifest.report_id} "
+                        f"(registry v{src_reg}, release {src_release_id})"),
+        })
+        manifest_mod.save(new_manifest, str(dst))
+    stale = sorted(
+        fid for fid, rec in new_manifest.facts.items()
+        if (d := _parse_asof(rec.get("as_of"))) is not None and d < cutoff)
+    unknown = sorted(
+        fid for fid in new_manifest.facts
+        if _parse_asof(new_manifest.facts[fid].get("as_of")) is None)
+    return {"ok": True, "report_id": slug, "path": str(dst),
+            "supersedes": dict(new_manifest.supersedes),
+            "carried": {"sources": len(new_manifest.sources),
+                        "exhibits": len(new_manifest.exhibits),
+                        "facts": len(new_manifest.facts)},
+            "stale": stale, "unknown_vintage": unknown,
+            "registry_version": new_manifest.registry_version}
 
 
 # --- Milestone A Task 1.6: portable export bundle (RF-06) ----------------------
@@ -3860,7 +4016,7 @@ MCP_TOOL_NAMES_FALLBACK = [
     "reportforge_record_review", "reportforge_render_preview",
     "reportforge_register_source", "reportforge_register_exhibit",
     "reportforge_register_fact", "reportforge_update_fact",
-    "reportforge_freeze_release",
+    "reportforge_freeze_release", "reportforge_rollforward_report",
     "reportforge_capabilities",
 ]
 

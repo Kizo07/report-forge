@@ -18,7 +18,7 @@ import tempfile
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 MANIFEST_FILENAME = "report.json"
 QMD_FILENAME = "index.qmd"
 
@@ -151,6 +151,9 @@ class Manifest:
     # Milestone C (schema 3): content hash of the template sources that
     # scaffolded this report — old reports keep their stamp forever.
     template_version: str = ""
+    # Milestone C task C-5 (schema 4): what this report was rolled from
+    # ({report, release_id, period, as_of}); empty for fresh scaffolds.
+    supersedes: dict = field(default_factory=dict)
     schema_version: int = SCHEMA_VERSION
 
     def to_dict(self) -> dict:
@@ -189,6 +192,8 @@ class Manifest:
         init["schema_version"] = SCHEMA_VERSION
         if version < 3 and "template_version" not in init:
             init["template_version"] = "pre-c"
+        if version < 4 and "supersedes" not in init:
+            init["supersedes"] = {}
         return cls(**init)
 
 

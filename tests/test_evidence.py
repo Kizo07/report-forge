@@ -38,7 +38,7 @@ def test_registries_default_empty(proj):
     assert m.sources == {} and m.exhibits == {} and m.facts == {}
     assert m.registry_version == 0
     raw = _manifest_json(proj)
-    assert raw["schema_version"] == 3
+    assert raw["schema_version"] == 4
 
 
 def test_old_v1_manifest_loads_with_empty_registries(proj):
@@ -56,7 +56,7 @@ def test_old_v1_manifest_loads_with_empty_registries(proj):
 def test_newer_schema_fails_loudly(proj):
     M.create(proj, title="T")
     raw = _manifest_json(proj)
-    raw["schema_version"] = 4
+    raw["schema_version"] = 5
     with open(os.path.join(proj, "report.json"), "w", encoding="utf-8") as f:
         json.dump(raw, f)
     with pytest.raises(M.ManifestError):
