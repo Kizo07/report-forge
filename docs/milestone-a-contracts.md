@@ -367,7 +367,7 @@ illustrative shadow.
 | EVID-EXHIBIT-UNREGISTERED | error | `@fig-` ref or `{#fig-}` embed with no record | same unambiguity as cites |
 | EVID-EXHIBIT-FILE-MISSING | error | record with `file` set but absent from disk (`file: null` never fires) | deliverable points at nothing |
 | EVID-EXHIBIT-ANCHOR-MISSING | warning | anchor-grounded record whose anchor left the QMD | drift signal, not breakage |
-| EVID-COVER-UNLINKED | warning | cover numeric with no equal-value fact | pragmatic for B (no legacy report passes an error gate); Milestone C auto-derivation promotes it to error |
+| EVID-COVER-UNLINKED | error | cover numeric with no equal-value fact | Milestone C: auto-derivation landed, so an unlinked cover blocks release (message points at derive_cover) |
 | EVID-COVER-ILLUSTRATIVE | warning | matched cover fact has kind=illustrative | thesis on illustrative data must not be silent |
 | EVID-MISSING-REQUIRED | error | genre's required kind neither registered nor cited (presence alone never satisfies) | the §7 headline outcome |
 | EVID-NO-REQUIRED-LIST | info | genre has no REQUIRED_EVIDENCE entry (bespoke, studio, portfolio-*, ledger-*) | honest branch, mirrors STRUCT-NO-REQUIRED-LIST |

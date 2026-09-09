@@ -11,6 +11,7 @@ from reportforge.engine import (
     append_section,
     check_readiness,
     delete_section,
+    derive_cover,
     export_release,
     freeze_release,
     get_section,
@@ -292,6 +293,32 @@ def reportforge_rollforward_report(
     return rollforward_report(project, new_slug, brief,
                               params if isinstance(params, (dict, type(None)))
                               else {"_unparsed": params})
+
+
+@mcp.tool
+def reportforge_derive_cover(
+    project: str,
+    mapping: dict[str, str] | str | None = None,
+) -> dict[str, Any]:
+    """Bind cover numerics to fact records (RF-04 deepening).
+
+    Args:
+        project: Report slug.
+        mapping: {cover path: fact id} for target, scenarios[i].value,
+            metrics[i].value. Omitted paths fall back to the fact-<field>
+            convention (target → fact-target). A JSON-encoded string is
+            also accepted. A numeric cover field with no resolvable fact
+            fails loudly — hand values are never kept silently.
+    """
+    if isinstance(mapping, str) and mapping.strip():
+        try:
+            mapping = json.loads(mapping)
+        except json.JSONDecodeError:
+            return {"ok": False,
+                    "error": "mapping is not valid JSON: pass a map of cover path to fact id"}
+    return derive_cover(
+        project,
+        mapping if isinstance(mapping, (dict, type(None))) else {"_unparsed": mapping})
 
 
 @mcp.tool

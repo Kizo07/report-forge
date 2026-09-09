@@ -2457,7 +2457,8 @@ def _cover_values_match(a: float, b: float) -> bool:
     return abs(a - b) <= 1e-6 * max(1.0, abs(a), abs(b))
 
 
-def _cover_numeric_candidates(front: dict) -> list[tuple[str, float]]:
+def _cover_numeric_candidates(front: dict, skip_weights: bool = True,
+                            ) -> list[tuple[str, float]]:
     """Structured cover numerics: target, scenario values, metric values.
 
     Verdict prose is excluded by design (policed by UNREGISTERED-CITE and
@@ -2479,9 +2480,11 @@ def _cover_numeric_candidates(front: dict) -> list[tuple[str, float]]:
     # to ~100) are not thesis facts — demanding a fact record for each
     # degrades every scenario-bearing genre to noise. Two or more numeric
     # values summing to 99..101 are treated as weights and skipped.
+    # R2-F9: a DERIVED cover is exempt — its weights are registry-grounded,
+    # so the skip must not hide later drift.
     scen_total = sum(v for _, v in scen_vals)
     weights = (len(scen_vals) >= 2 and 99.0 <= scen_total <= 101.0)
-    if not weights:
+    if not weights or not skip_weights:
         for i, v in scen_vals:
             cands.append((f"scenarios[{i}].value", v))
     metrics = front.get("metrics")
@@ -2538,7 +2541,8 @@ def _readiness_evidence_coverage(root: Path, body: str, front: dict,
                     "evidence", "warning", "EVID-EXHIBIT-ANCHOR-MISSING",
                     f"exhibit {eid!r} is anchor-grounded but {{#fig-{short}}} "
                     "no longer exists in index.qmd"))
-    for field, number in _cover_numeric_candidates(front):
+    for field, number in _cover_numeric_candidates(
+            front, skip_weights=not bool(front.get("cover_derived"))):
         # Finding 3: two-pass match — a legitimate non-illustrative fact
         # wins over an illustrative shadow with the same value, so the
         # message never misstates the report's actual grounding.
@@ -2554,8 +2558,9 @@ def _readiness_evidence_coverage(root: Path, body: str, front: dict,
                 break
         if match_id is None:
             issues.append(_issue(
-                "evidence", "warning", "EVID-COVER-UNLINKED",
-                f"cover {field} = {number:g} has no matching fact record"))
+                "evidence", "error", "EVID-COVER-UNLINKED",
+                f"cover {field} = {number:g} has no matching fact record — "
+                "run derive_cover to bind it"))
         elif match_kind == "illustrative":
             issues.append(_issue(
                 "evidence", "warning", "EVID-COVER-ILLUSTRATIVE",
@@ -3810,6 +3815,137 @@ def rollforward_report(project: str, new_slug: str, brief: str = "",
             "registry_version": new_manifest.registry_version}
 
 
+# --- Milestone C Task C-6: cover auto-derivation -------------------------------
+# Covers derive from the fact registry: every numeric cover field binds to
+# a fact (default id fact-<field>, explicit mapping overrides). A numeric
+# field with no fact fails naming the field — hand values are never kept
+# silently. The edit is surgical (only value lines move); the rest of the
+# frontmatter is byte-identical.
+
+_COVER_BLOCKS = ("target", "scenarios", "metrics")
+
+
+def _cover_field_fact_id(path: str) -> str:
+    """Default fact id for a cover path (explicit mapping overrides)."""
+    slug = re.sub(r"[^a-z0-9]+", "-", path.lower()).strip("-")
+    return f"fact-{slug or 'cover'}"
+
+
+def _yaml_cover_scalar(value) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, (int, float)):
+        return repr(value)
+    return json.dumps(str(value), ensure_ascii=False)
+
+
+@_section_op_errors
+def derive_cover(project: str, mapping: dict | None = None) -> dict:
+    """Bind cover numerics to fact records, writing values into frontmatter.
+
+    mapping: {cover path: fact id} for paths target, scenarios[i].value,
+    metrics[i].value. Unmapped paths fall back to the fact-<field>
+    convention (e.g. target → fact-target). A numeric cover field with no
+    resolvable fact fails loudly naming the field. Sets cover_derived:
+    true (lifts the scenario-weights skip) and bumps the revision — the
+    QMD changed, so previews must re-render.
+    """
+    if mapping is None:
+        mapping = {}
+    if not isinstance(mapping, dict):
+        return {"ok": False, "error": "mapping must be a map of cover path to fact id"}
+    root, err = _project_root_or_error(project)
+    if err:
+        return err
+    assert root is not None
+    with _project_lock(root):
+        manifest, err = _load_or_import(root)
+        if err:
+            return err
+        assert manifest is not None
+        try:
+            text = (root / "index.qmd").read_text(encoding="utf-8")
+        except OSError as exc:
+            return {"ok": False, "error": f"cannot read index.qmd: {exc}"}
+        front = _frontmatter_dict(text)
+        # Full field list: derivation binds weights too (R2-F9), so the
+        # readiness skip must not hide fields here.
+        candidates = _cover_numeric_candidates(front, skip_weights=False)
+        resolved: dict[str, tuple[str, object]] = {}
+        unmapped: list[str] = []
+        for field, _number in candidates:
+            fid = mapping.get(field) or _cover_field_fact_id(field)
+            rec = manifest.facts.get(fid)
+            if rec is None:
+                unmapped.append(f"{field} (no fact {fid!r})")
+            else:
+                resolved[field] = (fid, rec.get("value"))
+        if unmapped:
+            return {
+                "ok": False,
+                "error": ("cover fields with no fact record: "
+                          + "; ".join(unmapped)
+                          + " — register the facts (default ids like "
+                            "'fact-target') or pass an explicit mapping"),
+            }
+        lines = text.splitlines()
+        if not lines or lines[0].strip() != "---":
+            return {"ok": False, "error": "index.qmd has no YAML frontmatter block"}
+        close = None
+        for i in range(1, len(lines)):
+            if lines[i].strip() in ("---", "..."):
+                close = i
+                break
+        if close is None:
+            return {"ok": False, "error": "index.qmd frontmatter never closes"}
+        top: str | None = None
+        idx = -1
+        updated: list[str] = []
+        derived_from: dict[str, str] = {}
+        for i in range(1, close):
+            line = lines[i]
+            m0 = re.match(r"^([A-Za-z0-9_-]+)\s*:", line)
+            if m0:
+                key = m0.group(1)
+                top = key if key in _COVER_BLOCKS else None
+                idx = -1
+                if key == "target" and "target" in resolved:
+                    fid, val = resolved["target"]
+                    lines[i] = f"target: {_yaml_cover_scalar(val)}"
+                    updated.append("target")
+                    derived_from["target"] = fid
+                continue
+            if top in ("scenarios", "metrics") and re.match(r"^\s+-\s", line):
+                idx += 1
+                continue
+            mv = re.match(r"^(\s+)value\s*:", line)
+            if mv and top in ("scenarios", "metrics") and idx >= 0:
+                path = f"{top}[{idx}].value"
+                if path in resolved:
+                    fid, val = resolved[path]
+                    lines[i] = f"{mv.group(1)}value: {_yaml_cover_scalar(val)}"
+                    updated.append(path)
+                    derived_from[path] = fid
+        if not any(re.match(r"^cover_derived\s*:",
+                            lines[i]) for i in range(1, close)):
+            lines.insert(close, "cover_derived: true")
+            close += 1
+        try:
+            (root / "index.qmd").write_text(
+                "\n".join(lines) + ("\n" if text.endswith("\n") else ""),
+                encoding="utf-8")
+        except OSError as exc:
+            return {"ok": False, "error": f"cannot write index.qmd: {exc}"}
+        manifest_mod.bump(
+            manifest,
+            f"derive_cover: bound {len(updated)} cover fields to facts",
+            actor="tool:derive_cover")
+        manifest_mod.save(manifest, str(root))
+        return {"ok": True, "report_id": manifest.report_id,
+                "updated": sorted(updated), "derived_from": derived_from,
+                "revision": manifest.revision}
+
+
 # --- Milestone A Task 1.6: portable export bundle (RF-06) ----------------------
 
 _BUNDLE_FORMATS = ("html", "pdf", "docx")
@@ -4017,6 +4153,7 @@ MCP_TOOL_NAMES_FALLBACK = [
     "reportforge_register_source", "reportforge_register_exhibit",
     "reportforge_register_fact", "reportforge_update_fact",
     "reportforge_freeze_release", "reportforge_rollforward_report",
+    "reportforge_derive_cover",
     "reportforge_capabilities",
 ]
 
