@@ -8,7 +8,9 @@ import sys
 
 from reportforge.engine import (
     check_readiness,
+    derive_cover,
     export_release,
+    freeze_release,
     list_templates,
     open_report,
     project_status,
@@ -18,6 +20,7 @@ from reportforge.engine import (
     render_preview,
     render_report,
     reportforge_capabilities,
+    rollforward_report,
     save_chart,
     scaffold_report,
     update_fact,
@@ -85,6 +88,24 @@ def main(argv: list[str] | None = None) -> int:
     p_export.add_argument("--include-data", action="store_true")
 
     p_caps = sub.add_parser("capabilities", help="show capability discovery response")
+
+    p_rel = sub.add_parser("release", help="show the sealed release snapshot (RF-09)")
+    p_rel.add_argument("project")
+
+    p_freeze = sub.add_parser("freeze-release", help="re-seal + verify output/release.json (RF-09)")
+    p_freeze.add_argument("project")
+
+    p_roll = sub.add_parser("rollforward", help="birth a next-period report (RF-09)")
+    p_roll.add_argument("project")
+    p_roll.add_argument("new_slug")
+    p_roll.add_argument("--brief", default="")
+    p_roll.add_argument("--params", default="",
+                        help="JSON map, e.g. '{\"period\": \"Q3\", \"as_of\": \"2026-10-30\"}'")
+
+    p_derive = sub.add_parser("derive-cover", help="bind cover numerics to facts (RF-04)")
+    p_derive.add_argument("project")
+    p_derive.add_argument("--mapping", default="",
+                          help="JSON map of cover path to fact id")
 
     p_source = sub.add_parser("source", help="register a citable source (RF-03)")
     p_source.add_argument("project")
@@ -246,6 +267,43 @@ def main(argv: list[str] | None = None) -> int:
         result = update_fact(args.project, args.fact_id, value=args.value,
                              unit=args.unit, kind=args.kind, source_keys=sk,
                              as_of=getattr(args, "as_of"), note=args.note)
+        print(json.dumps(result, indent=2))
+        return 0 if result.get("ok") else 1
+    elif args.cmd == "release":
+        result = project_status(args.project)
+        release = (result.get("manifest") or {}).get("release")
+        if not result.get("ok"):
+            print(json.dumps(result, indent=2))
+            return 1
+        print(json.dumps({"ok": release is not None,
+                          "release": release,
+                          "error": None if release is not None
+                          else "no release snapshot sealed yet: render_report first"},
+                         indent=2))
+        return 0 if release is not None else 1
+    elif args.cmd == "freeze-release":
+        result = freeze_release(args.project)
+        print(json.dumps(result, indent=2))
+        return 0 if result.get("ok") else 1
+    elif args.cmd == "rollforward":
+        try:
+            params = json.loads(args.params) if args.params.strip() else {}
+        except json.JSONDecodeError as exc:
+            print(json.dumps({"ok": False,
+                              "error": f"--params is not valid JSON: {exc}"}))
+            return 1
+        result = rollforward_report(args.project, args.new_slug,
+                                    brief=args.brief, params=params)
+        print(json.dumps(result, indent=2))
+        return 0 if result.get("ok") else 1
+    elif args.cmd == "derive-cover":
+        try:
+            mapping = json.loads(args.mapping) if args.mapping.strip() else None
+        except json.JSONDecodeError as exc:
+            print(json.dumps({"ok": False,
+                              "error": f"--mapping is not valid JSON: {exc}"}))
+            return 1
+        result = derive_cover(args.project, mapping)
         print(json.dumps(result, indent=2))
         return 0 if result.get("ok") else 1
     return 0

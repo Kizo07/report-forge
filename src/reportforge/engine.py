@@ -4253,15 +4253,39 @@ def reportforge_capabilities() -> dict:
         "templates": templates,
         "profiles": {
             "report_types": [t.get("name") for t in templates],
-            "brands": ["quantflow", "neutral"],
+            # C-8 R1-F11: advertise matrix truth — the single-brand,
+            # magazine-layout reality from §9.1, not aspirational lists.
+            "brands": ["quantflow"],
             "themes": ["light", "dark"],
-            "layouts": ["magazine", "single-column", "chartbook", "compact"],
-            "output_profiles": ["editorial", "web", "editable-docx"],
+            "layouts": ["magazine"],
+            "output_profiles": ["editorial", "web"],
+            "overridable_axes": ["output_profile", "policy"],
+            "fixed_axes": ["report_type", "brand", "theme", "layout"],
             # Template name → stored manifest profile.report_type for the
             # cases where they differ. C-1: no renames remain (studio stays
             # studio) — the map is empty and pinned so any future rename
             # must update discovery + stored profiles together.
             "report_type_map": {},
+        },
+        "release": {
+            "record": "output/release.json",
+            "identity": "12-hex sha256 of index.qmd + registry content "
+                        "hash (sources.bib + figures/) + toolchain + "
+                        "template_version",
+            "merge": "per-format renders merge under the project lock; a "
+                     "sealed record from a different snapshot covering "
+                     "formats outside the run fails loudly (re-render "
+                     "together)",
+            "verify_tool": "reportforge_freeze_release",
+        },
+        "rollforward": {
+            "tool": "reportforge_rollforward_report",
+            "carries": ["sources", "exhibits", "facts", "figures/",
+                        "sources.bib", "_quarto.yml", "index.qmd"],
+            "excludes": ["output/", ".reportforge-state.json",
+                         "report.json", ".reportforge.lock"],
+            "returns": ["carried", "stale", "unknown_vintage",
+                        "supersedes"],
         },
         "support_matrix": matrix,
         "execution": {
@@ -4295,6 +4319,7 @@ def reportforge_capabilities() -> dict:
                                "reportforge_register_exhibit",
                                "reportforge_register_fact",
                                "reportforge_update_fact"],
+            "cover_tools": ["reportforge_derive_cover"],
             "caption_attribution": "editorial convention for Milestone B "
                                    "(records carry source_keys/as_of/alt; "
                                    "nothing renders them into captions yet)",

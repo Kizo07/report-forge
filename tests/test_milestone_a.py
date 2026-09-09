@@ -60,6 +60,13 @@ def test_capabilities_shape(tmp_path, monkeypatch):
     assert "reportforge_capabilities" in caps["tools"]
     assert caps["manifest"]["states"] == ["draft", "review", "approved", "exported"]
     assert caps["docs"]["journeys"] == "docs/agent-journeys.md"
+    # C-8: matrix truth + Milestone C blocks.
+    assert caps["profiles"]["brands"] == ["quantflow"]
+    assert caps["profiles"]["layouts"] == ["magazine"]
+    assert caps["profiles"]["overridable_axes"] == ["output_profile", "policy"]
+    assert caps["release"]["verify_tool"] == "reportforge_freeze_release"
+    assert caps["rollforward"]["tool"] == "reportforge_rollforward_report"
+    assert caps["evidence"]["cover_tools"] == ["reportforge_derive_cover"]
 
 
 def test_capabilities_mcp_tool_registered():

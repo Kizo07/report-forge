@@ -74,6 +74,24 @@ verdict/target/scenarios/metrics numerics should have matching fact ids.
 Caption attribution (source/as-of under a figure) is an editorial convention
 for now — write it by hand; the record only stores the data.
 
+## 6. Repeat (Milestone C: next period)
+
+```bash
+reportforge rollforward amzn-brief amzn-brief-q3 --brief "Q3 update" \
+  --params '{"period": "Q3-2026", "as_of": "2026-10-30"}'
+# → carried {sources, exhibits, facts} + stale [fact-...] + unknown_vintage [...]
+reportforge fact-update amzn-brief-q3 fact-target-300 --value 330
+reportforge derive-cover amzn-brief-q3   # frontmatter target/scenarios/metrics ← facts
+reportforge render amzn-brief-q3 --formats html,pdf
+reportforge freeze-release amzn-brief-q3  # re-seal output/release.json, verify inputs
+```
+
+Rollforward copies the tree minus `output/`, state, and the old manifest;
+registries deep-copy with `registry_version` preserved while content
+revision restarts at 1. Refresh every `stale`/`unknown_vintage` fact by
+hand (no network, no auto-refresh), re-derive the cover, render all
+formats together so the release stays one snapshot.
+
 ## Fresh-agent checklist
 
 1. `capabilities` → pick template/profile/output.

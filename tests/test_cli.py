@@ -49,6 +49,47 @@ def test_cli_rejects_invalid_metric_shape_without_traceback(
     assert not (isolated_cli / "invalid-metrics").exists()
 
 
+def test_cli_release_reports_unsealed(
+    isolated_cli: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    exit_code = cli.main(["new", "rel-cli", "--formats", "html"])
+    assert exit_code == 0
+    capsys.readouterr()
+    exit_code = cli.main(["release", "rel-cli"])
+    captured = capsys.readouterr()
+    response = json.loads(captured.out)
+    assert exit_code == 1
+    assert response["ok"] is False
+    assert response["release"] is None
+
+
+def test_cli_rollforward_requires_brief(
+    isolated_cli: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert cli.main(["new", "roll-cli", "--formats", "html"]) == 0
+    capsys.readouterr()
+    exit_code = cli.main(["rollforward", "roll-cli", "roll-cli-q2",
+                          "--params", '{"period": "Q2", "as_of": "2026-04-30}'])
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert json.loads(captured.out)["ok"] is False
+
+
+def test_cli_derive_cover_bad_mapping_json(
+    isolated_cli: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert cli.main(["new", "cov-cli", "--formats", "html"]) == 0
+    capsys.readouterr()
+    exit_code = cli.main(["derive-cover", "cov-cli",
+                          "--mapping", "{not-json"])
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert json.loads(captured.out)["ok"] is False
+
+
 def test_cli_scaffolds_studio_with_generic_visual_options(
     isolated_cli: Path,
     capsys: pytest.CaptureFixture[str],
