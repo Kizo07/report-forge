@@ -3179,7 +3179,75 @@ def _stated_weighted_return(front: dict, body: str) -> tuple[float | None, bool]
     return None, False
 
 
-def _readiness_presentation(root: Path, text: str) -> list[dict]:
+# --- Milestone C Task C-7: layout policies (RF-10 subset) -----------------------
+# Exhibit sizing is explicit in the anchor attributes, so the engine can
+# classify without guessing: compact (default, no rules), complex
+# (width>=70% — caption required), wide (column page/screen, layout-ncol,
+# or width>=90% — alt text required on top of the complex rules).
+# Appendix sections must be unnumbered. All warnings (charter §3.6
+# heuristics); errors stay for broken linkage only.
+
+_FIGEMBED_RE = re.compile(r"!\[([^\]]*)\]\([^)]*\)\{#fig-([\w-]+)([^}]*)\}")
+_WIDTH_PCT_RE = re.compile(r"width\s*=\s*\"?(\d+(?:\.\d+)?)\s*%\"?")
+_COLUMN_PAGE_RE = re.compile(r"column\s*:\s*(page|screen)")
+_NCOL_RE = re.compile(r"layout-ncol\s*=")
+
+
+def _figure_layout_kind(attrs: str) -> str:
+    """Classify a figure from its {#fig-} attribute text.
+
+    R2-F6: the hook the RED policy tests hang on — width/column/ncol
+    come from the anchor, never from an exhibit record field.
+    """
+    if _COLUMN_PAGE_RE.search(attrs) or _NCOL_RE.search(attrs):
+        return "wide"
+    m = _WIDTH_PCT_RE.search(attrs)
+    if m:
+        pct = float(m.group(1))
+        if pct >= 90:
+            return "wide"
+        if pct >= 70:
+            return "complex"
+    return "compact"
+
+
+def _readiness_layout_policies(prose: str, exhibits: dict) -> list[dict]:
+    """Caption/alt/appendix rules for the four documented exhibit shapes."""
+    issues = []
+    seen: set[str] = set()
+    for cap, short, attrs in _FIGEMBED_RE.findall(prose):
+        if short in seen:
+            continue
+        seen.add(short)
+        eid = f"fig-{short}"
+        rec = exhibits.get(eid)
+        if rec is None:
+            # EXHIBIT-UNREGISTERED already errors; policy warnings stay out.
+            continue
+        kind = _figure_layout_kind(attrs)
+        if kind in ("complex", "wide") and not cap.strip():
+            issues.append(_issue(
+                "presentation", "warning", "PRES-CAP-MISSING",
+                f"figure @fig-{short} is {kind} but carries no embed caption — "
+                "complex figures need one"))
+        if kind == "wide" and not (rec.get("alt") or "").strip():
+            issues.append(_issue(
+                "presentation", "warning", "PRES-ALT-MISSING",
+                f"figure @fig-{short} is wide but has no alt text — "
+                "register the exhibit with alt"))
+    for _, line in manifest_mod._iter_prose_lines(prose.splitlines()):
+        m = re.match(r"^#{1,6}\s+.*(\{[^}]*\.appendix[^}]*\})\s*$", line)
+        if m and not re.search(r"(?:^|[\s.{])-(?=[\s.}])|unnumbered",
+                               m.group(1)):
+            issues.append(_issue(
+                "presentation", "warning", "PRES-APPENDIX-NUMBERED",
+                "appendix section is numbered — add .unnumbered "
+                f"({line.strip()[:60]})"))
+    return issues
+
+
+def _readiness_presentation(root: Path, text: str,
+                              exhibits: dict | None = None) -> list[dict]:
     issues = []
     charts_dir = root / "charts"
     if charts_dir.is_dir():
@@ -3200,6 +3268,7 @@ def _readiness_presentation(root: Path, text: str) -> list[dict]:
         if ref not in anchors:
             issues.append(_issue("presentation", "error", "PRES-DANGLING-REF",
                                  f"@fig-{ref} has no matching figure anchor"))
+    issues.extend(_readiness_layout_policies(prose, exhibits or {}))
     try:
         violation = _engine_charts_violation(root)
     except Exception:
@@ -3266,7 +3335,8 @@ def check_readiness(project: str) -> dict:
                      + _readiness_evidence_coverage(
                          root, body, front, manifest.to_dict(), template)),
         "numerical": _readiness_numerical(body, front, spans, body_offset),
-        "presentation": _readiness_presentation(root, text),
+        "presentation": _readiness_presentation(
+            root, text, manifest.to_dict().get("exhibits", {})),
         "editorial": _readiness_editorial(manifest),
     }
     cats = {name: {"pass": not any(i["severity"] == "error" for i in iss),

@@ -96,7 +96,7 @@ usually means positioning, not fundamentals — say which.
    early-warning indicator.
 2. The data revision or disclosure gap that could flip the segment read.
 
-# Method and data {.appendix}
+# Method and data {.appendix .unnumbered}
 
 Source filings, consensus provider, as-of timestamps, and conventions
 (reported vs organic, GAAP vs adjusted).
@@ -164,7 +164,7 @@ that express it, and the crowding check before sizing.
 1. The macro risk that cuts across every subsector, with its indicator.
 2. The sector-specific risk, and the level at which the call is wrong.
 
-# Method and data {.appendix}
+# Method and data {.appendix .unnumbered}
 
 Index definitions, return conventions (total return, USD), revision
 data source, and as-of dates.
@@ -243,7 +243,7 @@ observable that will mark it.
 1. The adoption risk, with the signpost that would reveal it first.
 2. The policy/subsidy risk, and the exposure that depends on it.
 
-# Method and data {.appendix}
+# Method and data {.appendix .unnumbered}
 
 Sizing method, source hierarchy, projection assumptions, and as-of dates.
 
@@ -321,7 +321,7 @@ them, and the asset expression of each. Probabilities sum to 100.
 Rates, credit, FX, and equities under the base case, with the hedge
 that pays best if the bear case arrives.
 
-# Method and data {.appendix}
+# Method and data {.appendix .unnumbered}
 
 Data sources, vintage dates, nowcast method, and forecast conventions.
 
@@ -394,7 +394,7 @@ the signal weakens, not only where it holds.
 1. The regime that kills the edge, with the monitoring metric.
 2. The capacity limit, and the AUM at which the net curve flattens.
 
-# Method and data {.appendix}
+# Method and data {.appendix .unnumbered}
 
 Data vintages, point-in-time conventions, and the backtest engine.
 
@@ -464,7 +464,7 @@ The exact condition that voids the read, the level it sits at, and
 what the chart says if it breaks. A technical brief without an
 invalidation level is a hope, not a read.
 
-# Method and data {.appendix}
+# Method and data {.appendix .unnumbered}
 
 Data source, session conventions, and the definition of every
 indicator used.
@@ -544,7 +544,7 @@ The bridge to numbers: carbon price exposure, capex share aligned or
 misaligned, and the revenue at regulatory risk. End with the
 valuation question the ESG profile raises.
 
-# Method and data {.appendix}
+# Method and data {.appendix .unnumbered}
 
 Rating provider and vintage, controversy sources, and estimation
 conventions.
@@ -630,7 +630,7 @@ them, and the level that marks each.
 1. The liquidity risk unique to the venue set, with the depth numbers.
 2. The regulatory tail, and the position size it justifies.
 
-# Method and data {.appendix}
+# Method and data {.appendix .unnumbered}
 
 Venues, data vendors, UTC conventions, and the treatment of weekend
 prints.
@@ -756,7 +756,7 @@ not advice.
 One paragraph: the call, the size, the horizon, the invalidation.
 Nothing new appears here that the body did not prove.
 
-# Method and data {.appendix}
+# Method and data {.appendix .unnumbered}
 
 Engine freshness, universe membership date, vendors, return
 conventions, and every as-of in one place.

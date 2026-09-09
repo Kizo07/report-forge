@@ -305,7 +305,7 @@ Non-goals (explicit): readiness does NOT verify factual accuracy, source quality
 
 ## 8. Milestone B — evidence registry (RF-03) + coverage deepening (RF-04)
 
-### 8.1 Registry maps (`report.json`, schema 2)
+### 8.1 Registry maps (`report.json`, schema 4)
 
 `sources` (keyed by citekey), `exhibits` (keyed by `fig-<id>`), `facts`
 (keyed by `fact-<slug>`), plus `registry_version: int` (0 for pre-B files).
@@ -393,6 +393,105 @@ desk-synthesis (desk inputs), modern (signal evidence).
   metadata fetching (local-first, no network in the registry path).
 - Kind `other` never satisfies REQUIRED_EVIDENCE, even the standard/memo
   catch-all: a scored body must ground at least one typed source.
+
+---
+
+## 9. Milestone C — designs & periods (RF-08, RF-09, RF-10 subset, cover)
+
+### 9.1 Profile matrix (§1.2 explicit)
+
+Axes: `report_type` (template's own name — renames forbidden; the
+`studio → studio-editorial` rename broke the REQUIRED_SECTIONS lookup and
+was reverted), `brand` (`quantflow`), `theme` (`light`/`dark`),
+`layout` (`magazine`), `output_profile` (`editorial`/`web`), `policy`
+(`draft`/`release`). Only `output_profile`/`policy` are overridable at
+scaffold (`profile=` param, MCP + CLI); theme/layout/brand/report_type
+are fixed per preset (axes reserved, unpopulated). Anything else fails
+naming the supported matrix. `create()` defaults a missing profile to
+the standard preset; `load()` validates stored profiles loudly and
+migrates `studio-editorial → studio` one-time. Capabilities
+`report_type_map` is `{}` and pinned.
+
+### 9.2 Version stamps (schema 3 → 4)
+
+- `template_version`: sha256 (12-hex) of `templates.py` +
+  `templates_domain.py` at scaffold time. Old reports keep their stamp
+  forever — that IS the upgrade story. Pre-C manifests migrate as
+  `"pre-c"` (never guessed).
+- Render stamps `toolchain: {quarto, python, reportforge}` into
+  `.reportforge-state.json` (artifacts), NEVER the manifest (§1.3).
+- Schema 4 adds `supersedes: {report, release_id, period, as_of}`
+  (C-5 lineage; `{}` for fresh scaffolds). Migrations stamp the current
+  version in-memory so the next save persists it.
+
+### 9.3 Brand tokens
+
+`BRAND_TOKENS` keyed by PALETTE name (`quantflow-dark/light`,
+`ledger-dark/light`) — never `(brand, theme)`, which cannot distinguish
+the two dark palettes. `accent == primary`. `save_chart` resolves the
+project palette through the existing template mapping and explicit
+`template=` through the same keys; anything else is a stock/custom
+plotly name. Cover `_brand.yml` resolves per template at scaffold.
+
+### 9.4 Release snapshot (RF-09)
+
+`output/release.json`: `{release_id (12-hex of qmd + registry CONTENT
+hash + toolchain + template_version), revision, registry_version,
+qmd_sha256, registry_sha256, toolchain, template_version, artifacts:
+{public fmt: {path, sha256, bytes}}}`. The registry hash covers
+`sources.bib` bytes + `figures/` listing (a bare counter is
+indistinguishable across machines). Render seals per-format and merges
+under the project lock; a sealed record from a different snapshot
+covering formats outside the run fails loudly (re-render together).
+`freeze_release` re-seals/verifies (drift, missing/changed artifacts
+fail). Export embeds `release.json`; pre-C reports warn, not fail.
+Status/open views expose the sealed `release` (None until sealed).
+
+### 9.5 Rollforward (RF-09)
+
+`rollforward_report(source, new_slug, brief, params)` copies the tree
+minus `output/`, state, lock, old manifest (plus derived `sources.bib`,
+`_quarto.yml`, `figures/`). `brief` and ISO `params.as_of` are
+REQUIRED. Registries deep-copy with `registry_version` preserved
+(independent counters — content revision restarts at 1); `supersedes`
+records lineage. Returns `carried` counts + `stale` (ISO `as_of` older
+than cutoff) + `unknown_vintage` (missing/unparseable — never silently
+fresh). Fact `history` entries carry `at` timestamps. No network, no
+auto-refresh — values update by hand.
+
+### 9.6 Cover auto-derivation (RF-04 deepening)
+
+`derive_cover(project, mapping)` binds every numeric cover field
+(`target`, `scenarios[i].value`, `metrics[i].value`) to a fact: explicit
+mapping wins, else the `fact-<field>` convention (`target →
+fact-target`). Unmapped numeric fields fail naming the field — hand
+values are never kept. Surgical edit (value lines only) + sets
+`cover_derived: true` (lifts the scenario-weights skip — derived
+weights are registry-grounded) + bumps revision. `EVID-COVER-UNLINKED`
+is an error (message points at `derive_cover`); `EVID-COVER-ILLUSTRATIVE`
+stays warning.
+
+### 9.7 Layout policies (RF-10 subset)
+
+Classifier reads the `{#fig-}` anchor attributes (never record fields):
+`column: page|screen` or `layout-ncol=` or `width>=90%` → wide;
+`width>=70%` → complex; else compact (bare numbers without `%` are px
+and ignored). Rules (all warning — charter §3.6 heuristics):
+
+| Shape | Rule | Code |
+| --- | --- | --- |
+| compact | none (default) | — |
+| complex | embed caption required | PRES-CAP-MISSING |
+| wide | complex rules + exhibit `alt` required | PRES-ALT-MISSING |
+| appendix | `{.appendix}` headings must carry `.unnumbered` | PRES-APPENDIX-NUMBERED |
+
+Unregistered figures skip policy checks (`EVID-EXHIBIT-UNREGISTERED`
+already errors — no pile-on). Starter templates ship `.unnumbered`
+appendices, so fresh scaffolds are clean; legacy wide/complex figures
+without alt/caption warn once until attributed (accepted, documented).
+Explicit non-promises: DOCX gets the unstyled table (defined fallback,
+which RF-10 asks for); per-exhibit CSV downloads deferred (no exhibit
+carries a source-data pointer yet — Milestone D).
 
 ---
 

@@ -202,7 +202,7 @@ See @fig-example for the trend. Reference tables with @tbl-example.
 1. Recommendation one, tied to a finding.
 2. Recommendation two.
 
-# Appendix {.appendix}
+# Appendix {.appendix .unnumbered}
 
 Methodology notes, extended tables, reproducibility information.
 
@@ -329,7 +329,7 @@ exit considerations.
 Restate the thesis in light of the evidence. End with the decision this
 paper supports.
 
-# Appendix {.appendix}
+# Appendix {.appendix .unnumbered}
 
 Methodology notes, data sources, extended exhibits, reproducibility.
 
@@ -691,7 +691,7 @@ interaction with existing exposures.
 1. Risk one, with its observable early-warning indicator.
 2. The exact condition under which this thesis is abandoned.
 
-# Method and data {.appendix}
+# Method and data {.appendix .unnumbered}
 
 Data sources, lookback windows, conventions, and reproducibility notes.
 
