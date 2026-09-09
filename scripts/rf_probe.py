@@ -165,12 +165,14 @@ check("c-derive", dc["ok"] is True
       and "EVID-COVER-UNLINKED" not in [c for c, _ in ecodes("c-cov")], dc)
 
 # --- C-15: derived weights split stays checked ----------------------------------
+# Block style: derive_cover rewrites dedicated value lines. Flow style
+# ('- {label:.., value:..}') fails loudly — covered by the unit test.
 root = engine.REPORTS_DIR / "c-cov"
 (root / "index.qmd").write_text(
     "---\ntitle: C\nreportforge-template: bespoke\ncover_derived: true\n"
-    "scenarios:\n  - {label: bear, value: 30}\n"
-    "  - {label: base, value: 40}\n"
-    "  - {label: bull, value: 30}\n---\n\n# C\n")
+    "scenarios:\n  - label: bear\n    value: 30\n"
+    "  - label: base\n    value: 40\n"
+    "  - label: bull\n    value: 30\n---\n\n# C\n")
 for fid, val in (("fact-scenarios-0-value", 30.0),
                  ("fact-scenarios-1-value", 40.0),
                  ("fact-scenarios-2-value", 30.0)):

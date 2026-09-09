@@ -127,3 +127,28 @@ def test_derived_weights_split_stays_checked(tmp_path, monkeypatch):
     engine.update_fact("cov-probe", "fact-scenarios-1-value", value=41.0)
     drifted = engine.check_readiness("cov-probe")
     assert "EVID-COVER-UNLINKED" in [c for c, _ in _codes(drifted)]
+
+
+def test_derive_cover_flow_style_fails_loudly(tmp_path, monkeypatch):
+    """Review F1: flow-style '- {label:.., value:..}' items cannot be
+    rewritten line-surgically — derive must fail loudly, never silently
+    keep the hand value while stamping cover_derived."""
+    root = _bespoke(monkeypatch, tmp_path)
+    text = (root / "index.qmd").read_text()
+    start = text.index("scenarios:")
+    end = text.index("---", start)
+    text = (text[:start]
+            + "scenarios:\n  - {label: bear, value: 30}\n"
+            + "  - {label: base, value: 40}\n"
+            + "  - {label: bull, value: 30}\n"
+            + text[end:])
+    (root / "index.qmd").write_text(text)
+    for fid, val in (("fact-target", 720.0),
+                     ("fact-scenarios-0-value", 30.0),
+                     ("fact-scenarios-1-value", 40.0),
+                     ("fact-scenarios-2-value", 30.0)):
+        engine.register_fact("cov-probe", fid, val)
+    res = engine.derive_cover("cov-probe")
+    assert res["ok"] is False
+    assert "flow-style" in res["error"]
+    assert "cover_derived" not in (root / "index.qmd").read_text()

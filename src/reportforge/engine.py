@@ -3836,11 +3836,14 @@ def rollforward_report(project: str, new_slug: str, brief: str = "",
         src_title = src_manifest.title
         sealed = _read_release_record(_output_dir_of(src_root))
         src_release_id = (sealed or {}).get("release_id")
-    try:
-        shutil.copytree(src_root, dst,
-                        ignore=shutil.ignore_patterns(*_ROLLFORWARD_SKIP))
-    except OSError as exc:
-        return {"ok": False, "error": f"could not copy report tree: {exc}"}
+        # Review F2: the tree copy happens under the source lock so a
+        # concurrent writer cannot tear the copy mid-flight.
+        try:
+            shutil.copytree(src_root, dst,
+                            ignore=shutil.ignore_patterns(*_ROLLFORWARD_SKIP))
+        except OSError as exc:
+            return {"ok": False,
+                    "error": f"could not copy report tree: {exc}"}
     _set_frontmatter_description(dst / "index.qmd", brief.strip())
     title = params.get("title") or src_title
     with _project_lock(dst):
@@ -3987,6 +3990,21 @@ def derive_cover(project: str, mapping: dict | None = None) -> dict:
                 continue
             if top in ("scenarios", "metrics") and re.match(r"^\s+-\s", line):
                 idx += 1
+                # Review F1: a flow-style item (- {label:.., value:..})
+                # cannot be rewritten line-surgically; failing loudly
+                # beats silently keeping the hand value.
+                if "{" in line.split("-", 1)[1]:
+                    path = f"{top}[{idx}].value"
+                    if path in resolved:
+                        return {
+                            "ok": False,
+                            "error": (
+                                f"cover {top}[{idx}] uses flow-style YAML "
+                                "('- {label:.., value:..}'): derive_cover "
+                                "only rewrites block-style 'value:' lines — "
+                                "rewrite the item in block style, then "
+                                "re-run derive_cover"),
+                        }
                 continue
             mv = re.match(r"^(\s+)value\s*:", line)
             if mv and top in ("scenarios", "metrics") and idx >= 0:
