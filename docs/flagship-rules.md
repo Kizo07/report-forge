@@ -56,9 +56,21 @@ this file is the committed mirror so a fresh checkout reproduces them.
 
 ## Chart identity
 
-- Engine builders (`alpha_engine.viz`) with `theme="quantflow-light"` on
-  light pages / `"quantflow-dark"` on dark — never hand-rolled plotly for
-  standard exhibits.
+- Engine builders (`alpha_engine.viz`, importable directly in
+  `reportforge_run_code` — the report kernel resolves the live
+  alpha_engine checkout) with `theme="quantflow-light"` on
+  light pages / `"quantflow-dark"` on dark / `"ledger-dark"` /
+  `"ledger-light"` on ledger pages — never hand-rolled plotly for
+  standard exhibits. Match the encoding to the data (bars are NOT the
+  default): comparison → `comps_bars`/`attribution_bars`; correlation →
+  `corr_heatmap`; distribution → `distribution_box(mode="box"|"violin")`;
+  static mix → `weights_donut` (≤10 slices) / `treemap_weights`
+  (`groups={leaf: parent}`); mix over time → `mix_area`; factor profile
+  → `radar_profile` (≤4 overlays); regression/CARs → `coef_intervals`;
+  bivariate → `scatter_xy` (trend + `size=` bubbles); seasonal grid →
+  `seasonality_grid`; OHLC → `price_technicals(ohlc=...)` candle mode
+  (single-panel by engine design — finance traces duplicate across
+  subplots on current plotly.js).
 - Matplotlib/seaborn fallback is FORBIDDEN on flagships. Scaffold with
   `engine_charts_only=True`: render then hard-fails (ok:false naming the
   files) instead of shipping a fallback — including white-background
