@@ -1,0 +1,19 @@
+{
+  "last_render": "2026-09-10T23:33:18-0500",
+  "manifest_revision": 1,
+  "registry_version": 0,
+  "formats": [
+    "html",
+    "typst"
+  ],
+  "outputs": [
+    "/home/fire/Documents/report-forge/reports/googl-12m-muse-dark/output/index.html",
+    "/home/fire/Documents/report-forge/reports/googl-12m-muse-dark/output/index.pdf"
+  ],
+  "source": "/home/fire/Documents/report-forge/reports/googl-12m-muse-dark/index.qmd",
+  "toolchain": {
+    "quarto": "1.10.18",
+    "python": "3.12.14",
+    "reportforge": "0.1.0"
+  }
+}

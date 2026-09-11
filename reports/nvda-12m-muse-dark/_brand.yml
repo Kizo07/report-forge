@@ -1,0 +1,48 @@
+color:
+  palette:
+    paper: "#0a0d12"
+    panel: "#10151d"
+    ink: "#e7eaf0"
+    muted: "#9aa4b2"
+    gold: "#d9a54e"
+    aqua: "#56cfc4"
+    line: "#1e2632"
+    slate: "#9aa4b2"
+    mist: "#10151d"
+  foreground: "#e7eaf0"
+  background: "#0a0d12"
+  primary: "#d9a54e"
+  secondary: "#56cfc4"
+  tertiary: "#9aa4b2"
+  success: "#3ecf8e"
+  info: "#56cfc4"
+  warning: "#d9a54e"
+  danger: "#ef6a6a"
+  light: "#10151d"
+
+typography:
+  fonts:
+    - family: Fraunces
+      source: google
+      weight: [400, 600]
+    - family: Inter
+      source: google
+      weight: [400, 500, 600]
+    - family: IBM Plex Mono
+      source: google
+  base:
+    family: Inter
+    size: 1rem
+  headings:
+    family: Fraunces
+    weight: 600
+    color: "#e7eaf0"
+  monospace: IBM Plex Mono
+  monospace-inline:
+    color: "#56cfc4"
+    background-color: "#151b25"
+  monospace-block:
+    background-color: panel
+
+meta:
+  name: ReportForge Portfolio Dark

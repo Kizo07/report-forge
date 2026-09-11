@@ -1,0 +1,150 @@
+{
+  "report_id": "nvda-12m-muse-dark",
+  "title": "NVIDIA Corporation (NVDA) — 12-Month Outlook",
+  "brief": "",
+  "profile": {
+    "report_type": "portfolio-dark",
+    "brand": "quantflow",
+    "theme": "dark",
+    "layout": "magazine",
+    "output_profile": "editorial",
+    "policy": "draft"
+  },
+  "revision": 1,
+  "state": "draft",
+  "sections": [
+    {
+      "id": "s-executive-summary",
+      "title": "Executive summary",
+      "level": 1,
+      "line_start": 16
+    },
+    {
+      "id": "s-as-of-data-box-and-freshness-statement",
+      "title": "As-of data box and freshness statement",
+      "level": 1,
+      "line_start": 45
+    },
+    {
+      "id": "s-business-segment-deep-dive",
+      "title": "Business segment deep dive",
+      "level": 1,
+      "line_start": 58
+    },
+    {
+      "id": "s-product-demand-deep-dive-the-evidence-behind-forward-revenue",
+      "title": "Product-demand deep dive — the evidence behind forward revenue",
+      "level": 1,
+      "line_start": 74
+    },
+    {
+      "id": "s-ai-compute-competitive-position-the-cuda-moat-under-siege-still-holding",
+      "title": "AI compute competitive position — the CUDA moat under siege, still holding",
+      "level": 1,
+      "line_start": 92
+    },
+    {
+      "id": "s-china-and-export-control-exposure-revenue-at-risk-compliant-products-scenarios",
+      "title": "China and export-control exposure — revenue at risk, compliant products, scenarios",
+      "level": 1,
+      "line_start": 104
+    },
+    {
+      "id": "s-capital-returns-and-buyback-math",
+      "title": "Capital returns and buyback math",
+      "level": 1,
+      "line_start": 114
+    },
+    {
+      "id": "s-valuation-dcf-scenarios-relative-multiples-implied-expectations",
+      "title": "Valuation — DCF scenarios, relative multiples, implied expectations",
+      "level": 1,
+      "line_start": 124
+    },
+    {
+      "id": "s-technical-picture-regime-key-levels-positioning",
+      "title": "Technical picture — regime, key levels, positioning",
+      "level": 1,
+      "line_start": 149
+    },
+    {
+      "id": "s-factor-attribution-which-factors-explain-nvda-and-what-that-implies",
+      "title": "Factor attribution — which factors explain NVDA, and what that implies",
+      "level": 1,
+      "line_start": 163
+    },
+    {
+      "id": "s-bull-vs-bear-debate-transcript-summary-and-adjudication",
+      "title": "Bull vs bear debate — transcript summary and adjudication",
+      "level": 1,
+      "line_start": 175
+    },
+    {
+      "id": "s-scenario-analysis-table",
+      "title": "Scenario analysis table",
+      "level": 1,
+      "line_start": 185
+    },
+    {
+      "id": "s-risk-dashboard",
+      "title": "Risk dashboard",
+      "level": 1,
+      "line_start": 199
+    },
+    {
+      "id": "s-12-month-catalyst-calendar",
+      "title": "12-month catalyst calendar",
+      "level": 1,
+      "line_start": 214
+    },
+    {
+      "id": "s-final-recommendation-research-not-financial-advice",
+      "title": "Final recommendation (research, not financial advice)",
+      "level": 1,
+      "line_start": 230
+    },
+    {
+      "id": "s-appendix-a-subagent-briefs-condensed-traceable",
+      "title": "Appendix A — subagent briefs (condensed, traceable)",
+      "level": 1,
+      "line_start": 238
+    },
+    {
+      "id": "s-appendix-b-data-tables",
+      "title": "Appendix B — data tables",
+      "level": 1,
+      "line_start": 254
+    },
+    {
+      "id": "s-sources",
+      "title": "Sources",
+      "level": 1,
+      "line_start": 262
+    }
+  ],
+  "formats": [
+    "html",
+    "docx"
+  ],
+  "created": "2026-09-07T19:53:12.456791-05:00",
+  "updated": "2026-09-10T23:29:23.325658-05:00",
+  "revision_log": [
+    {
+      "revision": 1,
+      "timestamp": "2026-09-10T23:29:23.325650-05:00",
+      "actor": "tool:import",
+      "op": "import",
+      "section_id": null,
+      "summary": "imported pre-manifest directory"
+    }
+  ],
+  "idempotency_ledger": {},
+  "reviews": [],
+  "sources": {},
+  "exhibits": {},
+  "facts": {},
+  "registry_version": 0,
+  "template_version": "pre-c",
+  "supersedes": {},
+  "schema_version": 4
+}

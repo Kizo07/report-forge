@@ -23,7 +23,9 @@ def test_mcp_scaffold_schema_exposes_studio_visual_options() -> None:
         "metrics",
     } <= set(properties)
     assert properties["title_layout"]["default"] == "hero"
-    assert properties["accent"]["default"] == "#4f46e5"
+    # None (omit) resolves to each template's own accent; an explicit value
+    # is honored verbatim (no sentinel swap).
+    assert properties["accent"]["default"] is None
 
 
 # --- WS-B: schema boundary must accept list | str | None -----------------

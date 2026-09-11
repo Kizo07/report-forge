@@ -1,0 +1,174 @@
+{
+  "report_id": "meta-12m-muse-dark",
+  "title": "META PLATFORMS, INC. (META)",
+  "brief": "",
+  "profile": {
+    "report_type": "portfolio-dark",
+    "brand": "quantflow",
+    "theme": "dark",
+    "layout": "magazine",
+    "output_profile": "editorial",
+    "policy": "draft"
+  },
+  "revision": 1,
+  "state": "draft",
+  "sections": [
+    {
+      "id": "s-as-of-box-and-data-freshness",
+      "title": "As-of box and data freshness",
+      "level": 1,
+      "line_start": 30
+    },
+    {
+      "id": "s-executive-summary-the-call-in-one-page",
+      "title": "Executive summary — the call in one page",
+      "level": 1,
+      "line_start": 46
+    },
+    {
+      "id": "s-investment-snapshot-what-you-own-at-592-85",
+      "title": "Investment snapshot — what you own at $592.85",
+      "level": 1,
+      "line_start": 58
+    },
+    {
+      "id": "s-technical-picture-repair-not-breakdown",
+      "title": "Technical picture — repair, not breakdown",
+      "level": 1,
+      "line_start": 68
+    },
+    {
+      "id": "s-ad-engine-deep-dive-the-cash-machine-re-accelerated",
+      "title": "Ad engine deep dive — the cash machine re-accelerated",
+      "level": 1,
+      "line_start": 80
+    },
+    {
+      "id": "s-ai-strategy-and-capex-economics-what-each-dollar-buys",
+      "title": "AI strategy and capex economics — what each dollar buys",
+      "level": 1,
+      "line_start": 98
+    },
+    {
+      "id": "s-reality-labs-and-wearables-the-burn-with-an-option",
+      "title": "Reality Labs and wearables — the burn with an option",
+      "level": 1,
+      "line_start": 114
+    },
+    {
+      "id": "s-monetization-greenfield-whatsapp-threads-messaging-ads",
+      "title": "Monetization greenfield — WhatsApp, Threads, messaging ads",
+      "level": 1,
+      "line_start": 126
+    },
+    {
+      "id": "s-regulatory-and-legal-overhang-scenario-sized-not-story-breaking",
+      "title": "Regulatory and legal overhang — scenario-sized, not story-breaking",
+      "level": 1,
+      "line_start": 138
+    },
+    {
+      "id": "s-capital-returns-buyback-math-and-dividend-capacity",
+      "title": "Capital returns — buyback math and dividend capacity",
+      "level": 1,
+      "line_start": 148
+    },
+    {
+      "id": "s-valuation-multiples-dcf-fan-and-what-price-embeds",
+      "title": "Valuation — multiples, DCF fan, and what price embeds",
+      "level": 1,
+      "line_start": 156
+    },
+    {
+      "id": "s-factor-attribution-what-the-risk-model-says-you-own",
+      "title": "Factor attribution — what the risk model says you own",
+      "level": 1,
+      "line_start": 172
+    },
+    {
+      "id": "s-bull-vs-bear-adjudicated-debate",
+      "title": "Bull vs Bear — adjudicated debate",
+      "level": 1,
+      "line_start": 182
+    },
+    {
+      "id": "s-scenario-table-targets-probabilities-drivers-invalidation",
+      "title": "Scenario table — targets, probabilities, drivers, invalidation",
+      "level": 1,
+      "line_start": 192
+    },
+    {
+      "id": "s-risk-dashboard-and-position-sizing",
+      "title": "Risk dashboard and position sizing",
+      "level": 1,
+      "line_start": 205
+    },
+    {
+      "id": "s-recommendation-and-catalyst-watch",
+      "title": "Recommendation and catalyst watch",
+      "level": 1,
+      "line_start": 222
+    },
+    {
+      "id": "s-appendix-a-subagent-briefs-condensed",
+      "title": "Appendix A — subagent briefs (condensed)",
+      "level": 1,
+      "line_start": 228
+    },
+    {
+      "id": "s-appendix-b-data-tables",
+      "title": "Appendix B — data tables",
+      "level": 1,
+      "line_start": 242
+    },
+    {
+      "id": "s-caveats-and-failure-modes",
+      "title": "Caveats and failure modes",
+      "level": 1,
+      "line_start": 264
+    },
+    {
+      "id": "s-sources",
+      "title": "Sources",
+      "level": 1,
+      "line_start": 268
+    },
+    {
+      "id": "s-expansion-demand-forensics-talent-roi-and-print-day-playbook-gate-top-up",
+      "title": "Expansion — demand forensics, talent ROI, and print-day playbook (gate top-up)",
+      "level": 1,
+      "line_start": 284
+    },
+    {
+      "id": "s-further-evidence-options-positioning-seasonality-and-management-signal-log",
+      "title": "Further evidence — options positioning, seasonality, and management signal log",
+      "level": 1,
+      "line_start": 296
+    }
+  ],
+  "formats": [
+    "html",
+    "docx"
+  ],
+  "created": "2026-09-07T19:53:12.435790-05:00",
+  "updated": "2026-09-10T23:29:30.118721-05:00",
+  "revision_log": [
+    {
+      "revision": 1,
+      "timestamp": "2026-09-10T23:29:30.118712-05:00",
+      "actor": "tool:import",
+      "op": "import",
+      "section_id": null,
+      "summary": "imported pre-manifest directory"
+    }
+  ],
+  "idempotency_ledger": {},
+  "reviews": [],
+  "sources": {},
+  "exhibits": {},
+  "facts": {},
+  "registry_version": 0,
+  "template_version": "pre-c",
+  "supersedes": {},
+  "schema_version": 4
+}

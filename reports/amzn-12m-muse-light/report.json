@@ -1,0 +1,161 @@
+{
+  "report_id": "amzn-12m-muse-light",
+  "title": "AMAZON.COM INC. (AMZN) — 12-Month Outlook",
+  "brief": "",
+  "profile": {
+    "report_type": "portfolio-light",
+    "brand": "quantflow",
+    "theme": "light",
+    "layout": "magazine",
+    "output_profile": "editorial",
+    "policy": "draft"
+  },
+  "revision": 1,
+  "state": "draft",
+  "sections": [
+    {
+      "id": "s-executive-summary",
+      "title": "Executive summary",
+      "level": 1,
+      "line_start": 63
+    },
+    {
+      "id": "s-1-data-box-and-freshness-statement",
+      "title": "1 · Data box and freshness statement",
+      "level": 1,
+      "line_start": 73
+    },
+    {
+      "id": "s-2-price-action-pullback-within-trend",
+      "title": "2 · Price action: pullback within trend",
+      "level": 1,
+      "line_start": 91
+    },
+    {
+      "id": "s-3-peer-context-mid-pack-momentum-intact-trend",
+      "title": "3 · Peer context: mid-pack momentum, intact trend",
+      "level": 1,
+      "line_start": 101
+    },
+    {
+      "id": "s-4-technical-picture-regime-levels-positioning",
+      "title": "4 · Technical picture: regime, levels, positioning",
+      "level": 1,
+      "line_start": 111
+    },
+    {
+      "id": "s-5-aws-deep-dive-reacceleration-backlog-and-the-silicon-edge",
+      "title": "5 · AWS deep dive: reacceleration, backlog, and the silicon edge",
+      "level": 1,
+      "line_start": 121
+    },
+    {
+      "id": "s-6-advertising-the-usd-80-billion-high-margin-flywheel",
+      "title": "6 · Advertising: the USD 80 billion high-margin flywheel",
+      "level": 1,
+      "line_start": 147
+    },
+    {
+      "id": "s-7-retail-and-automation-margin-lift-from-robotics-and-density",
+      "title": "7 · Retail and automation: margin lift from robotics and density",
+      "level": 1,
+      "line_start": 155
+    },
+    {
+      "id": "s-8-kuiper-optionality-the-free-call-on-orbital-broadband",
+      "title": "8 · Kuiper optionality: the free call on orbital broadband",
+      "level": 1,
+      "line_start": 161
+    },
+    {
+      "id": "s-9-alexa-devices-grocery-healthcare-tight-chart-led",
+      "title": "9 · Alexa+, devices, grocery, healthcare: tight, chart-led",
+      "level": 1,
+      "line_start": 167
+    },
+    {
+      "id": "s-10-antitrust-ftc-and-eu-dma-scenario-sized-with-probabilities",
+      "title": "10 · Antitrust: FTC and EU DMA, scenario-sized with probabilities",
+      "level": 1,
+      "line_start": 171
+    },
+    {
+      "id": "s-11-capital-allocation-capex-intensity-buyback-math-fcf-bridge",
+      "title": "11 · Capital allocation: capex intensity, buyback math, FCF bridge",
+      "level": 1,
+      "line_start": 177
+    },
+    {
+      "id": "s-12-valuation-scenario-dcf-multiples-implied-expectations",
+      "title": "12 · Valuation: scenario DCF, multiples, implied expectations",
+      "level": 1,
+      "line_start": 183
+    },
+    {
+      "id": "s-13-bull-versus-bear-adjudicated-debate",
+      "title": "13 · Bull versus bear: adjudicated debate",
+      "level": 1,
+      "line_start": 191
+    },
+    {
+      "id": "s-14-factor-attribution-risk-dashboard-and-the-action-ladder",
+      "title": "14 · Factor attribution, risk dashboard, and the action ladder",
+      "level": 1,
+      "line_start": 197
+    },
+    {
+      "id": "s-15-catalyst-calendar-and-comps-appendix-tables",
+      "title": "15 · Catalyst calendar and comps appendix tables",
+      "level": 1,
+      "line_start": 219
+    },
+    {
+      "id": "s-16-final-recommendation",
+      "title": "16 · Final recommendation",
+      "level": 1,
+      "line_start": 245
+    },
+    {
+      "id": "s-appendix-a-subagent-briefs-condensed-with-provenance",
+      "title": "Appendix A · Subagent briefs (condensed, with provenance)",
+      "level": 1,
+      "line_start": 249
+    },
+    {
+      "id": "s-appendix-b-data-tables-as-of-2026-09-02-unless-noted",
+      "title": "Appendix B · Data tables (as-of 2026-09-02 unless noted)",
+      "level": 1,
+      "line_start": 253
+    },
+    {
+      "id": "s-appendix-c-method-note-how-this-report-was-built-127-words",
+      "title": "Appendix C · Method note: how this report was built (127 words)",
+      "level": 1,
+      "line_start": 257
+    }
+  ],
+  "formats": [
+    "html"
+  ],
+  "created": "2026-09-07T19:53:12.403790-05:00",
+  "updated": "2026-09-10T23:29:04.752261-05:00",
+  "revision_log": [
+    {
+      "revision": 1,
+      "timestamp": "2026-09-10T23:29:04.752254-05:00",
+      "actor": "tool:import",
+      "op": "import",
+      "section_id": null,
+      "summary": "imported pre-manifest directory"
+    }
+  ],
+  "idempotency_ledger": {},
+  "reviews": [],
+  "sources": {},
+  "exhibits": {},
+  "facts": {},
+  "registry_version": 0,
+  "template_version": "pre-c",
+  "supersedes": {},
+  "schema_version": 4
+}

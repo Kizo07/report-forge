@@ -1,0 +1,137 @@
+{
+  "report_id": "aapl-12m-muse-studio",
+  "title": "Apple Inc (AAPL) — 12-Month Flagship Outlook",
+  "brief": "",
+  "profile": {
+    "report_type": "standard",
+    "brand": "quantflow",
+    "theme": "light",
+    "layout": "magazine",
+    "output_profile": "editorial",
+    "policy": "draft"
+  },
+  "revision": 1,
+  "state": "draft",
+  "sections": [
+    {
+      "id": "s-executive-summary",
+      "title": "Executive summary",
+      "level": 1,
+      "line_start": 21
+    },
+    {
+      "id": "s-as-of-data-box-freshness-statement",
+      "title": "As-of data box + freshness statement",
+      "level": 2,
+      "line_start": 32
+    },
+    {
+      "id": "s-business-segment-deep-dive",
+      "title": "Business segment deep dive",
+      "level": 2,
+      "line_start": 51
+    },
+    {
+      "id": "s-ai-strategy-assessment",
+      "title": "AI strategy assessment",
+      "level": 2,
+      "line_start": 67
+    },
+    {
+      "id": "s-services-regulatory-risk-analysis",
+      "title": "Services & regulatory risk analysis",
+      "level": 2,
+      "line_start": 77
+    },
+    {
+      "id": "s-china-geopolitical-exposure",
+      "title": "China & geopolitical exposure",
+      "level": 2,
+      "line_start": 87
+    },
+    {
+      "id": "s-capital-returns-and-buyback-math",
+      "title": "Capital returns and buyback math",
+      "level": 2,
+      "line_start": 93
+    },
+    {
+      "id": "s-valuation",
+      "title": "Valuation",
+      "level": 2,
+      "line_start": 101
+    },
+    {
+      "id": "s-technical-picture",
+      "title": "Technical picture",
+      "level": 2,
+      "line_start": 113
+    },
+    {
+      "id": "s-bull-bear-debate-transcript-summary-and-adjudication",
+      "title": "Bull/Bear debate — transcript summary and adjudication",
+      "level": 2,
+      "line_start": 131
+    },
+    {
+      "id": "s-scenario-analysis-table",
+      "title": "Scenario analysis table",
+      "level": 2,
+      "line_start": 141
+    },
+    {
+      "id": "s-risk-dashboard",
+      "title": "Risk dashboard",
+      "level": 2,
+      "line_start": 157
+    },
+    {
+      "id": "s-12-month-catalyst-calendar",
+      "title": "12-month catalyst calendar",
+      "level": 2,
+      "line_start": 174
+    },
+    {
+      "id": "s-final-recommendation-research-not-financial-advice",
+      "title": "Final recommendation (research, not financial advice)",
+      "level": 2,
+      "line_start": 190
+    },
+    {
+      "id": "s-appendix-subagent-briefs-data-tables-receipts",
+      "title": "Appendix: subagent briefs, data tables, receipts",
+      "level": 2,
+      "line_start": 198
+    },
+    {
+      "id": "s-sources",
+      "title": "Sources",
+      "level": 2,
+      "line_start": 212
+    }
+  ],
+  "formats": [
+    "html"
+  ],
+  "created": "2026-09-07T19:53:12.376789-05:00",
+  "updated": "2026-09-10T23:29:37.186270-05:00",
+  "revision_log": [
+    {
+      "revision": 1,
+      "timestamp": "2026-09-10T23:29:37.186260-05:00",
+      "actor": "tool:import",
+      "op": "import",
+      "section_id": null,
+      "summary": "imported pre-manifest directory"
+    }
+  ],
+  "idempotency_ledger": {},
+  "reviews": [],
+  "sources": {},
+  "exhibits": {},
+  "facts": {},
+  "registry_version": 0,
+  "template_version": "pre-c",
+  "supersedes": {},
+  "schema_version": 4
+}

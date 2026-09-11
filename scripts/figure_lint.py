@@ -188,6 +188,18 @@ def main() -> int:
                     bad.append(f"{png.name}: paper {paper} is not the light "
                                f"template paper {want} — wrong theme "
                                f"or default-style fallback?")
+                # Plot interior must not be pure white on light templates —
+                # a white plot box on ice paper is the visible mismatch
+                # (AMD ledger-light, 2026-09-08). Sample the center.
+                core = im.crop((w // 2 - 20, h // 2 - 20,
+                                w // 2 + 20, h // 2 + 20))
+                raw = core.tobytes()
+                n = len(raw) // 3
+                mean_core = tuple(sum(raw[i::3]) // n for i in range(3))
+                if all(v > 247 for v in mean_core):
+                    bad.append(f"{png.name}: plot interior {mean_core} is "
+                               f"near-white on light template — plot_bg "
+                               f"must match the page paper")
             if engine_only:
                 sw = str(Image.open(png).info.get("Software", ""))
                 if "matplotlib" in sw.lower() or "seaborn" in sw.lower():

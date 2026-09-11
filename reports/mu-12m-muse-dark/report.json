@@ -1,0 +1,210 @@
+{
+  "report_id": "mu-12m-muse-dark",
+  "title": "Micron Technology, Inc. (MU) — 12-Month Outlook",
+  "brief": "",
+  "profile": {
+    "report_type": "portfolio-dark",
+    "brand": "quantflow",
+    "theme": "dark",
+    "layout": "magazine",
+    "output_profile": "editorial",
+    "policy": "draft"
+  },
+  "revision": 1,
+  "state": "draft",
+  "sections": [
+    {
+      "id": "s-executive-summary",
+      "title": "Executive summary",
+      "level": 1,
+      "line_start": 17
+    },
+    {
+      "id": "s-as-of-data-box-and-freshness",
+      "title": "As-of data box and freshness",
+      "level": 2,
+      "line_start": 31
+    },
+    {
+      "id": "s-business-segment-deep-dive",
+      "title": "Business segment deep dive",
+      "level": 2,
+      "line_start": 48
+    },
+    {
+      "id": "s-product-demand-deep-dive",
+      "title": "Product-demand deep dive",
+      "level": 2,
+      "line_start": 71
+    },
+    {
+      "id": "s-competitive-position-in-memory",
+      "title": "Competitive position in memory",
+      "level": 2,
+      "line_start": 93
+    },
+    {
+      "id": "s-cycle-framework",
+      "title": "Cycle framework",
+      "level": 2,
+      "line_start": 112
+    },
+    {
+      "id": "s-capital-allocation",
+      "title": "Capital allocation",
+      "level": 2,
+      "line_start": 122
+    },
+    {
+      "id": "s-valuation",
+      "title": "Valuation",
+      "level": 2,
+      "line_start": 132
+    },
+    {
+      "id": "s-technical-picture",
+      "title": "Technical picture",
+      "level": 2,
+      "line_start": 169
+    },
+    {
+      "id": "s-factor-attribution",
+      "title": "Factor attribution",
+      "level": 2,
+      "line_start": 179
+    },
+    {
+      "id": "s-bull-versus-bear-debate",
+      "title": "Bull versus bear debate",
+      "level": 2,
+      "line_start": 189
+    },
+    {
+      "id": "s-scenario-analysis",
+      "title": "Scenario analysis",
+      "level": 2,
+      "line_start": 199
+    },
+    {
+      "id": "s-risk-dashboard",
+      "title": "Risk dashboard",
+      "level": 2,
+      "line_start": 213
+    },
+    {
+      "id": "s-twelve-month-catalyst-calendar",
+      "title": "Twelve-month catalyst calendar",
+      "level": 2,
+      "line_start": 219
+    },
+    {
+      "id": "s-final-recommendation",
+      "title": "Final recommendation",
+      "level": 2,
+      "line_start": 238
+    },
+    {
+      "id": "s-appendix-subagent-briefs-and-data-tables",
+      "title": "Appendix: subagent briefs and data tables",
+      "level": 2,
+      "line_start": 242
+    },
+    {
+      "id": "s-extended-segment-financial-modeling-fq1-24-to-fq4-27e",
+      "title": "Extended segment financial modeling (FQ1-24 to FQ4-27E)",
+      "level": 2,
+      "line_start": 270
+    },
+    {
+      "id": "s-technology-moat-drill-down-1-gamma-hbm3e-4-phy-and-nand-layers",
+      "title": "Technology moat drill-down: 1-gamma, HBM3E/4 PHY, and NAND layers",
+      "level": 2,
+      "line_start": 288
+    },
+    {
+      "id": "s-end-market-quantification-servers-pcs-mobiles-autos",
+      "title": "End-market quantification: servers, PCs, mobiles, autos",
+      "level": 2,
+      "line_start": 298
+    },
+    {
+      "id": "s-china-cxmt-ymtc-and-export-control-game-theory",
+      "title": "China, CXMT/YMTC, and export-control game theory",
+      "level": 2,
+      "line_start": 312
+    },
+    {
+      "id": "s-options-positioning-short-interest-and-trade-construction",
+      "title": "Options positioning, short interest, and trade construction",
+      "level": 2,
+      "line_start": 322
+    },
+    {
+      "id": "s-prior-cycle-forensics-2017-18-and-2020-21-blowoffs-vs-today",
+      "title": "Prior-cycle forensics: 2017-18 and 2020-21 blowoffs vs today",
+      "level": 2,
+      "line_start": 328
+    },
+    {
+      "id": "s-management-governance-and-capital-allocation-track-record",
+      "title": "Management, governance, and capital-allocation track record",
+      "level": 2,
+      "line_start": 334
+    },
+    {
+      "id": "s-esg-regulatory-and-event-risk-annex",
+      "title": "ESG, regulatory, and event-risk annex",
+      "level": 2,
+      "line_start": 338
+    },
+    {
+      "id": "s-model-inventory-limitations-and-what-would-change-our-minds",
+      "title": "Model inventory, limitations, and what would change our minds",
+      "level": 2,
+      "line_start": 342
+    },
+    {
+      "id": "s-valuation-cross-checks-sum-of-parts-replacement-cost-and-street-target-deconstruction",
+      "title": "Valuation cross-checks: sum-of-parts, replacement cost, and street-target deconstruction",
+      "level": 2,
+      "line_start": 346
+    },
+    {
+      "id": "s-portfolio-integration-correlations-hedges-and-committee-minutes",
+      "title": "Portfolio integration: correlations, hedges, and committee minutes",
+      "level": 2,
+      "line_start": 356
+    },
+    {
+      "id": "s-chart-methodology-note-real-data-rebuild-of-exhibits-12-14",
+      "title": "Chart methodology note: real-data rebuild of exhibits 12-14",
+      "level": 2,
+      "line_start": 362
+    }
+  ],
+  "formats": [
+    "html",
+    "docx"
+  ],
+  "created": "2026-09-07T19:53:12.452791-05:00",
+  "updated": "2026-09-10T23:29:08.442482-05:00",
+  "revision_log": [
+    {
+      "revision": 1,
+      "timestamp": "2026-09-10T23:29:08.442474-05:00",
+      "actor": "tool:import",
+      "op": "import",
+      "section_id": null,
+      "summary": "imported pre-manifest directory"
+    }
+  ],
+  "idempotency_ledger": {},
+  "reviews": [],
+  "sources": {},
+  "exhibits": {},
+  "facts": {},
+  "registry_version": 0,
+  "template_version": "pre-c",
+  "supersedes": {},
+  "schema_version": 4
+}

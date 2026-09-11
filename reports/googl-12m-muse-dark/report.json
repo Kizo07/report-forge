@@ -1,0 +1,233 @@
+{
+  "report_id": "googl-12m-muse-dark",
+  "title": "Alphabet Inc. (GOOGL) — 12-Month Outlook",
+  "brief": "",
+  "profile": {
+    "report_type": "portfolio-dark",
+    "brand": "quantflow",
+    "theme": "dark",
+    "layout": "magazine",
+    "output_profile": "editorial",
+    "policy": "draft"
+  },
+  "revision": 1,
+  "state": "draft",
+  "sections": [
+    {
+      "id": "s-as-of-box-and-data-freshness",
+      "title": "As-of box and data freshness",
+      "level": 1,
+      "line_start": 52
+    },
+    {
+      "id": "s-freshness-statement",
+      "title": "Freshness statement",
+      "level": 2,
+      "line_start": 67
+    },
+    {
+      "id": "s-executive-summary-designed-not-a-wall-of-text",
+      "title": "Executive summary — designed, not a wall of text",
+      "level": 1,
+      "line_start": 71
+    },
+    {
+      "id": "s-1-the-12-month-setup-why-googl-why-now",
+      "title": "1. The 12-month setup — why GOOGL, why now",
+      "level": 1,
+      "line_start": 79
+    },
+    {
+      "id": "s-2-search-deep-dive-resilience-repriced",
+      "title": "2. Search deep dive — resilience, repriced",
+      "level": 1,
+      "line_start": 85
+    },
+    {
+      "id": "s-3-youtube-engagement-rich-monetization-light",
+      "title": "3. YouTube — engagement-rich, monetization-light",
+      "level": 1,
+      "line_start": 95
+    },
+    {
+      "id": "s-4-cloud-tpu-economics-the-re-rate-engine",
+      "title": "4. Cloud + TPU economics — the re-rate engine",
+      "level": 1,
+      "line_start": 103
+    },
+    {
+      "id": "s-5-gemini-ai-platform-distribution-is-the-moat",
+      "title": "5. Gemini / AI platform — distribution is the moat",
+      "level": 1,
+      "line_start": 119
+    },
+    {
+      "id": "s-6-waymo-optionality-from-science-project-to-sotp-line-item",
+      "title": "6. Waymo optionality — from science project to SOTP line item",
+      "level": 1,
+      "line_start": 129
+    },
+    {
+      "id": "s-7-antitrust-remedies-the-discount-with-a-docket-number",
+      "title": "7. Antitrust remedies — the discount with a docket number",
+      "level": 1,
+      "line_start": 139
+    },
+    {
+      "id": "s-8-capital-returns-the-compounding-understory",
+      "title": "8. Capital returns — the compounding understory",
+      "level": 1,
+      "line_start": 149
+    },
+    {
+      "id": "s-9-valuation-three-scenarios-one-probability-weight",
+      "title": "9. Valuation — three scenarios, one probability weight",
+      "level": 1,
+      "line_start": 159
+    },
+    {
+      "id": "s-10-technical-picture-uptrend-with-tradable-levels",
+      "title": "10. Technical picture — uptrend with tradable levels",
+      "level": 1,
+      "line_start": 169
+    },
+    {
+      "id": "s-11-factor-attribution-what-the-exposures-imply",
+      "title": "11. Factor attribution — what the exposures imply",
+      "level": 1,
+      "line_start": 177
+    },
+    {
+      "id": "s-12-bull-vs-bear-adjudicated-debate",
+      "title": "12. Bull vs bear — adjudicated debate",
+      "level": 1,
+      "line_start": 187
+    },
+    {
+      "id": "s-13-scenario-table-probabilities-targets-drivers-invalidation",
+      "title": "13. Scenario table — probabilities, targets, drivers, invalidation",
+      "level": 1,
+      "line_start": 195
+    },
+    {
+      "id": "s-14-risk-dashboard-and-position-sizing",
+      "title": "14. Risk dashboard and position sizing",
+      "level": 1,
+      "line_start": 207
+    },
+    {
+      "id": "s-15-catalyst-calendar-the-next-12-months",
+      "title": "15. Catalyst calendar — the next 12 months",
+      "level": 1,
+      "line_start": 217
+    },
+    {
+      "id": "s-16-recommendation-and-what-would-change-our-mind",
+      "title": "16. Recommendation and what would change our mind",
+      "level": 1,
+      "line_start": 234
+    },
+    {
+      "id": "s-appendix-a-demand-deep-dive-analyst-brief",
+      "title": "Appendix A — Demand deep dive (analyst brief)",
+      "level": 1,
+      "line_start": 240
+    },
+    {
+      "id": "s-appendix-b-subagent-briefs-quant-technical-news-demand",
+      "title": "Appendix B — Subagent briefs (quant / technical / news / demand)",
+      "level": 1,
+      "line_start": 244
+    },
+    {
+      "id": "s-appendix-c-data-tables",
+      "title": "Appendix C — Data tables",
+      "level": 1,
+      "line_start": 248
+    },
+    {
+      "id": "s-sources-and-method-note",
+      "title": "Sources and method note",
+      "level": 1,
+      "line_start": 271
+    },
+    {
+      "id": "s-supplement-i-valuation-mechanics-how-415-is-built",
+      "title": "Supplement I — Valuation mechanics (how $415 is built)",
+      "level": 1,
+      "line_start": 275
+    },
+    {
+      "id": "s-supplement-ii-peer-and-hyperscaler-comps-the-spreadsheet-in-prose",
+      "title": "Supplement II — Peer and hyperscaler comps (the spreadsheet in prose)",
+      "level": 1,
+      "line_start": 283
+    },
+    {
+      "id": "s-supplement-iii-demand-evidence-ledger-quantified-wherever-possible",
+      "title": "Supplement III — Demand evidence ledger (quantified wherever possible)",
+      "level": 1,
+      "line_start": 299
+    },
+    {
+      "id": "s-supplement-iv-earnings-anatomy-q2-26-line-by-line",
+      "title": "Supplement IV — Earnings anatomy (Q2'26 line by line)",
+      "level": 1,
+      "line_start": 303
+    },
+    {
+      "id": "s-supplement-v-regulatory-docket-in-full-remedies-appeals-europe",
+      "title": "Supplement V — Regulatory docket in full (remedies, appeals, Europe)",
+      "level": 1,
+      "line_start": 309
+    },
+    {
+      "id": "s-supplement-vi-portfolio-construction-note-how-to-own-it",
+      "title": "Supplement VI — Portfolio construction note (how to own it)",
+      "level": 1,
+      "line_start": 315
+    },
+    {
+      "id": "s-supplement-vii-what-the-skeptics-get-right-and-what-it-would-take-to-flip-us",
+      "title": "Supplement VII — What the skeptics get right (and what it would take to flip us)",
+      "level": 1,
+      "line_start": 321
+    },
+    {
+      "id": "s-supplement-viii-model-audit-trail-numbers-you-can-re-run",
+      "title": "Supplement VIII — Model audit trail (numbers you can re-run)",
+      "level": 1,
+      "line_start": 327
+    },
+    {
+      "id": "s-closing-note-why-charts-carry-this-thesis",
+      "title": "Closing note — why charts carry this thesis",
+      "level": 1,
+      "line_start": 331
+    }
+  ],
+  "formats": [
+    "html"
+  ],
+  "created": "2026-09-07T19:53:12.415790-05:00",
+  "updated": "2026-09-10T23:28:56.510350-05:00",
+  "revision_log": [
+    {
+      "revision": 1,
+      "timestamp": "2026-09-10T23:28:56.510341-05:00",
+      "actor": "tool:import",
+      "op": "import",
+      "section_id": null,
+      "summary": "imported pre-manifest directory"
+    }
+  ],
+  "idempotency_ledger": {},
+  "reviews": [],
+  "sources": {},
+  "exhibits": {},
+  "facts": {},
+  "registry_version": 0,
+  "template_version": "pre-c",
+  "supersedes": {},
+  "schema_version": 4
+}

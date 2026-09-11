@@ -1,0 +1,48 @@
+color:
+  palette:
+    paper: "#e5ddcc"
+    panel: "#ebe3d2"
+    ink: "#362e21"
+    muted: "#6d6250"
+    gold: "#8f621f"
+    aqua: "#14756c"
+    line: "#d3c8b0"
+    slate: "#6d6250"
+    mist: "#ebe3d2"
+  foreground: "#362e21"
+  background: "#e5ddcc"
+  primary: "#8f621f"
+  secondary: "#14756c"
+  tertiary: "#6d6250"
+  success: "#2c6e4a"
+  info: "#14756c"
+  warning: "#8f621f"
+  danger: "#a44a44"
+  light: "#ebe3d2"
+
+typography:
+  fonts:
+    - family: Fraunces
+      source: google
+      weight: [400, 600]
+    - family: Inter
+      source: google
+      weight: [400, 500, 600]
+    - family: IBM Plex Mono
+      source: google
+  base:
+    family: Inter
+    size: 1rem
+  headings:
+    family: Fraunces
+    weight: 600
+    color: "#362e21"
+  monospace: IBM Plex Mono
+  monospace-inline:
+    color: "#14756c"
+    background-color: "#e0d7c4"
+  monospace-block:
+    background-color: panel
+
+meta:
+  name: ReportForge Portfolio Light

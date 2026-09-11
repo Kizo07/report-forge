@@ -9,6 +9,7 @@ from reportforge.templates_domain import (  # noqa: F401  (re-export)
     TECHNICAL_BRIEF_QMD,
     ESG_SUSTAINABILITY_QMD,
     CRYPTO_DIGITAL_QMD,
+    DESK_SYNTHESIS_QMD,
     DOMAIN_BODY_TEMPLATES,
 )
 
@@ -46,12 +47,24 @@ format:
     code-fold: true
     code-tools: false
     link-external-newwindow: true
+<%% if titlepage %%>
+  # `titlepage` is a format:typst option — format:pdf silently ignores it.
+  # Swap the whole print block so the promised title page actually renders.
+  typst:
+    papersize: <% papersize %>
+    titlepage: true
+    template-partials:
+      - assets/typst-template.typ
+      - assets/typst-show.typ
+    margin-x: 2cm
+    margin-y: 2.2cm
+    toc: <% toc %>
+    number-sections: <% number_sections %>
+    colorlinks: true
+<%% else %%>
   pdf:
     pdf-engine: typst
     papersize: <% papersize %>
-<%% if titlepage %%>
-    titlepage: true
-<%% endif %%>
     margin-x: 2cm
     margin-y: 2.2cm
     toc: <% toc %>
@@ -61,6 +74,7 @@ format:
     linkcolor: "#1a2e4a"
     urlcolor: "#3d6b9e"
     citecolor: "#5b6b7f"
+<%% endif %%>
   docx:
     reference-doc: assets/reference-doc.docx
     toc: <% toc %>
@@ -246,22 +260,21 @@ Short sections. No table of contents, no numbered sections.
 WHITEPAPER_QMD = """\
 ---
 title: <% title_yaml %>
+reportforge-template: whitepaper
 <%% if subtitle%%>
 subtitle: <% subtitle_yaml %>
 <%% endif%%>
 <%% if author%%>
 author: <% author_yaml %>
 <%% endif%%>
+<%% if firm%%>
+firm: <% firm_yaml %>
+<%% endif%%>
 date: <% date_yaml %>
 date-format: long
 abstract: <% abstract_yaml %>
+titlepage: true
 ---
-
-<%% if firm%%>
-::: {style="text-align: center;"}
-**<% firm %>** · Investment Research
-:::
-<%% endif%%>
 
 # Key takeaways {-}
 
@@ -362,6 +375,324 @@ h1 {
 }
 """
 
+# Whitepaper PDF title page. Quarto 1.10 / pandoc 3.8 have NO native
+# `titlepage` option for format:typst, so the whitepaper vendors Quarto's
+# default typst article partial (quarto/share/formats/typst/pandoc/quarto/
+# typst-template.typ) with a `titlepage` branch added: a dedicated cover
+# page (firm eyebrow, display title, subtitle, gold hairline, authors,
+# date) with the abstract opening page 2. Everything else is byte-faithful
+# to the stock article so brand typography keeps flowing unchanged.
+WHITEPAPER_TYPT_TEMPLATE = r"""// report-forge "whitepaper" article — Quarto stock typst article + title page
+
+#let article(
+  title: none,
+  subtitle: none,
+  authors: none,
+  keywords: (),
+  date: none,
+  abstract-title: none,
+  abstract: none,
+  thanks: none,
+  titlepage: false,
+  firm: none,
+  cols: 1,
+  lang: "en",
+  region: "US",
+  font: none,
+  fontsize: 11pt,
+  title-size: 1.5em,
+  subtitle-size: 1.25em,
+  heading-family: none,
+  heading-weight: "bold",
+  heading-style: "normal",
+  heading-color: black,
+  heading-line-height: 0.65em,
+  mathfont: none,
+  codefont: none,
+  linestretch: 1,
+  sectionnumbering: none,
+  linkcolor: none,
+  citecolor: none,
+  filecolor: none,
+  toc: false,
+  toc_title: none,
+  toc_depth: none,
+  toc_indent: 1.5em,
+  doc,
+) = {
+  // Set document metadata for PDF accessibility
+  set document(title: title, keywords: keywords)
+  set document(
+    author: authors.map(author => content-to-string(author.name)).join(", ", last: " & "),
+  ) if authors != none and authors != ()
+  set par(
+    justify: true,
+    leading: linestretch * 0.65em
+  )
+  set text(lang: lang,
+           region: region,
+           size: fontsize)
+  set text(font: font) if font != none
+  show math.equation: set text(font: mathfont) if mathfont != none
+  show raw: set text(font: codefont) if codefont != none
+
+  set heading(numbering: sectionnumbering)
+
+  show link: set text(fill: rgb(content-to-string(linkcolor))) if linkcolor != none
+  show ref: set text(fill: rgb(content-to-string(citecolor))) if citecolor != none
+  show link: this => {
+    if filecolor != none and type(this.dest) == label {
+      text(this, fill: rgb(content-to-string(filecolor)))
+    } else {
+      text(this)
+    }
+   }
+
+  if titlepage and title != none {
+    // Dedicated cover: everything alone on page 1, body breaks to page 2.
+    page(margin: (x: 2.5cm, y: 4cm))[
+      #v(1fr)
+      #align(center)[
+        #if firm != none [
+          #text(size: 0.85em, weight: "semibold", tracking: 0.14em)[#upper[#firm — INVESTMENT RESEARCH]]
+          #v(1.6em)
+        ]
+        #set par(leading: heading-line-height) if heading-line-height != none
+        #set text(font: heading-family) if heading-family != none
+        #set text(weight: heading-weight)
+        #set text(style: heading-style) if heading-style != "normal"
+        #set text(fill: heading-color) if heading-color != black
+        #text(size: 2.2em)[#title]
+        #(if subtitle != none {
+          v(0.5em)
+          text(size: 1.2em, weight: "regular", fill: black)[#subtitle]
+        })
+        #v(1.5em)
+        #line(length: 32%, stroke: 0.8pt + rgb("#c9a227"))
+      ]
+      #v(1.5em)
+      #if authors != none and authors != () {
+        grid(
+          columns: (1fr,) * calc.min(authors.len(), 3),
+          row-gutter: 1.5em,
+          ..authors.map(author =>
+              align(center)[
+                #author.name \
+                #author.affiliation \
+                #author.email
+              ]
+          )
+        )
+      }
+      #if date != none [
+        #align(center)[#block(inset: 1em)[
+          #date
+        ]]
+      ]
+      #v(1fr)
+    ]
+    // Abstract opens page 2; no repeated title block.
+    if abstract != none {
+      block(above: 0em, below: 1.5em, inset: 1.5em)[
+        #text(weight: "semibold")[#abstract-title] #h(1em) #abstract
+      ]
+    }
+  } else {
+    let has-title-block = title != none or (authors != none and authors != ()) or date != none or abstract != none
+    if has-title-block {
+      place(
+        top,
+        float: true,
+        scope: "parent",
+        clearance: 4mm,
+        block(below: 1em, width: 100%)[
+
+          #if title != none {
+            align(center, block(inset: 2em)[
+              #set par(leading: heading-line-height) if heading-line-height != none
+              #set text(font: heading-family) if heading-family != none
+              #set text(weight: heading-weight)
+              #set text(style: heading-style) if heading-style != "normal"
+              #set text(fill: heading-color) if heading-color != black
+
+              #text(size: title-size)[#title #if thanks != none {
+                footnote(thanks, numbering: "*")
+                counter(footnote).update(n => n - 1)
+              }]
+              #(if subtitle != none {
+                parbreak()
+                text(size: subtitle-size)[#subtitle]
+              })
+            ])
+          }
+
+          #if authors != none and authors != () {
+            let count = authors.len()
+            let ncols = calc.min(count, 3)
+            grid(
+              columns: (1fr,) * ncols,
+              row-gutter: 1.5em,
+              ..authors.map(author =>
+                  align(center)[
+                    #author.name \
+                    #author.affiliation \
+                    #author.email
+                  ]
+              )
+            )
+          }
+
+          #if date != none {
+            align(center)[#block(inset: 1em)[
+              #date
+            ]]
+          }
+
+          #if abstract != none {
+            block(inset: 2em)[
+            #text(weight: "semibold")[#abstract-title] #h(1em) #abstract
+            ]
+          }
+        ]
+      )
+    }
+  }
+
+  if toc {
+    let title = if toc_title == none {
+      auto
+    } else {
+      toc_title
+    }
+    block(above: 0em, below: 2em)[
+    #outline(
+      title: toc_title,
+      depth: toc_depth,
+      indent: toc_indent
+    );
+    ]
+  }
+
+  doc
+}
+
+#set table(
+  inset: 6pt,
+  stroke: none
+)
+"""
+
+# Quarto stock typst-show partial + titlepage/firm forwarding.
+WHITEPAPER_TYPT_SHOW = """\
+#show: doc => article(
+$if(title)$
+  title: [$title$],
+$endif$
+$if(subtitle)$
+  subtitle: [$subtitle$],
+$endif$
+$if(by-author)$
+  authors: (
+$for(by-author)$
+$if(it.name.literal)$
+    ( name: [$it.name.literal$],
+      affiliation: [$for(it.affiliations)$$it.name$$sep$, $endfor$],
+      email: [$it.email$] ),
+$endif$
+$endfor$
+    ),
+$endif$
+$if(date)$
+  date: [$date$],
+$endif$
+$if(abstract)$
+  abstract: [$abstract$],
+  abstract-title: "$labels.abstract$",
+$endif$
+$if(titlepage)$
+  titlepage: $titlepage$,
+$endif$
+$if(firm)$
+  firm: [$firm$],
+$endif$
+$if(lang)$
+  lang: "$lang$",
+$endif$
+$if(region)$
+  region: "$region$",
+$endif$
+$if(mainfont)$
+  font: ("$mainfont$",),
+$elseif(brand.typography.base.family)$
+  font: $brand.typography.base.family$,
+$endif$
+$if(fontsize)$
+  fontsize: $fontsize$,
+$elseif(brand.typography.base.size)$
+  fontsize: $brand.typography.base.size$,
+$endif$
+$if(title)$
+$if(brand.typography.headings.family)$
+  heading-family: $brand.typography.headings.family$,
+$elseif(mainfont)$
+  heading-family: ("$mainfont$",),
+$endif$
+$if(brand.typography.headings.weight)$
+  heading-weight: $brand.typography.headings.weight$,
+$endif$
+$if(brand.typography.headings.style)$
+  heading-style: "$brand.typography.headings.style$",
+$endif$
+$if(brand.typography.headings.color)$
+  heading-color: $brand.typography.headings.color$,
+$endif$
+$if(brand.typography.headings.line-height)$
+  heading-line-height: $brand.typography.headings.line-height$,
+$endif$
+$endif$
+$if(section-numbering)$
+  sectionnumbering: "$section-numbering$",
+$endif$
+$if(mathfont)$
+  mathfont: ($for(mathfont)$"$mathfont$",$endfor$),
+$endif$
+$if(codefont)$
+  codefont: ($for(codefont)$"$codefont$",$endfor$),
+$elseif(brand.typography.monospace.family)$
+  codefont: $brand.typography.monospace.family$,
+$endif$
+$if(linestretch)$
+  linestretch: $linestretch$,
+$endif$
+$if(thanks)$
+  thanks: [$thanks$],
+$endif$
+$if(linkcolor)$
+  linkcolor: [$linkcolor$],
+$endif$
+$if(citecolor)$
+  citecolor: [$citecolor$],
+$endif$
+$if(filecolor)$
+  filecolor: [$filecolor$],
+$endif$
+$if(keywords)$
+  keywords: ($for(keywords)$"$keywords$",$endfor$),
+$endif$
+$if(toc)$
+  toc: $toc$,
+$endif$
+$if(toc-title)$
+  toc_title: [$toc-title$],
+$endif$
+$if(toc-indent)$
+  toc_indent: $toc-indent$,
+$endif$
+  toc_depth: $toc-depth$,
+  doc,
+)
+"""
+
 # ---------------------------------------------------------------------------
 # "modern" template — branded research brief.
 #
@@ -430,7 +761,7 @@ MODERN_TYPT_TEMPLATE = r"""// report-forge "modern" conf() — custom typst temp
 #let conf(
   title: none, subtitle: none, authors: (), keywords: (),
   date: none, abstract: none, abstract-title: none, thanks: none,
-  kpis: (), firm: none, confidential-mark: none,
+  kpis: (), firm: none, confidential-mark: none, accent: "#2e5bff",
   cols: 1, margin: (x: 0.9in, top: 0.8in, bottom: 1.0in),
   paper: "us-letter", lang: "en", region: "US",
   font: none, fontsize: 10.5pt, mathfont: none, codefont: none,
@@ -440,7 +771,7 @@ MODERN_TYPT_TEMPLATE = r"""// report-forge "modern" conf() — custom typst temp
   // brand colors
   let navy = rgb("#0f1b2d")
   let ink = rgb("#22303f")
-  let accent = rgb("#2e5bff")
+  let accent = rgb(accent)
   let gold = rgb("#c9a227")
   let mist = rgb("#f2f5f8")
 
@@ -605,6 +936,9 @@ $endif$
 $if(confidential-mark)$
   confidential-mark: [$confidential-mark$],
 $endif$
+$if(accent-typst)$
+  accent: "#$accent-typst$",
+$endif$
 $if(kpis)$
   kpis: (
 $for(kpis)$
@@ -632,6 +966,9 @@ $endif$
 MODERN_QMD = """\
 ---
 title: <% title_yaml %>
+reportforge-template: modern
+accent: <% accent_yaml %>
+accent-typst: <% accent_typst_yaml %>
 <%% if subtitle%%>
 subtitle: <% subtitle_yaml %>
 <%% endif%%>
@@ -705,7 +1042,7 @@ import pandas as pd
 df = pd.DataFrame({"x": range(24), "y": [i + (i % 5) * 0.6 for i in range(24)]})
 fig = px.line(df, x="x", y="y", markers=True)
 fig.update_layout(template="plotly_white", title="Example exhibit")
-fig.update_traces(line_color="#2e5bff", marker_color="#2e5bff", marker_size=5)
+fig.update_traces(line_color="<% accent %>", marker_color="<% accent %>", marker_size=5)
 # width 9in = target print width; font 16 stays readable after shrink;
 # scale=3 = ~450 DPI effective for print sharpness.
 fig.update_layout(font=dict(size=16))
@@ -718,7 +1055,7 @@ MODERN_STYLES_EXTRA = """
 h1 {
   margin-top: 2.2rem;
   padding-top: 0.55rem;
-  border-top: 3px solid #2e5bff;
+  border-top: 3px solid <% accent %>;
   letter-spacing: -0.015em;
 }
 .quarto-title h1.title {
@@ -729,7 +1066,7 @@ h2 {
   letter-spacing: -0.01em;
 }
 blockquote {
-  border-left: 4px solid #2e5bff;
+  border-left: 4px solid <% accent %>;
   background: transparent;
   padding: 0.4rem 1rem;
   color: $brand-slate;
@@ -750,6 +1087,61 @@ caption {
 # generated semantic header plus responsive CSS; DOCX keeps clean native
 # structure through the reference document.
 # ---------------------------------------------------------------------------
+
+# Studio CSS reaches for Fraunces (verdict band, scenario values) and
+# IBM Plex Mono (figures, data rows) — the brand must actually load them,
+# mirroring the portfolio brands, or browsers silently fall back to
+# Georgia / JetBrains Mono.
+STUDIO_BRAND_YML = """\
+color:
+  palette:
+    ink: "#22303f"
+    navy: "#1a2e4a"
+    steel: "#3d6b9e"
+    slate: "#5b6b7f"
+    gold: "#c9a227"
+    mist: "#f2f5f8"
+  foreground: "#22303f"
+  background: "#ffffff"
+  primary: "#1a2e4a"
+  secondary: "#3d6b9e"
+  tertiary: "#5b6b7f"
+  success: "#2e7d32"
+  info: "#3d6b9e"
+  warning: "#c9a227"
+  danger: "#b3402a"
+  light: "#f2f5f8"
+
+typography:
+  fonts:
+    - family: Inter
+      source: google
+      weight: [400, 500, 600]
+    - family: Space Grotesk
+      source: google
+      weight: [500, 700]
+    - family: Fraunces
+      source: google
+      weight: [400, 600]
+    - family: IBM Plex Mono
+      source: google
+  base:
+    family: Inter
+    size: 1rem
+  headings:
+    family: Space Grotesk
+    weight: 700
+    color: "#1a2e4a"
+  monospace: IBM Plex Mono
+  monospace-inline:
+    color: "#1a2e4a"
+    background-color: "#f2f5f8"
+  monospace-block:
+    background-color: mist
+
+meta:
+  name: ReportForge Studio
+"""
 
 STUDIO_YML = """\
 project:
@@ -1346,7 +1738,7 @@ body {
   border: 1px solid var(--rf-line);
   border-radius: 22px;
   background:
-    radial-gradient(circle at 88% 8%, rgba(79, 70, 229, 0.16), transparent 30%),
+    radial-gradient(circle at 88% 8%, color-mix(in srgb, var(--rf-accent) 16%, transparent), transparent 30%),
     linear-gradient(145deg, #ffffff 0%, #f4f3ee 100%);
   box-shadow: 0 24px 70px rgba(23, 25, 35, 0.09);
 }
@@ -1707,7 +2099,7 @@ table {
 }
 
 thead {
-  background: #efefff;
+  background: color-mix(in srgb, var(--rf-accent) 8%, var(--rf-panel));
 }
 
 .figure-caption,
@@ -1790,6 +2182,7 @@ format:
     urlcolor: "#3d6b9e"
     citecolor: "#5b6b7f"
   docx:
+    reference-doc: assets/reference-doc.docx
     toc: false
 """
 
@@ -2642,8 +3035,6 @@ PORTFOLIO_LIGHT_STYLES_EXTRA = """
   --rf-panel-2: #e0d7c4;
   --rf-ink: #362e21;
   --rf-muted: #6d6250;
-  --rf-faint: #7b7060;
-  --rf-gold: #8f621f;
   --rf-aqua: #14756c;
   --rf-line: #d3c8b0;
 }
@@ -3117,8 +3508,6 @@ PORTFOLIO_DARK_STYLES_EXTRA = """
   --rf-panel-2: #151b25;
   --rf-ink: #e7eaf0;
   --rf-muted: #9aa4b2;
-  --rf-faint: #7d8795;
-  --rf-gold: #d9a54e;
   --rf-aqua: #56cfc4;
   --rf-line: #1e2632;
   color-scheme: dark;
@@ -3683,10 +4072,10 @@ LEDGER_DARK_TYPT_TEMPLATE = r"""// report-forge "ledger-dark" — studio structu
   citecolor: none, filecolor: none, pagenumbering: "1", doc,
 ) = {
   let paper-tone = rgb("#060a12")
-  let panel = rgb("#0c1220")
-  let ink = rgb("#e9eff5")
-  let muted = rgb("#819aaa")
-  let hairline = rgb("#14202f")
+  let panel = rgb("#0b1220")
+  let ink = rgb("#e8eef4")
+  let muted = rgb("#93a3b8")
+  let hairline = rgb("#16202e")
   let accent-color = rgb(accent)
   let link-ink = rgb("#08bfff")
 
@@ -3943,7 +4332,7 @@ LEDGER_DARK_TYPT_TEMPLATE = r"""// report-forge "ledger-dark" — studio structu
   if abstract != none {
     block(
       width: 100%,
-      fill: rgb("#0d1522"),
+      fill: rgb("#1d2b3f"),
       radius: 7pt,
       inset: (x: 15pt, y: 8pt),
     )[
@@ -4051,14 +4440,12 @@ LEDGER_DARK_STYLES_EXTRA = """
 :root {
   --rf-accent: <% accent %>;
   --rf-paper: #060a12;
-  --rf-panel: #0c1220;
-  --rf-panel-2: #0d1522;
-  --rf-ink: #e9eff5;
-  --rf-muted: #819aaa;
-  --rf-faint: #6f7f8f;
-  --rf-gold: #e3ac55;
+  --rf-panel: #0b1220;
+  --rf-panel-2: #1d2b3f;
+  --rf-ink: #e8eef4;
+  --rf-muted: #93a3b8;
   --rf-aqua: #08bfff;
-  --rf-line: #14202f;
+  --rf-line: #16202e;
   color-scheme: dark;
 }
 
@@ -4095,7 +4482,7 @@ body {
   gap: 12px;
   margin: 0 0 1rem;
   color: var(--rf-accent);
-  font-family: "IBM Plex Mono", "IBM Plex Mono", monospace;
+  font-family: "IBM Plex Mono", monospace;
   font-size: 0.72rem;
   font-weight: 500;
   letter-spacing: 0.22em;
@@ -4112,7 +4499,7 @@ body {
   max-width: 900px;
   margin: 0;
   color: var(--rf-ink);
-  font-family: "Space Grotesk", Space Grotesk, serif;
+  font-family: "Space Grotesk", sans-serif;
   font-size: clamp(2.5rem, 6vw, 4.6rem);
   font-weight: 600;
   letter-spacing: -0.01em;
@@ -4139,7 +4526,7 @@ body {
   align-items: center;
   margin-top: 2rem;
   color: var(--rf-muted);
-  font-family: "IBM Plex Mono", "IBM Plex Mono", monospace;
+  font-family: "IBM Plex Mono", monospace;
   font-size: 0.78rem;
 }
 
@@ -4153,7 +4540,7 @@ body {
 
 .rf-organization {
   color: var(--rf-ink);
-  font-family: "Space Grotesk", Space Grotesk, serif;
+  font-family: "Space Grotesk", sans-serif;
   font-weight: 600;
 }
 
@@ -4192,7 +4579,7 @@ body {
 
 .rf-metric-value {
   color: var(--rf-ink);
-  font-family: "Space Grotesk", Space Grotesk, serif;
+  font-family: "Space Grotesk", sans-serif;
   font-size: clamp(1.35rem, 3vw, 2rem);
   font-weight: 600;
   letter-spacing: -0.01em;
@@ -4202,7 +4589,7 @@ body {
 .rf-metric-label {
   margin-top: 0.2rem;
   color: var(--rf-muted);
-  font-family: "IBM Plex Mono", "IBM Plex Mono", monospace;
+  font-family: "IBM Plex Mono", monospace;
   font-size: 0.7rem;
   font-weight: 500;
   letter-spacing: 0.14em;
@@ -4222,7 +4609,7 @@ body {
 .rf-verdict-tag {
   flex: none;
   color: var(--rf-accent);
-  font-family: "IBM Plex Mono", "IBM Plex Mono", monospace;
+  font-family: "IBM Plex Mono", monospace;
   font-size: 0.68rem;
   font-weight: 600;
   letter-spacing: 0.16em;
@@ -4277,7 +4664,7 @@ body {
 }
 .rf-scenario-label {
   color: var(--rf-muted);
-  font-family: "IBM Plex Mono", "IBM Plex Mono", monospace;
+  font-family: "IBM Plex Mono", monospace;
   font-size: 0.68rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -4357,7 +4744,7 @@ main.content section.level1 > h1 {
   padding-bottom: 1rem;
   border-bottom: 1px solid var(--rf-line);
   color: var(--rf-ink);
-  font-family: "Space Grotesk", Space Grotesk, serif;
+  font-family: "Space Grotesk", sans-serif;
   font-size: clamp(1.75rem, 3vw, 2.4rem);
   font-weight: 600;
   letter-spacing: -0.01em;
@@ -4365,7 +4752,7 @@ main.content section.level1 > h1 {
 
 main.content h2 {
   color: var(--rf-ink);
-  font-family: "Space Grotesk", Space Grotesk, serif;
+  font-family: "Space Grotesk", sans-serif;
   letter-spacing: -0.01em;
 }
 
@@ -4526,24 +4913,24 @@ LEDGER_DARK_BRAND_YML = """\
 color:
   palette:
     paper: "#060a12"
-    panel: "#0c1220"
-    ink: "#e9eff5"
-    muted: "#819aaa"
+    panel: "#0b1220"
+    ink: "#e8eef4"
+    muted: "#93a3b8"
     gold: "#e3ac55"
     aqua: "#08bfff"
-    line: "#14202f"
-    slate: "#819aaa"
-    mist: "#0c1220"
-  foreground: "#e9eff5"
+    line: "#16202e"
+    slate: "#93a3b8"
+    mist: "#0b1220"
+  foreground: "#e8eef4"
   background: "#060a12"
   primary: "#e3ac55"
   secondary: "#08bfff"
-  tertiary: "#819aaa"
-  success: "#3fbfae"
+  tertiary: "#93a3b8"
+  success: "#34d399"
   info: "#08bfff"
   warning: "#e3ac55"
-  danger: "#e66785"
-  light: "#0c1220"
+  danger: "#f87171"
+  light: "#0b1220"
 
 typography:
   fonts:
@@ -4561,11 +4948,11 @@ typography:
   headings:
     family: Space Grotesk
     weight: 600
-    color: "#e9eff5"
+    color: "#e8eef4"
   monospace: IBM Plex Mono
   monospace-inline:
     color: "#08bfff"
-    background-color: "#0d1522"
+    background-color: "#1d2b3f"
   monospace-block:
     background-color: panel
 
@@ -4589,8 +4976,8 @@ LEDGER_LIGHT_TYPT_TEMPLATE = r"""// report-forge "ledger-light" — studio struc
   let paper-tone = rgb("#eef3f6")
   let panel = rgb("#e7edf2")
   let ink = rgb("#1b2634")
-  let muted = rgb("#5a6b7a")
-  let hairline = rgb("#cfd9e1")
+  let muted = rgb("#63798a")
+  let hairline = rgb("#d5dde4")
   let accent-color = rgb(accent)
   let link-ink = rgb("#009ed9")
 
@@ -4958,11 +5345,9 @@ LEDGER_LIGHT_STYLES_EXTRA = """
   --rf-panel: #e7edf2;
   --rf-panel-2: #dde5ec;
   --rf-ink: #1b2634;
-  --rf-muted: #5a6b7a;
-  --rf-faint: #64727f;
-  --rf-gold: #8f621f;
+  --rf-muted: #63798a;
   --rf-aqua: #009ed9;
-  --rf-line: #cfd9e1;
+  --rf-line: #d5dde4;
 }
 
 body {
@@ -4998,7 +5383,7 @@ body {
   gap: 12px;
   margin: 0 0 1rem;
   color: var(--rf-accent);
-  font-family: "IBM Plex Mono", "IBM Plex Mono", monospace;
+  font-family: "IBM Plex Mono", monospace;
   font-size: 0.72rem;
   font-weight: 500;
   letter-spacing: 0.22em;
@@ -5015,7 +5400,7 @@ body {
   max-width: 900px;
   margin: 0;
   color: var(--rf-ink);
-  font-family: "Space Grotesk", Space Grotesk, serif;
+  font-family: "Space Grotesk", sans-serif;
   font-size: clamp(2.5rem, 6vw, 4.6rem);
   font-weight: 600;
   letter-spacing: -0.01em;
@@ -5042,7 +5427,7 @@ body {
   align-items: center;
   margin-top: 2rem;
   color: var(--rf-muted);
-  font-family: "IBM Plex Mono", "IBM Plex Mono", monospace;
+  font-family: "IBM Plex Mono", monospace;
   font-size: 0.78rem;
 }
 
@@ -5056,7 +5441,7 @@ body {
 
 .rf-organization {
   color: var(--rf-ink);
-  font-family: "Space Grotesk", Space Grotesk, serif;
+  font-family: "Space Grotesk", sans-serif;
   font-weight: 600;
 }
 
@@ -5095,7 +5480,7 @@ body {
 
 .rf-metric-value {
   color: var(--rf-ink);
-  font-family: "Space Grotesk", Space Grotesk, serif;
+  font-family: "Space Grotesk", sans-serif;
   font-size: clamp(1.35rem, 3vw, 2rem);
   font-weight: 600;
   letter-spacing: -0.01em;
@@ -5105,7 +5490,7 @@ body {
 .rf-metric-label {
   margin-top: 0.2rem;
   color: var(--rf-muted);
-  font-family: "IBM Plex Mono", "IBM Plex Mono", monospace;
+  font-family: "IBM Plex Mono", monospace;
   font-size: 0.7rem;
   font-weight: 500;
   letter-spacing: 0.14em;
@@ -5125,7 +5510,7 @@ body {
 .rf-verdict-tag {
   flex: none;
   color: var(--rf-accent);
-  font-family: "IBM Plex Mono", "IBM Plex Mono", monospace;
+  font-family: "IBM Plex Mono", monospace;
   font-size: 0.68rem;
   font-weight: 600;
   letter-spacing: 0.16em;
@@ -5180,7 +5565,7 @@ body {
 }
 .rf-scenario-label {
   color: var(--rf-muted);
-  font-family: "IBM Plex Mono", "IBM Plex Mono", monospace;
+  font-family: "IBM Plex Mono", monospace;
   font-size: 0.68rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -5260,7 +5645,7 @@ main.content section.level1 > h1 {
   padding-bottom: 1rem;
   border-bottom: 1px solid var(--rf-line);
   color: var(--rf-ink);
-  font-family: "Space Grotesk", Space Grotesk, serif;
+  font-family: "Space Grotesk", sans-serif;
   font-size: clamp(1.75rem, 3vw, 2.4rem);
   font-weight: 600;
   letter-spacing: -0.01em;
@@ -5268,7 +5653,7 @@ main.content section.level1 > h1 {
 
 main.content h2 {
   color: var(--rf-ink);
-  font-family: "Space Grotesk", Space Grotesk, serif;
+  font-family: "Space Grotesk", sans-serif;
   letter-spacing: -0.01em;
 }
 
@@ -5431,21 +5816,21 @@ color:
     paper: "#eef3f6"
     panel: "#e7edf2"
     ink: "#1b2634"
-    muted: "#5a6b7a"
+    muted: "#63798a"
     gold: "#8f621f"
     aqua: "#009ed9"
-    line: "#cfd9e1"
-    slate: "#5a6b7a"
+    line: "#d5dde4"
+    slate: "#63798a"
     mist: "#e7edf2"
   foreground: "#1b2634"
   background: "#eef3f6"
   primary: "#8f621f"
   secondary: "#009ed9"
-  tertiary: "#5a6b7a"
-  success: "#237a57"
+  tertiary: "#63798a"
+  success: "#1f8a4c"
   info: "#009ed9"
   warning: "#8f621f"
-  danger: "#c05563"
+  danger: "#cf4444"
   light: "#e7edf2"
 
 typography:
