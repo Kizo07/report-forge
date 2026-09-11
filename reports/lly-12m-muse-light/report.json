@@ -1,0 +1,150 @@
+{
+  "report_id": "lly-12m-muse-light",
+  "title": "Eli Lilly (LLY): The Incretin Compounder",
+  "brief": "",
+  "profile": {
+    "report_type": "portfolio-light",
+    "brand": "quantflow",
+    "theme": "light",
+    "layout": "magazine",
+    "output_profile": "editorial",
+    "policy": "draft"
+  },
+  "revision": 1,
+  "state": "draft",
+  "sections": [
+    {
+      "id": "s-1-as-of-box-and-data-freshness",
+      "title": "1 · As-of box and data freshness",
+      "level": 2,
+      "line_start": 48
+    },
+    {
+      "id": "s-2-price-action-a-710-to-1-160-run-digesting-its-high",
+      "title": "2 · Price action — a $710-to-$1,160 run digesting its high",
+      "level": 2,
+      "line_start": 67
+    },
+    {
+      "id": "s-3-incretin-franchise-a-14-9b-quarter-carrying-the-p-l",
+      "title": "3 · Incretin franchise — a $14.9B quarter carrying the P&L",
+      "level": 2,
+      "line_start": 74
+    },
+    {
+      "id": "s-4-demand-deep-dive-scripts-persistence-coverage-offset",
+      "title": "4 · Demand deep dive — scripts, persistence, coverage offset",
+      "level": 2,
+      "line_start": 90
+    },
+    {
+      "id": "s-5-oral-pipeline-optionality-with-early-receipts",
+      "title": "5 · Oral pipeline — optionality with early receipts",
+      "level": 2,
+      "line_start": 109
+    },
+    {
+      "id": "s-6-competition-map-bracketed-but-not-yet-breached",
+      "title": "6 · Competition map — bracketed but not yet breached",
+      "level": 2,
+      "line_start": 116
+    },
+    {
+      "id": "s-7-manufacturing-and-capacity-a-30b-moat-that-must-be-filled",
+      "title": "7 · Manufacturing and capacity — a $30B moat that must be filled",
+      "level": 2,
+      "line_start": 120
+    },
+    {
+      "id": "s-8-non-incretin-drivers-tight-by-design",
+      "title": "8 · Non-incretin drivers — tight by design",
+      "level": 2,
+      "line_start": 127
+    },
+    {
+      "id": "s-9-valuation-revision-arithmetic-not-multiple-faith",
+      "title": "9 · Valuation — revision arithmetic, not multiple faith",
+      "level": 2,
+      "line_start": 131
+    },
+    {
+      "id": "s-10-technical-picture-uptrend-digesting-levels-that-matter",
+      "title": "10 · Technical picture — uptrend digesting, levels that matter",
+      "level": 2,
+      "line_start": 141
+    },
+    {
+      "id": "s-11-factor-attribution-what-the-loadings-imply",
+      "title": "11 · Factor attribution — what the loadings imply",
+      "level": 2,
+      "line_start": 160
+    },
+    {
+      "id": "s-12-bull-versus-bear-adjudicated",
+      "title": "12 · Bull versus bear — adjudicated",
+      "level": 2,
+      "line_start": 176
+    },
+    {
+      "id": "s-13-scenarios-risk-dashboard-catalyst-calendar",
+      "title": "13 · Scenarios, risk dashboard, catalyst calendar",
+      "level": 2,
+      "line_start": 180
+    },
+    {
+      "id": "s-14-recommendation-and-appendix",
+      "title": "14 · Recommendation and appendix",
+      "level": 2,
+      "line_start": 201
+    },
+    {
+      "id": "s-15-street-positioning-expectations-audit",
+      "title": "15 · Street, positioning, expectations audit",
+      "level": 2,
+      "line_start": 205
+    },
+    {
+      "id": "s-16-what-would-change-our-minds",
+      "title": "16 · What would change our minds",
+      "level": 2,
+      "line_start": 209
+    },
+    {
+      "id": "s-17-cross-checks-sensitivities-print-checklist",
+      "title": "17 · Cross-checks, sensitivities, print checklist",
+      "level": 2,
+      "line_start": 213
+    },
+    {
+      "id": "s-18-one-page-operating-memo-levels-sizes-dates",
+      "title": "18 · One-page operating memo — levels, sizes, dates",
+      "level": 2,
+      "line_start": 217
+    }
+  ],
+  "formats": [
+    "html",
+    "docx"
+  ],
+  "created": "2026-09-07T19:53:12.429790-05:00",
+  "updated": "2026-09-10T23:29:33.925928-05:00",
+  "revision_log": [
+    {
+      "revision": 1,
+      "timestamp": "2026-09-10T23:29:33.925920-05:00",
+      "actor": "tool:import",
+      "op": "import",
+      "section_id": null,
+      "summary": "imported pre-manifest directory"
+    }
+  ],
+  "idempotency_ledger": {},
+  "reviews": [],
+  "sources": {},
+  "exhibits": {},
+  "facts": {},
+  "registry_version": 0,
+  "template_version": "pre-c",
+  "supersedes": {},
+  "schema_version": 4
+}

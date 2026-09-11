@@ -1,0 +1,366 @@
+/*-- scss:rules --*/
+
+h1.title {
+  letter-spacing: -0.02em;
+}
+
+.subtitle {
+  color: $brand-slate;
+  font-weight: 400;
+}
+
+.figure-caption,
+caption {
+  color: $brand-slate;
+  font-size: 0.85rem;
+}
+
+blockquote {
+  border-left: 4px solid $brand-gold;
+  background: $brand-mist;
+  padding: 0.6rem 1rem;
+  border-radius: 0 8px 8px 0;
+}
+
+table {
+  font-size: 0.92em;
+}
+
+div.callout-title-container {
+  font-weight: 600;
+}
+
+/* Portfolio dark: near-black, serif display, gold kicker. */
+:root {
+  --rf-accent: #c9a227;
+  --rf-paper: #0a0d12;
+  --rf-panel: #10151d;
+  --rf-panel-2: #151b25;
+  --rf-ink: #e7eaf0;
+  --rf-muted: #9aa4b2;
+  --rf-faint: #7d8795;
+  --rf-gold: #d9a54e;
+  --rf-aqua: #56cfc4;
+  --rf-line: #1e2632;
+  color-scheme: dark;
+}
+
+body {
+  background: var(--rf-paper);
+  color: var(--rf-ink);
+}
+
+#title-block-header {
+  display: none;
+}
+
+.rf-studio-header {
+  --rf-accent: #d9a54e;
+  width: min(1120px, calc(100% - 3rem));
+  margin: 2rem auto 3.5rem;
+  border: 1px solid var(--rf-line);
+  border-radius: 14px;
+  background: var(--rf-panel);
+  box-shadow: 0 18px 50px rgba(2, 6, 12, 0.45);
+}
+
+.rf-title-frame {
+  padding: 4.2rem 4.5rem 2.4rem;
+}
+
+.rf-layout-compact .rf-title-frame {
+  padding: 2.4rem 3rem 1.9rem;
+}
+
+.rf-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 1rem;
+  color: var(--rf-accent);
+  font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.rf-eyebrow::before {
+  content: "";
+  width: 26px;
+  border-top: 2px solid var(--rf-accent);
+}
+
+.rf-display-title {
+  max-width: 900px;
+  margin: 0;
+  color: var(--rf-ink);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(2.5rem, 6vw, 4.6rem);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.04;
+  overflow-wrap: anywhere;
+}
+
+.rf-layout-compact .rf-display-title {
+  font-size: clamp(2rem, 4.5vw, 3.2rem);
+}
+
+.rf-display-subtitle {
+  max-width: 760px;
+  margin: 1.25rem 0 0;
+  color: var(--rf-muted);
+  font-size: clamp(1.05rem, 2vw, 1.3rem);
+  line-height: 1.5;
+}
+
+.rf-title-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 1.25rem;
+  align-items: center;
+  margin-top: 2rem;
+  color: var(--rf-muted);
+  font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+  font-size: 0.78rem;
+}
+
+.rf-title-meta span + span::before,
+.rf-title-meta span + time::before,
+.rf-title-meta time::before {
+  content: "·";
+  margin-right: 1.25rem;
+  color: var(--rf-line);
+}
+
+.rf-organization {
+  color: var(--rf-ink);
+  font-family: "Fraunces", Georgia, serif;
+  font-weight: 600;
+}
+
+.rf-deck {
+  max-width: 800px;
+  margin: 2rem 0 0;
+  padding-top: 1.35rem;
+  border-top: 1px solid var(--rf-line);
+  color: var(--rf-muted);
+  font-size: 1rem;
+  line-height: 1.65;
+}
+
+.rf-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  border-top: 1px solid var(--rf-line);
+  background: var(--rf-line);
+}
+
+.rf-metrics-1 {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.rf-metrics-2,
+.rf-metrics-4 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.rf-metric {
+  min-width: 0;
+  padding: 1.35rem 1.65rem;
+  background: var(--rf-panel);
+}
+
+.rf-metric-value {
+  color: var(--rf-ink);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(1.35rem, 3vw, 2rem);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.rf-metric-label {
+  margin-top: 0.2rem;
+  color: var(--rf-muted);
+  font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+main.content {
+  max-width: 880px;
+}
+
+main.content section.level1 > h1 {
+  margin-top: 3.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--rf-line);
+  color: var(--rf-ink);
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(1.75rem, 3vw, 2.4rem);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+main.content h2 {
+  color: var(--rf-ink);
+  font-family: "Fraunces", Georgia, serif;
+  letter-spacing: -0.01em;
+}
+
+.studio-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+.studio-card {
+  padding: 1.35rem 1.45rem;
+  border: 1px solid var(--rf-line);
+  border-radius: 14px;
+  background: var(--rf-panel);
+  box-shadow: 0 18px 50px rgba(2, 6, 12, 0.35);
+}
+
+.studio-card h2 {
+  margin-top: 0;
+  font-size: 1.1rem;
+}
+
+/* Minimal title layout: no card chrome — plain themed title block. */
+.rf-layout-minimal {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.rf-layout-minimal .rf-title-frame {
+  padding: 1.5rem 0 0;
+}
+
+.rf-layout-minimal .rf-display-title {
+  font-size: clamp(2rem, 4.5vw, 3.1rem);
+}
+
+.rf-layout-minimal .rf-metric-grid {
+  background: transparent;
+}
+
+.rf-layout-minimal .rf-metric {
+  background: transparent;
+}
+
+blockquote {
+  margin: 1.6rem 0;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--rf-line);
+  border-left: 5px solid var(--rf-accent, #d9a54e);
+  border-radius: 0 12px 12px 0;
+  background: var(--rf-panel);
+  color: var(--rf-ink);
+  font-style: normal;
+}
+
+/* Tables — fixed layout keeps every table inside the content column
+   (columns share the width per pandoc's colgroup, long cells wrap);
+   roomy cells, aligned numerals, striped rows, tinted header. */
+table {
+  width: 100%;
+  table-layout: fixed;
+  border: 1px solid var(--rf-line);
+  border-radius: 10px;
+  background: var(--rf-panel);
+  font-size: 0.88em;
+  font-variant-numeric: tabular-nums;
+  margin: 1.1rem 0;
+  overflow-wrap: break-word;
+}
+
+thead {
+  background: var(--rf-panel-2);
+}
+
+th,
+td {
+  padding: 0.55rem 0.8rem;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: break-word;
+  border-bottom: 1px solid var(--rf-line);
+}
+
+th {
+  font-weight: 700;
+}
+
+tbody tr:nth-child(even) {
+  background: rgba(127, 140, 160, 0.09);
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.figure-caption,
+caption {
+  color: var(--rf-muted);
+  font-size: 0.85rem;
+  text-align: left;
+}
+
+a {
+  color: var(--rf-aqua);
+}
+
+code {
+  color: var(--rf-aqua);
+}
+
+@media (max-width: 720px) {
+  .rf-studio-header {
+    width: min(100% - 1rem, 1120px);
+    margin-top: 0.5rem;
+  }
+
+  .rf-title-frame,
+  .rf-layout-compact .rf-title-frame {
+    padding: 2.3rem 1.5rem 1.7rem 1.8rem;
+  }
+
+  .rf-display-title {
+    font-size: clamp(2.15rem, 12vw, 3.2rem);
+  }
+
+  .rf-title-meta {
+    display: grid;
+    gap: 0.35rem;
+  }
+
+  .rf-title-meta span + span::before,
+  .rf-title-meta span + time::before,
+  .rf-title-meta time::before {
+    content: none;
+  }
+
+  .rf-metric-grid,
+  .studio-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .rf-metric {
+    padding: 1rem 1.5rem;
+  }
+}
+
+@media print {
+  .rf-studio-header {
+    box-shadow: none;
+    break-inside: avoid;
+  }
+}

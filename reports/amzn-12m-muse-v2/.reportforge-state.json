@@ -1,0 +1,12 @@
+{
+  "last_render": "2026-09-04T08:29:30-0500",
+  "formats": [
+    "html",
+    "typst"
+  ],
+  "outputs": [
+    "/home/fire/Documents/report-forge/reports/amzn-12m-muse-v2/output/index.html",
+    "/home/fire/Documents/report-forge/reports/amzn-12m-muse-v2/output/index.pdf"
+  ],
+  "source": "/home/fire/Documents/report-forge/reports/amzn-12m-muse-v2/index.qmd"
+}

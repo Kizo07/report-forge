@@ -1,0 +1,197 @@
+{
+  "report_id": "tsla-12m-muse-light",
+  "title": "TESLA INC. (TSLA)",
+  "brief": "",
+  "profile": {
+    "report_type": "portfolio-light",
+    "brand": "quantflow",
+    "theme": "light",
+    "layout": "magazine",
+    "output_profile": "editorial",
+    "policy": "draft"
+  },
+  "revision": 1,
+  "state": "draft",
+  "sections": [
+    {
+      "id": "s-executive-summary",
+      "title": "Executive summary",
+      "level": 2,
+      "line_start": 43
+    },
+    {
+      "id": "s-as-of-and-data-box",
+      "title": "As-of and data box",
+      "level": 2,
+      "line_start": 53
+    },
+    {
+      "id": "s-price-action-and-technicals",
+      "title": "Price action and technicals",
+      "level": 2,
+      "line_start": 70
+    },
+    {
+      "id": "s-peer-context",
+      "title": "Peer context",
+      "level": 2,
+      "line_start": 82
+    },
+    {
+      "id": "s-factor-attribution-and-risk",
+      "title": "Factor attribution and risk",
+      "level": 2,
+      "line_start": 98
+    },
+    {
+      "id": "s-auto-franchise-deliveries-mix-margins",
+      "title": "Auto franchise: deliveries, mix, margins",
+      "level": 2,
+      "line_start": 110
+    },
+    {
+      "id": "s-energy-storage-breakout",
+      "title": "Energy storage breakout",
+      "level": 2,
+      "line_start": 124
+    },
+    {
+      "id": "s-autonomy-and-robotaxi-option",
+      "title": "Autonomy and robotaxi option",
+      "level": 2,
+      "line_start": 134
+    },
+    {
+      "id": "s-optimus-and-ai-upside",
+      "title": "Optimus and AI upside",
+      "level": 2,
+      "line_start": 146
+    },
+    {
+      "id": "s-competition-china-price-war-and-share",
+      "title": "Competition: China price war and share",
+      "level": 2,
+      "line_start": 150
+    },
+    {
+      "id": "s-financials-and-free-cash-flow",
+      "title": "Financials and free cash flow",
+      "level": 2,
+      "line_start": 158
+    },
+    {
+      "id": "s-valuation",
+      "title": "Valuation",
+      "level": 2,
+      "line_start": 170
+    },
+    {
+      "id": "s-technicals-detail-and-momentum-context",
+      "title": "Technicals detail and momentum context",
+      "level": 2,
+      "line_start": 182
+    },
+    {
+      "id": "s-adjudicated-bull-versus-bear",
+      "title": "Adjudicated bull versus bear",
+      "level": 2,
+      "line_start": 190
+    },
+    {
+      "id": "s-scenario-table",
+      "title": "Scenario table",
+      "level": 2,
+      "line_start": 194
+    },
+    {
+      "id": "s-risk-dashboard-and-catalyst-calendar",
+      "title": "Risk dashboard and catalyst calendar",
+      "level": 2,
+      "line_start": 207
+    },
+    {
+      "id": "s-recommendation",
+      "title": "Recommendation",
+      "level": 2,
+      "line_start": 215
+    },
+    {
+      "id": "s-appendix-subagent-briefs-and-cross-checks",
+      "title": "Appendix: subagent briefs and cross-checks",
+      "level": 2,
+      "line_start": 219
+    },
+    {
+      "id": "s-sources",
+      "title": "Sources",
+      "level": 2,
+      "line_start": 223
+    },
+    {
+      "id": "s-delivery-mix-and-regional-detail",
+      "title": "Delivery mix and regional detail",
+      "level": 2,
+      "line_start": 227
+    },
+    {
+      "id": "s-storage-backlog-and-grid-demand-detail",
+      "title": "Storage backlog and grid demand detail",
+      "level": 2,
+      "line_start": 235
+    },
+    {
+      "id": "s-autonomy-timeline-and-unit-economics-detail",
+      "title": "Autonomy timeline and unit economics detail",
+      "level": 2,
+      "line_start": 243
+    },
+    {
+      "id": "s-valuation-detail-and-peer-multiples",
+      "title": "Valuation detail and peer multiples",
+      "level": 2,
+      "line_start": 251
+    },
+    {
+      "id": "s-what-changed-during-debate",
+      "title": "What changed during debate",
+      "level": 2,
+      "line_start": 257
+    },
+    {
+      "id": "s-risks-and-failure-modes",
+      "title": "Risks and failure modes",
+      "level": 2,
+      "line_start": 261
+    },
+    {
+      "id": "s-positioning-note",
+      "title": "Positioning note",
+      "level": 2,
+      "line_start": 271
+    }
+  ],
+  "formats": [
+    "html"
+  ],
+  "created": "2026-09-07T19:53:12.639794-05:00",
+  "updated": "2026-09-10T23:29:01.445198-05:00",
+  "revision_log": [
+    {
+      "revision": 1,
+      "timestamp": "2026-09-10T23:29:01.445182-05:00",
+      "actor": "tool:import",
+      "op": "import",
+      "section_id": null,
+      "summary": "imported pre-manifest directory"
+    }
+  ],
+  "idempotency_ledger": {},
+  "reviews": [],
+  "sources": {},
+  "exhibits": {},
+  "facts": {},
+  "registry_version": 0,
+  "template_version": "pre-c",
+  "supersedes": {},
+  "schema_version": 4
+}

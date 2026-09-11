@@ -1,0 +1,125 @@
+{
+  "report_id": "mrna-12m-muse-light",
+  "title": "Moderna Inc. (MRNA)",
+  "brief": "",
+  "profile": {
+    "report_type": "portfolio-light",
+    "brand": "quantflow",
+    "theme": "light",
+    "layout": "magazine",
+    "output_profile": "editorial",
+    "policy": "draft"
+  },
+  "revision": 1,
+  "state": "draft",
+  "sections": [
+    {
+      "id": "s-executive-summary",
+      "title": "Executive summary",
+      "level": 2,
+      "line_start": 33
+    },
+    {
+      "id": "s-as-of-data-box-and-price-opener",
+      "title": "As-of data box and price opener",
+      "level": 2,
+      "line_start": 45
+    },
+    {
+      "id": "s-respiratory-franchise-from-one-product-to-four",
+      "title": "Respiratory franchise: from one product to four",
+      "level": 2,
+      "line_start": 81
+    },
+    {
+      "id": "s-pipeline-deep-dive-int-win-cmv-loss-narrow-tail",
+      "title": "Pipeline deep dive: INT win, CMV loss, narrow tail",
+      "level": 2,
+      "line_start": 101
+    },
+    {
+      "id": "s-financials-and-cash-runway",
+      "title": "Financials and cash runway",
+      "level": 2,
+      "line_start": 121
+    },
+    {
+      "id": "s-valuation-scenario-dcf-with-peer-multiples",
+      "title": "Valuation: scenario DCF with peer multiples",
+      "level": 2,
+      "line_start": 145
+    },
+    {
+      "id": "s-technicals-spike-consolidation-levels",
+      "title": "Technicals: spike, consolidation, levels",
+      "level": 2,
+      "line_start": 167
+    },
+    {
+      "id": "s-factor-attribution-and-risk",
+      "title": "Factor attribution and risk",
+      "level": 2,
+      "line_start": 211
+    },
+    {
+      "id": "s-adjudicated-bull-versus-bear",
+      "title": "Adjudicated bull versus bear",
+      "level": 2,
+      "line_start": 237
+    },
+    {
+      "id": "s-risk-dashboard-catalyst-calendar-recommendation",
+      "title": "Risk dashboard, catalyst calendar, recommendation",
+      "level": 2,
+      "line_start": 255
+    },
+    {
+      "id": "s-appendix-briefs-methods-caveats",
+      "title": "Appendix: briefs, methods, caveats",
+      "level": 2,
+      "line_start": 263
+    },
+    {
+      "id": "s-sources",
+      "title": "Sources",
+      "level": 2,
+      "line_start": 273
+    },
+    {
+      "id": "s-season-execution-checklist-added-depth",
+      "title": "Season execution checklist (added depth)",
+      "level": 2,
+      "line_start": 282
+    },
+    {
+      "id": "s-int-commercial-bridge-added-depth",
+      "title": "INT commercial bridge (added depth)",
+      "level": 2,
+      "line_start": 286
+    }
+  ],
+  "formats": [
+    "html"
+  ],
+  "created": "2026-09-07T19:53:12.449791-05:00",
+  "updated": "2026-09-10T23:29:26.984338-05:00",
+  "revision_log": [
+    {
+      "revision": 1,
+      "timestamp": "2026-09-10T23:29:26.984318-05:00",
+      "actor": "tool:import",
+      "op": "import",
+      "section_id": null,
+      "summary": "imported pre-manifest directory"
+    }
+  ],
+  "idempotency_ledger": {},
+  "reviews": [],
+  "sources": {},
+  "exhibits": {},
+  "facts": {},
+  "registry_version": 0,
+  "template_version": "pre-c",
+  "supersedes": {},
+  "schema_version": 4
+}
