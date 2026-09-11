@@ -67,10 +67,11 @@ _PORTFOLIO_TEMPLATES = {"portfolio-light", "portfolio-dark"}
 # Cyan Ledger variants (derived; see scripts/derive_ledger_templates.py).
 _LEDGER_TEMPLATES = {"ledger-light", "ledger-dark"}
 _EDITORIAL_TEMPLATES = {"studio"} | _PORTFOLIO_TEMPLATES | _LEDGER_TEMPLATES
-# Site-gold defaults (Kizo07.github.io); used only when the caller leaves
-# the generic scaffold accent untouched.
-_PORTFOLIO_DEFAULT_ACCENTS = {"portfolio-light": "#8f621f", "portfolio-dark": "#d9a54e",
-                              "ledger-light": "#8f621f", "ledger-dark": "#e3ac55"}
+# Per-template accent used when the caller omits `accent` (None). An
+# explicit accent is honored verbatim — never silently re-skinned.
+_TEMPLATE_DEFAULT_ACCENTS = {"studio": "#4f46e5", "modern": "#2e5bff",
+                             "portfolio-light": "#8f621f", "portfolio-dark": "#d9a54e",
+                             "ledger-light": "#8f621f", "ledger-dark": "#e3ac55"}
 
 
 def list_templates() -> list[dict]:
@@ -86,7 +87,7 @@ def list_templates() -> list[dict]:
         {"name": "esg-sustainability", "description": "ESG / sustainability review: rating profile table vs sector, environmental/social/governance sections, controversies, disclosure quality, financial materiality. TOC + numbered sections; exhibits labeled 'Exhibit N'; html/pdf/docx.", "toc": True, "number_sections": True, "exhibit_labels": True, "papersize": "a4", "formats": ["html", "pdf", "docx"]},
         {"name": "crypto-digital", "description": "Crypto / digital-asset note: market-structure gauges, ETF and exchange flows, on-chain readings, protocol fundamentals, regulatory watch, scenario grid. No TOC; exhibits labeled 'Exhibit N'; html/pdf/docx.", "toc": False, "number_sections": False, "exhibit_labels": True, "papersize": "us-letter", "formats": ["html", "pdf", "docx"]},
         {"name": "desk-synthesis", "description": "Full-desk synthesis: one section per quant-desk agent (quant, technical, catalysts, earnings, sector, macro, thematic, demand) plus bull/bear adjudication, scenario grid, risk/sizing, recommendation. TOC + numbered sections; exhibits labeled 'Exhibit N'; html/pdf/docx.", "toc": True, "number_sections": True, "exhibit_labels": True, "papersize": "us-letter", "formats": ["html", "pdf", "docx"]},
-        {"name": "whitepaper", "description": "Hedge-fund-style institutional white paper: key takeaways, investment thesis, framework, exhibit-driven analysis, portfolio implications, risk factors. Figures/tables labeled 'Exhibit N' with unified numbering; title page, TOC + numbered sections; html/pdf/docx.", "toc": True, "number_sections": True, "exhibit_labels": True, "papersize": "us-letter", "formats": ["html", "pdf", "docx"]},
+        {"name": "whitepaper", "description": "Hedge-fund-style institutional white paper: key takeaways, investment thesis, framework, exhibit-driven analysis, portfolio implications, risk factors. Figures/tables labeled 'Exhibit N' with unified numbering; title page, TOC + numbered sections; html/pdf/docx.", "toc": True, "number_sections": True, "exhibit_labels": True, "papersize": "us-letter", "titlepage": True, "formats": ["html", "pdf", "docx"]},
         {"name": "modern", "description": "Modern branded research brief: full-bleed dark masthead with firm + subtitle, KPI stat strip, accent-tick headings, running header/footer with confidentiality mark, exhibit-driven short sections (executive summary → signal → actions → risks). Custom typst PDF template; figures/tables labeled 'Exhibit N'; html/pdf/docx.", "toc": False, "number_sections": False, "exhibit_labels": True, "papersize": "us-letter", "formats": ["html", "pdf", "docx"]},
         {"name": "studio", "description": "Premium content-neutral editorial report: hero, compact, or minimal title, optional organization/eyebrow/metrics/verdict/key-points/scenarios cover infographics, accent override, footer, configurable accent, flexible Markdown sections, refined figures and tables. Custom Typst PDF and responsive HTML; html/pdf/docx.", "toc": False, "number_sections": False, "exhibit_labels": True, "papersize": "us-letter", "formats": ["html", "pdf", "docx"], "content_neutral": True, "title_layouts": ["hero", "compact", "minimal"], "max_metrics": 6},
         {"name": "portfolio-light", "description": "Studio editorial pipeline in the portfolio light theme: warm paper, serif display type, gold kicker. Hero/compact/minimal title, eyebrow, organization, 0-6 metrics, verdict/key-points/scenarios cover infographics, accent override, exhibit labels; html/pdf/docx.", "toc": False, "number_sections": False, "exhibit_labels": True, "papersize": "us-letter", "formats": ["html", "pdf", "docx"], "content_neutral": True, "title_layouts": ["hero", "compact", "minimal"], "max_metrics": 6},
@@ -146,6 +147,10 @@ def _non_engine_charts(workdir: Path) -> list[str]:
 
 
 def _project_is_light(workdir: Path) -> bool:
+    """Light-page project? Prefers the scaffolded `reportforge-template`
+    frontmatter (exact match, immune to titles like "Spotlight on ..."),
+    falling back to the legacy 'light' substring heuristic when the key is
+    absent (bespoke / hand-written projects)."""
     qmd = workdir / "index.qmd"
     if not qmd.is_file():
         return False
@@ -154,6 +159,13 @@ def _project_is_light(workdir: Path) -> bool:
         return False
     fence = text.find("\n---", 3)
     head = text[:fence] if fence != -1 else text[:2000]
+    m = re.search(r'^reportforge-template:\s*"?([a-z0-9-]+)"?\s*$', head, re.MULTILINE)
+    if m:
+        name = m.group(1)
+        if name in ("portfolio-dark", "ledger-dark"):
+            return False
+        if name in ("portfolio-light", "ledger-light"):
+            return True
     return "light" in head
 
 
@@ -227,7 +239,7 @@ def scaffold_report(
     organization: str = "",
     eyebrow: str = "",
     title_layout: str = "hero",
-    accent: str = "#4f46e5",
+    accent: str | None = None,
     metrics: list[dict] | None = None,
     verdict: str = "",
     key_points: list[str] | None = None,
@@ -289,15 +301,13 @@ def scaffold_report(
     normalized_scenarios, scenarios_error = _normalize_scenarios(scenarios)
     if scenarios_error:
         return {"ok": False, "error": scenarios_error}
-    if template in _EDITORIAL_TEMPLATES:
-        if title_layout not in {"hero", "compact", "minimal"}:
+    if accent is None:
+        accent = _TEMPLATE_DEFAULT_ACCENTS.get(template, "#4f46e5")
+    if template in _EDITORIAL_TEMPLATES or template == "modern":
+        if template in _EDITORIAL_TEMPLATES and title_layout not in {"hero", "compact", "minimal"}:
             return {"ok": False, "error": "title layout must be 'hero', 'compact' or 'minimal'"}
         if not re.fullmatch(r"#[0-9a-fA-F]{6}", accent):
             return {"ok": False, "error": "accent must be a six-digit hex color such as #4f46e5"}
-    if template in (_PORTFOLIO_TEMPLATES | _LEDGER_TEMPLATES) and accent.lower() == "#4f46e5":
-        # Portfolio/Ledger templates default to their gold unless the caller
-        # passes an explicit accent.
-        accent = _PORTFOLIO_DEFAULT_ACCENTS[template]
 
     slug = "".join(c if c.isalnum() or c in "-_" else "-" for c in slug.strip().lower())
     if not slug:
@@ -486,7 +496,7 @@ def scaffold_report(
             typt_tpl = templates.STUDIO_TYPT_TEMPLATE
             show_tpl = templates.STUDIO_TYPT_SHOW
             header_name = "studio-header.html"
-            brand_tpl = templates.BRAND_YML
+            brand_tpl = templates.STUDIO_BRAND_YML
             styles_extra = templates.STUDIO_STYLES_EXTRA
         elif template == "portfolio-light":
             yml_tpl = templates.PORTFOLIO_YML
@@ -568,16 +578,6 @@ def scaffold_report(
         formats=kept_formats + (["pdf-web"] if pdf_web_requested else []),
     )
     return {"ok": True, "path": str(root), "source": str(root / "index.qmd"), "formats": kept_formats, "jupyter_kernel": kernel}
-
-
-# --- Milestone A Task 1.2: manifest on scaffold + manifest views ------------
-
-_GENRE_TYPES = {
-    "standard", "memo", "whitepaper", "bespoke",
-    "earnings-recap", "sector-outlook", "thematic-deepdive", "macro-outlook",
-    "quant-factor-brief", "technical-brief", "esg-sustainability",
-    "crypto-digital", "desk-synthesis",
-}
 
 
 # --- Milestone C Task C-1: explicit profile matrix ---------------------------

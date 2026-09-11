@@ -136,7 +136,7 @@ def reportforge_scaffold_report(
     organization: str = "",
     eyebrow: str = "",
     title_layout: str = "hero",
-    accent: str = "#4f46e5",
+    accent: str | None = None,
     metrics: list[dict[str, str]] | str | None = None,
     verdict: str = "",
     key_points: list[str] | str | None = None,
@@ -169,10 +169,20 @@ def reportforge_scaffold_report(
             flexible Markdown sections; html/pdf/docx), or 'portfolio-light'
             / 'portfolio-dark' (same editorial pipeline as 'studio' in the
             portfolio light/dark themes: warm paper or near-black, serif
-            display type, gold kicker; html/pdf/docx).
-        formats: Subset of ['html', 'pdf', 'docx'] to configure; defaults per
-            template. Pass a real JSON list when possible; a JSON-encoded
-            string or a CSV like "html,pdf,docx" is also accepted.
+            display type, gold kicker; html/pdf/docx), or 'ledger-light' /
+            'ledger-dark' (same pipeline in the Cyan Ledger ice/midnight
+            themes: Space Grotesk display type, ledger-gold kicker, cyan
+            links, two-column body; html/pdf/docx), or one of the typed
+            research bodies ('earnings-recap', 'sector-outlook',
+            'thematic-deepdive', 'macro-outlook', 'quant-factor-brief',
+            'technical-brief', 'esg-sustainability', 'crypto-digital',
+            'desk-synthesis'; Exhibit N labels, html/pdf/docx), or 'bespoke'
+            (no template opinions: caller owns frontmatter + body; supports
+            the pdf-web headless-Chromium print path).
+        formats: Subset of ['html', 'pdf', 'docx'] to configure (bespoke
+            additionally supports 'pdf-web'); defaults per template. Pass a
+            real JSON list when possible; a JSON-encoded string or a CSV
+            like "html,pdf,docx" is also accepted.
         firm: Firm or institution name (whitepaper title page / modern masthead + header).
         kpis: Optional KPI stat strip for the modern template, a list of
             {"value": ..., "label": ...} dicts (2-4 items ideal). Defaults to
@@ -184,7 +194,9 @@ def reportforge_scaffold_report(
         eyebrow: Short studio kicker above the title.
         title_layout: Studio title composition: "hero", "compact", or "minimal"
             (plain title block without the card).
-        accent: Studio accent as a six-digit hex color.
+        accent: Accent as a six-digit hex color (studio/modern/editorial
+            templates). Omit to use each template's own default accent;
+            an explicit value is honored verbatim.
         metrics: Optional studio metric strip, a list of 0-6 value/label
             objects. A JSON-encoded string of the list is also accepted.
         verdict: Optional conviction-call band on the cover of studio /

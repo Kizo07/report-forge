@@ -9,6 +9,7 @@ from reportforge.templates_domain import (  # noqa: F401  (re-export)
     TECHNICAL_BRIEF_QMD,
     ESG_SUSTAINABILITY_QMD,
     CRYPTO_DIGITAL_QMD,
+    DESK_SYNTHESIS_QMD,
     DOMAIN_BODY_TEMPLATES,
 )
 
@@ -430,7 +431,7 @@ MODERN_TYPT_TEMPLATE = r"""// report-forge "modern" conf() — custom typst temp
 #let conf(
   title: none, subtitle: none, authors: (), keywords: (),
   date: none, abstract: none, abstract-title: none, thanks: none,
-  kpis: (), firm: none, confidential-mark: none,
+  kpis: (), firm: none, confidential-mark: none, accent: "#2e5bff",
   cols: 1, margin: (x: 0.9in, top: 0.8in, bottom: 1.0in),
   paper: "us-letter", lang: "en", region: "US",
   font: none, fontsize: 10.5pt, mathfont: none, codefont: none,
@@ -440,7 +441,7 @@ MODERN_TYPT_TEMPLATE = r"""// report-forge "modern" conf() — custom typst temp
   // brand colors
   let navy = rgb("#0f1b2d")
   let ink = rgb("#22303f")
-  let accent = rgb("#2e5bff")
+  let accent = rgb(accent)
   let gold = rgb("#c9a227")
   let mist = rgb("#f2f5f8")
 
@@ -605,6 +606,9 @@ $endif$
 $if(confidential-mark)$
   confidential-mark: [$confidential-mark$],
 $endif$
+$if(accent)$
+  accent: "$accent$",
+$endif$
 $if(kpis)$
   kpis: (
 $for(kpis)$
@@ -632,6 +636,8 @@ $endif$
 MODERN_QMD = """\
 ---
 title: <% title_yaml %>
+reportforge-template: modern
+accent: <% accent_yaml %>
 <%% if subtitle%%>
 subtitle: <% subtitle_yaml %>
 <%% endif%%>
@@ -705,7 +711,7 @@ import pandas as pd
 df = pd.DataFrame({"x": range(24), "y": [i + (i % 5) * 0.6 for i in range(24)]})
 fig = px.line(df, x="x", y="y", markers=True)
 fig.update_layout(template="plotly_white", title="Example exhibit")
-fig.update_traces(line_color="#2e5bff", marker_color="#2e5bff", marker_size=5)
+fig.update_traces(line_color="<% accent %>", marker_color="<% accent %>", marker_size=5)
 # width 9in = target print width; font 16 stays readable after shrink;
 # scale=3 = ~450 DPI effective for print sharpness.
 fig.update_layout(font=dict(size=16))
@@ -718,7 +724,7 @@ MODERN_STYLES_EXTRA = """
 h1 {
   margin-top: 2.2rem;
   padding-top: 0.55rem;
-  border-top: 3px solid #2e5bff;
+  border-top: 3px solid <% accent %>;
   letter-spacing: -0.015em;
 }
 .quarto-title h1.title {
@@ -729,7 +735,7 @@ h2 {
   letter-spacing: -0.01em;
 }
 blockquote {
-  border-left: 4px solid #2e5bff;
+  border-left: 4px solid <% accent %>;
   background: transparent;
   padding: 0.4rem 1rem;
   color: $brand-slate;
@@ -750,6 +756,61 @@ caption {
 # generated semantic header plus responsive CSS; DOCX keeps clean native
 # structure through the reference document.
 # ---------------------------------------------------------------------------
+
+# Studio CSS reaches for Fraunces (verdict band, scenario values) and
+# IBM Plex Mono (figures, data rows) — the brand must actually load them,
+# mirroring the portfolio brands, or browsers silently fall back to
+# Georgia / JetBrains Mono.
+STUDIO_BRAND_YML = """\
+color:
+  palette:
+    ink: "#22303f"
+    navy: "#1a2e4a"
+    steel: "#3d6b9e"
+    slate: "#5b6b7f"
+    gold: "#c9a227"
+    mist: "#f2f5f8"
+  foreground: "#22303f"
+  background: "#ffffff"
+  primary: "#1a2e4a"
+  secondary: "#3d6b9e"
+  tertiary: "#5b6b7f"
+  success: "#2e7d32"
+  info: "#3d6b9e"
+  warning: "#c9a227"
+  danger: "#b3402a"
+  light: "#f2f5f8"
+
+typography:
+  fonts:
+    - family: Inter
+      source: google
+      weight: [400, 500, 600]
+    - family: Space Grotesk
+      source: google
+      weight: [500, 700]
+    - family: Fraunces
+      source: google
+      weight: [400, 600]
+    - family: IBM Plex Mono
+      source: google
+  base:
+    family: Inter
+    size: 1rem
+  headings:
+    family: Space Grotesk
+    weight: 700
+    color: "#1a2e4a"
+  monospace: IBM Plex Mono
+  monospace-inline:
+    color: "#1a2e4a"
+    background-color: "#f2f5f8"
+  monospace-block:
+    background-color: mist
+
+meta:
+  name: ReportForge Studio
+"""
 
 STUDIO_YML = """\
 project:
@@ -1346,7 +1407,7 @@ body {
   border: 1px solid var(--rf-line);
   border-radius: 22px;
   background:
-    radial-gradient(circle at 88% 8%, rgba(79, 70, 229, 0.16), transparent 30%),
+    radial-gradient(circle at 88% 8%, color-mix(in srgb, var(--rf-accent) 16%, transparent), transparent 30%),
     linear-gradient(145deg, #ffffff 0%, #f4f3ee 100%);
   box-shadow: 0 24px 70px rgba(23, 25, 35, 0.09);
 }
@@ -1707,7 +1768,7 @@ table {
 }
 
 thead {
-  background: #efefff;
+  background: color-mix(in srgb, var(--rf-accent) 8%, var(--rf-panel));
 }
 
 .figure-caption,
@@ -1790,6 +1851,7 @@ format:
     urlcolor: "#3d6b9e"
     citecolor: "#5b6b7f"
   docx:
+    reference-doc: assets/reference-doc.docx
     toc: false
 """
 
