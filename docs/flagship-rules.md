@@ -80,10 +80,11 @@ this file is the committed mirror so a fresh checkout reproduces them.
   ships treemap/donut, regressions ship `coef_intervals`. `figure_lint`
   check 9 enforces it (≤50% bar-only, ≥2 non-default encodings).
 - Tables: single-column markdown tables wider than ~58 chars
-  (per-column max + 3 padding each) MUST ride `::: {column-page}`,
-  split, or move to the appendix — `figure_lint` check 10 rejects the
-  MSFT-p4 overflow class. Wide data belongs in engine `dataframe_table`
-  PNG exhibits (column-page heroes).
+  (per-column max + 3 padding each) MUST split, move to the appendix,
+  or render as engine `dataframe_table` PNG exhibits riding `.column-page`
+  heroes — `figure_lint` check 10 rejects the
+  MSFT-p4 overflow class. (Markdown tables cannot span columns; only
+  figures take the class.)
 - Matplotlib/seaborn fallback is FORBIDDEN on flagships. Scaffold with
   `engine_charts_only=True`: render then hard-fails (ok:false naming the
   files) instead of shipping a fallback — including white-background
@@ -120,9 +121,14 @@ this file is the committed mirror so a fresh checkout reproduces them.
   key is ignored by our pinned builder, and mid-body raw `#set page`
   does nothing (scoping). Template-level only.
 - Figures default to column width: author widths as % of COLUMN
-  (85% bars ≈ old 40%-of-page print size). Heroes wrapped in
-  `::: {column-page}` span both columns (quarto `scope:parent`).
-  Never rely on accidental float spanning — wrap deliberately.
+  (85% bars ≈ old 40%-of-page print size). Heroes span both columns
+  by putting the `.column-page` class DIRECTLY on the figure:
+  `![caption](charts/x.png){#fig-ex width=100% .column-page}`.
+  Do NOT use a `::: {column-page}` fenced div around a figure — pandoc
+  emits a plain block for that form and the figure stays in-column at
+  crushed type size (the v2 page-4 defect). The template redefines
+  `wideblock` so the class form becomes a Typst parent-scoped float
+  that spans near its source. Never rely on accidental float spanning.
 - Tables stay in-column and MUST be unbreakable: template carries
   `show table: it => block(breakable: false, it)` — a split table
   collides with running text at column breaks. Keep ≤5 data columns;
