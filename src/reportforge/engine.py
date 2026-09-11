@@ -541,6 +541,11 @@ def scaffold_report(
         styles_extra = (
             templates.WHITEPAPER_STYLES_EXTRA if template == "whitepaper" else ""
         )
+        if spec.get("titlepage"):
+            # Quarto 1.10/pandoc 3.8 have no native format:typst titlepage,
+            # so titlepage templates ship their own article partials.
+            (assets / "typst-template.typ").write_text(templates.WHITEPAPER_TYPT_TEMPLATE)
+            (assets / "typst-show.typ").write_text(templates.WHITEPAPER_TYPT_SHOW)
         body_tpl = {
             "standard": templates.INDEX_QMD,
             "memo": templates.MEMO_QMD,
@@ -556,10 +561,11 @@ def scaffold_report(
     body = _tpl(body_tpl).render(ctx)
     kept_formats = [f for f in ("html", "pdf", "docx") if f in formats]
     yml = (root / "_quarto.yml").read_text()
-    # The modern template declares `format: typst` in place of `format: pdf`
-    # (format: pdf rejects template-partials). Treat pdf↔typst as one slot
-    # for keep/drop decisions.
-    yml_fmt_key = "typst" if template in ({"modern"} | _EDITORIAL_TEMPLATES) else "pdf"
+    # The modern/editorial/whitepaper-titlepage templates declare
+    # `format: typst` in place of `format: pdf` (format: pdf rejects
+    # template-partials and silently ignores typst-only keys like
+    # titlepage). Treat pdf<->typst as one slot for keep/drop decisions.
+    yml_fmt_key = "typst" if "  typst:" in yml else "pdf"
     for fmt in ("html", "pdf", "docx"):
         if fmt not in kept_formats:
             yml = _drop_yaml_block(yml, yml_fmt_key if fmt == "pdf" else fmt)
@@ -4802,11 +4808,13 @@ def _translate_sandbox_path(path_str: str, project: str | None) -> str:
 
 
 def _declares_typst_format(workdir: Path) -> bool:
-    """True when a project declares custom Typst template partials."""
+    """True when a project drives its PDF through `format: typst` — either
+    custom template partials (modern/studio/portfolio/ledger) or built-in
+    typst-only options such as the whitepaper title page."""
     yml = workdir / "_quarto.yml"
     if not yml.exists():
         return False
-    return "  typst:" in yml.read_text() and "template-partials" in yml.read_text()
+    return "  typst:" in yml.read_text()
 
 
 def _quarto_tools_dir() -> Path | None:

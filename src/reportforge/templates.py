@@ -47,12 +47,24 @@ format:
     code-fold: true
     code-tools: false
     link-external-newwindow: true
+<%% if titlepage %%>
+  # `titlepage` is a format:typst option — format:pdf silently ignores it.
+  # Swap the whole print block so the promised title page actually renders.
+  typst:
+    papersize: <% papersize %>
+    titlepage: true
+    template-partials:
+      - assets/typst-template.typ
+      - assets/typst-show.typ
+    margin-x: 2cm
+    margin-y: 2.2cm
+    toc: <% toc %>
+    number-sections: <% number_sections %>
+    colorlinks: true
+<%% else %%>
   pdf:
     pdf-engine: typst
     papersize: <% papersize %>
-<%% if titlepage %%>
-    titlepage: true
-<%% endif %%>
     margin-x: 2cm
     margin-y: 2.2cm
     toc: <% toc %>
@@ -62,6 +74,7 @@ format:
     linkcolor: "#1a2e4a"
     urlcolor: "#3d6b9e"
     citecolor: "#5b6b7f"
+<%% endif %%>
   docx:
     reference-doc: assets/reference-doc.docx
     toc: <% toc %>
@@ -247,22 +260,21 @@ Short sections. No table of contents, no numbered sections.
 WHITEPAPER_QMD = """\
 ---
 title: <% title_yaml %>
+reportforge-template: whitepaper
 <%% if subtitle%%>
 subtitle: <% subtitle_yaml %>
 <%% endif%%>
 <%% if author%%>
 author: <% author_yaml %>
 <%% endif%%>
+<%% if firm%%>
+firm: <% firm_yaml %>
+<%% endif%%>
 date: <% date_yaml %>
 date-format: long
 abstract: <% abstract_yaml %>
+titlepage: true
 ---
-
-<%% if firm%%>
-::: {style="text-align: center;"}
-**<% firm %>** · Investment Research
-:::
-<%% endif%%>
 
 # Key takeaways {-}
 
@@ -361,6 +373,324 @@ h1 {
   border-bottom: 1px solid $brand-mist;
   padding-bottom: 0.3rem;
 }
+"""
+
+# Whitepaper PDF title page. Quarto 1.10 / pandoc 3.8 have NO native
+# `titlepage` option for format:typst, so the whitepaper vendors Quarto's
+# default typst article partial (quarto/share/formats/typst/pandoc/quarto/
+# typst-template.typ) with a `titlepage` branch added: a dedicated cover
+# page (firm eyebrow, display title, subtitle, gold hairline, authors,
+# date) with the abstract opening page 2. Everything else is byte-faithful
+# to the stock article so brand typography keeps flowing unchanged.
+WHITEPAPER_TYPT_TEMPLATE = r"""// report-forge "whitepaper" article — Quarto stock typst article + title page
+
+#let article(
+  title: none,
+  subtitle: none,
+  authors: none,
+  keywords: (),
+  date: none,
+  abstract-title: none,
+  abstract: none,
+  thanks: none,
+  titlepage: false,
+  firm: none,
+  cols: 1,
+  lang: "en",
+  region: "US",
+  font: none,
+  fontsize: 11pt,
+  title-size: 1.5em,
+  subtitle-size: 1.25em,
+  heading-family: none,
+  heading-weight: "bold",
+  heading-style: "normal",
+  heading-color: black,
+  heading-line-height: 0.65em,
+  mathfont: none,
+  codefont: none,
+  linestretch: 1,
+  sectionnumbering: none,
+  linkcolor: none,
+  citecolor: none,
+  filecolor: none,
+  toc: false,
+  toc_title: none,
+  toc_depth: none,
+  toc_indent: 1.5em,
+  doc,
+) = {
+  // Set document metadata for PDF accessibility
+  set document(title: title, keywords: keywords)
+  set document(
+    author: authors.map(author => content-to-string(author.name)).join(", ", last: " & "),
+  ) if authors != none and authors != ()
+  set par(
+    justify: true,
+    leading: linestretch * 0.65em
+  )
+  set text(lang: lang,
+           region: region,
+           size: fontsize)
+  set text(font: font) if font != none
+  show math.equation: set text(font: mathfont) if mathfont != none
+  show raw: set text(font: codefont) if codefont != none
+
+  set heading(numbering: sectionnumbering)
+
+  show link: set text(fill: rgb(content-to-string(linkcolor))) if linkcolor != none
+  show ref: set text(fill: rgb(content-to-string(citecolor))) if citecolor != none
+  show link: this => {
+    if filecolor != none and type(this.dest) == label {
+      text(this, fill: rgb(content-to-string(filecolor)))
+    } else {
+      text(this)
+    }
+   }
+
+  if titlepage and title != none {
+    // Dedicated cover: everything alone on page 1, body breaks to page 2.
+    page(margin: (x: 2.5cm, y: 4cm))[
+      #v(1fr)
+      #align(center)[
+        #if firm != none [
+          #text(size: 0.85em, weight: "semibold", tracking: 0.14em)[#upper[#firm — INVESTMENT RESEARCH]]
+          #v(1.6em)
+        ]
+        #set par(leading: heading-line-height) if heading-line-height != none
+        #set text(font: heading-family) if heading-family != none
+        #set text(weight: heading-weight)
+        #set text(style: heading-style) if heading-style != "normal"
+        #set text(fill: heading-color) if heading-color != black
+        #text(size: 2.2em)[#title]
+        #(if subtitle != none {
+          v(0.5em)
+          text(size: 1.2em, weight: "regular", fill: black)[#subtitle]
+        })
+        #v(1.5em)
+        #line(length: 32%, stroke: 0.8pt + rgb("#c9a227"))
+      ]
+      #v(1.5em)
+      #if authors != none and authors != () {
+        grid(
+          columns: (1fr,) * calc.min(authors.len(), 3),
+          row-gutter: 1.5em,
+          ..authors.map(author =>
+              align(center)[
+                #author.name \
+                #author.affiliation \
+                #author.email
+              ]
+          )
+        )
+      }
+      #if date != none [
+        #align(center)[#block(inset: 1em)[
+          #date
+        ]]
+      ]
+      #v(1fr)
+    ]
+    // Abstract opens page 2; no repeated title block.
+    if abstract != none {
+      block(above: 0em, below: 1.5em, inset: 1.5em)[
+        #text(weight: "semibold")[#abstract-title] #h(1em) #abstract
+      ]
+    }
+  } else {
+    let has-title-block = title != none or (authors != none and authors != ()) or date != none or abstract != none
+    if has-title-block {
+      place(
+        top,
+        float: true,
+        scope: "parent",
+        clearance: 4mm,
+        block(below: 1em, width: 100%)[
+
+          #if title != none {
+            align(center, block(inset: 2em)[
+              #set par(leading: heading-line-height) if heading-line-height != none
+              #set text(font: heading-family) if heading-family != none
+              #set text(weight: heading-weight)
+              #set text(style: heading-style) if heading-style != "normal"
+              #set text(fill: heading-color) if heading-color != black
+
+              #text(size: title-size)[#title #if thanks != none {
+                footnote(thanks, numbering: "*")
+                counter(footnote).update(n => n - 1)
+              }]
+              #(if subtitle != none {
+                parbreak()
+                text(size: subtitle-size)[#subtitle]
+              })
+            ])
+          }
+
+          #if authors != none and authors != () {
+            let count = authors.len()
+            let ncols = calc.min(count, 3)
+            grid(
+              columns: (1fr,) * ncols,
+              row-gutter: 1.5em,
+              ..authors.map(author =>
+                  align(center)[
+                    #author.name \
+                    #author.affiliation \
+                    #author.email
+                  ]
+              )
+            )
+          }
+
+          #if date != none {
+            align(center)[#block(inset: 1em)[
+              #date
+            ]]
+          }
+
+          #if abstract != none {
+            block(inset: 2em)[
+            #text(weight: "semibold")[#abstract-title] #h(1em) #abstract
+            ]
+          }
+        ]
+      )
+    }
+  }
+
+  if toc {
+    let title = if toc_title == none {
+      auto
+    } else {
+      toc_title
+    }
+    block(above: 0em, below: 2em)[
+    #outline(
+      title: toc_title,
+      depth: toc_depth,
+      indent: toc_indent
+    );
+    ]
+  }
+
+  doc
+}
+
+#set table(
+  inset: 6pt,
+  stroke: none
+)
+"""
+
+# Quarto stock typst-show partial + titlepage/firm forwarding.
+WHITEPAPER_TYPT_SHOW = """\
+#show: doc => article(
+$if(title)$
+  title: [$title$],
+$endif$
+$if(subtitle)$
+  subtitle: [$subtitle$],
+$endif$
+$if(by-author)$
+  authors: (
+$for(by-author)$
+$if(it.name.literal)$
+    ( name: [$it.name.literal$],
+      affiliation: [$for(it.affiliations)$$it.name$$sep$, $endfor$],
+      email: [$it.email$] ),
+$endif$
+$endfor$
+    ),
+$endif$
+$if(date)$
+  date: [$date$],
+$endif$
+$if(abstract)$
+  abstract: [$abstract$],
+  abstract-title: "$labels.abstract$",
+$endif$
+$if(titlepage)$
+  titlepage: $titlepage$,
+$endif$
+$if(firm)$
+  firm: [$firm$],
+$endif$
+$if(lang)$
+  lang: "$lang$",
+$endif$
+$if(region)$
+  region: "$region$",
+$endif$
+$if(mainfont)$
+  font: ("$mainfont$",),
+$elseif(brand.typography.base.family)$
+  font: $brand.typography.base.family$,
+$endif$
+$if(fontsize)$
+  fontsize: $fontsize$,
+$elseif(brand.typography.base.size)$
+  fontsize: $brand.typography.base.size$,
+$endif$
+$if(title)$
+$if(brand.typography.headings.family)$
+  heading-family: $brand.typography.headings.family$,
+$elseif(mainfont)$
+  heading-family: ("$mainfont$",),
+$endif$
+$if(brand.typography.headings.weight)$
+  heading-weight: $brand.typography.headings.weight$,
+$endif$
+$if(brand.typography.headings.style)$
+  heading-style: "$brand.typography.headings.style$",
+$endif$
+$if(brand.typography.headings.color)$
+  heading-color: $brand.typography.headings.color$,
+$endif$
+$if(brand.typography.headings.line-height)$
+  heading-line-height: $brand.typography.headings.line-height$,
+$endif$
+$endif$
+$if(section-numbering)$
+  sectionnumbering: "$section-numbering$",
+$endif$
+$if(mathfont)$
+  mathfont: ($for(mathfont)$"$mathfont$",$endfor$),
+$endif$
+$if(codefont)$
+  codefont: ($for(codefont)$"$codefont$",$endfor$),
+$elseif(brand.typography.monospace.family)$
+  codefont: $brand.typography.monospace.family$,
+$endif$
+$if(linestretch)$
+  linestretch: $linestretch$,
+$endif$
+$if(thanks)$
+  thanks: [$thanks$],
+$endif$
+$if(linkcolor)$
+  linkcolor: [$linkcolor$],
+$endif$
+$if(citecolor)$
+  citecolor: [$citecolor$],
+$endif$
+$if(filecolor)$
+  filecolor: [$filecolor$],
+$endif$
+$if(keywords)$
+  keywords: ($for(keywords)$"$keywords$",$endfor$),
+$endif$
+$if(toc)$
+  toc: $toc$,
+$endif$
+$if(toc-title)$
+  toc_title: [$toc-title$],
+$endif$
+$if(toc-indent)$
+  toc_indent: $toc-indent$,
+$endif$
+  toc_depth: $toc-depth$,
+  doc,
+)
 """
 
 # ---------------------------------------------------------------------------
@@ -606,8 +936,8 @@ $endif$
 $if(confidential-mark)$
   confidential-mark: [$confidential-mark$],
 $endif$
-$if(accent)$
-  accent: "$accent$",
+$if(accent-typst)$
+  accent: "#$accent-typst$",
 $endif$
 $if(kpis)$
   kpis: (
@@ -638,6 +968,7 @@ MODERN_QMD = """\
 title: <% title_yaml %>
 reportforge-template: modern
 accent: <% accent_yaml %>
+accent-typst: <% accent_typst_yaml %>
 <%% if subtitle%%>
 subtitle: <% subtitle_yaml %>
 <%% endif%%>

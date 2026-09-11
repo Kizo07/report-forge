@@ -43,9 +43,11 @@ def test_modern_default_accent_reaches_typst_and_styles(isolated_reports: Path) 
     front_matter = yaml.safe_load(
         (project / "index.qmd").read_text().split("---", 2)[1]
     )
-    # Default flows: qmd frontmatter -> pandoc $if(accent)$ -> conf(accent:...).
+    # Default flows: qmd frontmatter -> pandoc $if(accent-typst)$ ->
+    # conf(accent: "#...") — the hashless variant dodges pandoc's # escape.
     assert front_matter["accent"] == "#2e5bff"
-    assert '$if(accent)$' in show and 'accent: "$accent$",' in show
+    assert front_matter["accent-typst"] == "2e5bff"
+    assert '$if(accent-typst)$' in show and 'accent: "#$accent-typst$",' in show
     assert 'accent: "#2e5bff"' in typt  # parameter default
     assert "#2e5bff" in styles
     assert "<% accent %>" not in styles  # placeholder fully rendered
@@ -131,8 +133,19 @@ def test_explicit_indigo_on_portfolio_is_not_swapped_to_gold(
 def test_whitepaper_scaffold_emits_titlepage(isolated_reports: Path) -> None:
     result = engine.scaffold_report("wp-title", template="whitepaper", formats=["pdf"])
     assert result["ok"] is True, result
-    yml = (Path(result["path"]) / "_quarto.yml").read_text()
+    project = Path(result["path"])
+    yml = (project / "_quarto.yml").read_text()
+    # titlepage is a format:typst option — the yml swaps the print block to
+    # typst and ships the title-page article partials.
     assert "titlepage: true" in yml
+    assert "  typst:" in yml
+    assert "template-partials" in yml
+    assert (project / "assets" / "typst-template.typ").is_file()
+    assert (project / "assets" / "typst-show.typ").is_file()
+    show = (project / "assets" / "typst-show.typ").read_text()
+    assert "$if(titlepage)$" in show
+    typt = (project / "assets" / "typst-template.typ").read_text()
+    assert "titlepage: false" in typt  # conf parameter exists
 
 
 # --- studio: brand loads the fonts its CSS reaches for ------------------------
