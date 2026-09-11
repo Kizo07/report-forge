@@ -43,7 +43,11 @@ this file is the committed mirror so a fresh checkout reproduces them.
 - Every embed carries an explicit width. Never >2 width=100% figures
   without prose between. No lone chart as a section's only content —
   2-4 lines of read-through per exhibit.
-- Exports (scale=2): hero 1600x800, standard 1400x700, compact 1200x550.
+- Exports (scale=2): hero 1500x750, standard 1000x650, compact
+  800x520. Type is scaled for these widths — larger exports shrink
+  print type. Dense charts (heatmaps, treemaps, multi-trace, tables)
+  MUST ride column-page heroes at width=100%: at column width their
+  type falls under 4pt.
   Retina headroom is fine; past 2200x1000 is bloat.
 - Every figure gets `{#fig-exN}` + fig-cap (native Exhibit numbering).
   Never hand-write `*Exhibit N*` paragraphs. Prose refers to `@fig-exN`.
@@ -70,7 +74,16 @@ this file is the committed mirror so a fresh checkout reproduces them.
   bivariate → `scatter_xy` (trend + `size=` bubbles); seasonal grid →
   `seasonality_grid`; OHLC → `price_technicals(ohlc=...)` candle mode
   (single-panel by engine design — finance traces duplicate across
-  subplots on current plotly.js).
+  subplots on current plotly.js). Per-section assignments are MUSTs,
+  not suggestions: a correlation section ships `corr_heatmap`, a
+  distribution section ships `distribution_box`, a composition section
+  ships treemap/donut, regressions ship `coef_intervals`. `figure_lint`
+  check 9 enforces it (≤50% bar-only, ≥2 non-default encodings).
+- Tables: single-column markdown tables wider than ~58 chars
+  (per-column max + 3 padding each) MUST ride `::: {column-page}`,
+  split, or move to the appendix — `figure_lint` check 10 rejects the
+  MSFT-p4 overflow class. Wide data belongs in engine `dataframe_table`
+  PNG exhibits (column-page heroes).
 - Matplotlib/seaborn fallback is FORBIDDEN on flagships. Scaffold with
   `engine_charts_only=True`: render then hard-fails (ok:false naming the
   files) instead of shipping a fallback — including white-background
@@ -86,12 +99,15 @@ this file is the committed mirror so a fresh checkout reproduces them.
 
 1. Word count meets the run's gate (mechanically counted, never estimated).
 2. `python scripts/figure_lint.py <project-dir>` clean — size, crossrefs,
-   voice tics, alt text, per-theme accent pixels, light brightness floor.
+   voice tics, alt text, per-theme accent pixels, light brightness floor,
+   encoding variety (check 9), table width (check 10).
 3. Render requested formats; artifact check (HTML img occurrences via
    `grep -o "<img" | wc -l` — NOT `grep -c`, which counts lines and
    undercounts paired figures — PDF pages, zero "Unable to display",
    zero raw `](charts/` in HTML, zero dark charts on light).
-4. `reportforge_publish_report` + `present_files` IMMEDIATELY after the
+4. `.venv/bin/python scripts/page_ink.py <output.pdf>` clean — no
+   stranded-whitespace gaps, no half-empty columns (cover/closer exempt).
+5. `reportforge_publish_report` + `present_files` IMMEDIATELY after the
    render verifies — before writing the final summary, so a tool-loop
    guardrail can never strand artifacts on host paths. Final answer
    leads with the prediction, then absolute artifact paths.
