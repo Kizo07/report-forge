@@ -2642,8 +2642,6 @@ PORTFOLIO_LIGHT_STYLES_EXTRA = """
   --rf-panel-2: #e0d7c4;
   --rf-ink: #362e21;
   --rf-muted: #6d6250;
-  --rf-faint: #7b7060;
-  --rf-gold: #8f621f;
   --rf-aqua: #14756c;
   --rf-line: #d3c8b0;
 }
@@ -3117,8 +3115,6 @@ PORTFOLIO_DARK_STYLES_EXTRA = """
   --rf-panel-2: #151b25;
   --rf-ink: #e7eaf0;
   --rf-muted: #9aa4b2;
-  --rf-faint: #7d8795;
-  --rf-gold: #d9a54e;
   --rf-aqua: #56cfc4;
   --rf-line: #1e2632;
   color-scheme: dark;
@@ -3683,10 +3679,10 @@ LEDGER_DARK_TYPT_TEMPLATE = r"""// report-forge "ledger-dark" — studio structu
   citecolor: none, filecolor: none, pagenumbering: "1", doc,
 ) = {
   let paper-tone = rgb("#060a12")
-  let panel = rgb("#0c1220")
-  let ink = rgb("#e9eff5")
-  let muted = rgb("#819aaa")
-  let hairline = rgb("#14202f")
+  let panel = rgb("#0b1220")
+  let ink = rgb("#e8eef4")
+  let muted = rgb("#93a3b8")
+  let hairline = rgb("#16202e")
   let accent-color = rgb(accent)
   let link-ink = rgb("#08bfff")
 
@@ -3943,7 +3939,7 @@ LEDGER_DARK_TYPT_TEMPLATE = r"""// report-forge "ledger-dark" — studio structu
   if abstract != none {
     block(
       width: 100%,
-      fill: rgb("#0d1522"),
+      fill: rgb("#1d2b3f"),
       radius: 7pt,
       inset: (x: 15pt, y: 8pt),
     )[
@@ -4051,14 +4047,12 @@ LEDGER_DARK_STYLES_EXTRA = """
 :root {
   --rf-accent: <% accent %>;
   --rf-paper: #060a12;
-  --rf-panel: #0c1220;
-  --rf-panel-2: #0d1522;
-  --rf-ink: #e9eff5;
-  --rf-muted: #819aaa;
-  --rf-faint: #6f7f8f;
-  --rf-gold: #e3ac55;
+  --rf-panel: #0b1220;
+  --rf-panel-2: #1d2b3f;
+  --rf-ink: #e8eef4;
+  --rf-muted: #93a3b8;
   --rf-aqua: #08bfff;
-  --rf-line: #14202f;
+  --rf-line: #16202e;
   color-scheme: dark;
 }
 
@@ -4095,7 +4089,7 @@ body {
   gap: 12px;
   margin: 0 0 1rem;
   color: var(--rf-accent);
-  font-family: "IBM Plex Mono", "IBM Plex Mono", monospace;
+  font-family: "IBM Plex Mono", monospace;
   font-size: 0.72rem;
   font-weight: 500;
   letter-spacing: 0.22em;
@@ -4112,7 +4106,7 @@ body {
   max-width: 900px;
   margin: 0;
   color: var(--rf-ink);
-  font-family: "Space Grotesk", Space Grotesk, serif;
+  font-family: "Space Grotesk", sans-serif;
   font-size: clamp(2.5rem, 6vw, 4.6rem);
   font-weight: 600;
   letter-spacing: -0.01em;
@@ -4139,7 +4133,7 @@ body {
   align-items: center;
   margin-top: 2rem;
   color: var(--rf-muted);
-  font-family: "IBM Plex Mono", "IBM Plex Mono", monospace;
+  font-family: "IBM Plex Mono", monospace;
   font-size: 0.78rem;
 }
 
@@ -4153,7 +4147,7 @@ body {
 
 .rf-organization {
   color: var(--rf-ink);
-  font-family: "Space Grotesk", Space Grotesk, serif;
+  font-family: "Space Grotesk", sans-serif;
   font-weight: 600;
 }
 
@@ -4192,7 +4186,7 @@ body {
 
 .rf-metric-value {
   color: var(--rf-ink);
-  font-family: "Space Grotesk", Space Grotesk, serif;
+  font-family: "Space Grotesk", sans-serif;
   font-size: clamp(1.35rem, 3vw, 2rem);
   font-weight: 600;
   letter-spacing: -0.01em;
@@ -4202,7 +4196,7 @@ body {
 .rf-metric-label {
   margin-top: 0.2rem;
   color: var(--rf-muted);
-  font-family: "IBM Plex Mono", "IBM Plex Mono", monospace;
+  font-family: "IBM Plex Mono", monospace;
   font-size: 0.7rem;
   font-weight: 500;
   letter-spacing: 0.14em;
@@ -4222,7 +4216,7 @@ body {
 .rf-verdict-tag {
   flex: none;
   color: var(--rf-accent);
-  font-family: "IBM Plex Mono", "IBM Plex Mono", monospace;
+  font-family: "IBM Plex Mono", monospace;
   font-size: 0.68rem;
   font-weight: 600;
   letter-spacing: 0.16em;
@@ -4277,7 +4271,7 @@ body {
 }
 .rf-scenario-label {
   color: var(--rf-muted);
-  font-family: "IBM Plex Mono", "IBM Plex Mono", monospace;
+  font-family: "IBM Plex Mono", monospace;
   font-size: 0.68rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -4357,7 +4351,7 @@ main.content section.level1 > h1 {
   padding-bottom: 1rem;
   border-bottom: 1px solid var(--rf-line);
   color: var(--rf-ink);
-  font-family: "Space Grotesk", Space Grotesk, serif;
+  font-family: "Space Grotesk", sans-serif;
   font-size: clamp(1.75rem, 3vw, 2.4rem);
   font-weight: 600;
   letter-spacing: -0.01em;
@@ -4365,7 +4359,7 @@ main.content section.level1 > h1 {
 
 main.content h2 {
   color: var(--rf-ink);
-  font-family: "Space Grotesk", Space Grotesk, serif;
+  font-family: "Space Grotesk", sans-serif;
   letter-spacing: -0.01em;
 }
 
@@ -4526,24 +4520,24 @@ LEDGER_DARK_BRAND_YML = """\
 color:
   palette:
     paper: "#060a12"
-    panel: "#0c1220"
-    ink: "#e9eff5"
-    muted: "#819aaa"
+    panel: "#0b1220"
+    ink: "#e8eef4"
+    muted: "#93a3b8"
     gold: "#e3ac55"
     aqua: "#08bfff"
-    line: "#14202f"
-    slate: "#819aaa"
-    mist: "#0c1220"
-  foreground: "#e9eff5"
+    line: "#16202e"
+    slate: "#93a3b8"
+    mist: "#0b1220"
+  foreground: "#e8eef4"
   background: "#060a12"
   primary: "#e3ac55"
   secondary: "#08bfff"
-  tertiary: "#819aaa"
-  success: "#3fbfae"
+  tertiary: "#93a3b8"
+  success: "#34d399"
   info: "#08bfff"
   warning: "#e3ac55"
-  danger: "#e66785"
-  light: "#0c1220"
+  danger: "#f87171"
+  light: "#0b1220"
 
 typography:
   fonts:
@@ -4561,11 +4555,11 @@ typography:
   headings:
     family: Space Grotesk
     weight: 600
-    color: "#e9eff5"
+    color: "#e8eef4"
   monospace: IBM Plex Mono
   monospace-inline:
     color: "#08bfff"
-    background-color: "#0d1522"
+    background-color: "#1d2b3f"
   monospace-block:
     background-color: panel
 
@@ -4589,8 +4583,8 @@ LEDGER_LIGHT_TYPT_TEMPLATE = r"""// report-forge "ledger-light" — studio struc
   let paper-tone = rgb("#eef3f6")
   let panel = rgb("#e7edf2")
   let ink = rgb("#1b2634")
-  let muted = rgb("#5a6b7a")
-  let hairline = rgb("#cfd9e1")
+  let muted = rgb("#63798a")
+  let hairline = rgb("#d5dde4")
   let accent-color = rgb(accent)
   let link-ink = rgb("#009ed9")
 
@@ -4958,11 +4952,9 @@ LEDGER_LIGHT_STYLES_EXTRA = """
   --rf-panel: #e7edf2;
   --rf-panel-2: #dde5ec;
   --rf-ink: #1b2634;
-  --rf-muted: #5a6b7a;
-  --rf-faint: #64727f;
-  --rf-gold: #8f621f;
+  --rf-muted: #63798a;
   --rf-aqua: #009ed9;
-  --rf-line: #cfd9e1;
+  --rf-line: #d5dde4;
 }
 
 body {
@@ -4998,7 +4990,7 @@ body {
   gap: 12px;
   margin: 0 0 1rem;
   color: var(--rf-accent);
-  font-family: "IBM Plex Mono", "IBM Plex Mono", monospace;
+  font-family: "IBM Plex Mono", monospace;
   font-size: 0.72rem;
   font-weight: 500;
   letter-spacing: 0.22em;
@@ -5015,7 +5007,7 @@ body {
   max-width: 900px;
   margin: 0;
   color: var(--rf-ink);
-  font-family: "Space Grotesk", Space Grotesk, serif;
+  font-family: "Space Grotesk", sans-serif;
   font-size: clamp(2.5rem, 6vw, 4.6rem);
   font-weight: 600;
   letter-spacing: -0.01em;
@@ -5042,7 +5034,7 @@ body {
   align-items: center;
   margin-top: 2rem;
   color: var(--rf-muted);
-  font-family: "IBM Plex Mono", "IBM Plex Mono", monospace;
+  font-family: "IBM Plex Mono", monospace;
   font-size: 0.78rem;
 }
 
@@ -5056,7 +5048,7 @@ body {
 
 .rf-organization {
   color: var(--rf-ink);
-  font-family: "Space Grotesk", Space Grotesk, serif;
+  font-family: "Space Grotesk", sans-serif;
   font-weight: 600;
 }
 
@@ -5095,7 +5087,7 @@ body {
 
 .rf-metric-value {
   color: var(--rf-ink);
-  font-family: "Space Grotesk", Space Grotesk, serif;
+  font-family: "Space Grotesk", sans-serif;
   font-size: clamp(1.35rem, 3vw, 2rem);
   font-weight: 600;
   letter-spacing: -0.01em;
@@ -5105,7 +5097,7 @@ body {
 .rf-metric-label {
   margin-top: 0.2rem;
   color: var(--rf-muted);
-  font-family: "IBM Plex Mono", "IBM Plex Mono", monospace;
+  font-family: "IBM Plex Mono", monospace;
   font-size: 0.7rem;
   font-weight: 500;
   letter-spacing: 0.14em;
@@ -5125,7 +5117,7 @@ body {
 .rf-verdict-tag {
   flex: none;
   color: var(--rf-accent);
-  font-family: "IBM Plex Mono", "IBM Plex Mono", monospace;
+  font-family: "IBM Plex Mono", monospace;
   font-size: 0.68rem;
   font-weight: 600;
   letter-spacing: 0.16em;
@@ -5180,7 +5172,7 @@ body {
 }
 .rf-scenario-label {
   color: var(--rf-muted);
-  font-family: "IBM Plex Mono", "IBM Plex Mono", monospace;
+  font-family: "IBM Plex Mono", monospace;
   font-size: 0.68rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -5260,7 +5252,7 @@ main.content section.level1 > h1 {
   padding-bottom: 1rem;
   border-bottom: 1px solid var(--rf-line);
   color: var(--rf-ink);
-  font-family: "Space Grotesk", Space Grotesk, serif;
+  font-family: "Space Grotesk", sans-serif;
   font-size: clamp(1.75rem, 3vw, 2.4rem);
   font-weight: 600;
   letter-spacing: -0.01em;
@@ -5268,7 +5260,7 @@ main.content section.level1 > h1 {
 
 main.content h2 {
   color: var(--rf-ink);
-  font-family: "Space Grotesk", Space Grotesk, serif;
+  font-family: "Space Grotesk", sans-serif;
   letter-spacing: -0.01em;
 }
 
@@ -5431,21 +5423,21 @@ color:
     paper: "#eef3f6"
     panel: "#e7edf2"
     ink: "#1b2634"
-    muted: "#5a6b7a"
+    muted: "#63798a"
     gold: "#8f621f"
     aqua: "#009ed9"
-    line: "#cfd9e1"
-    slate: "#5a6b7a"
+    line: "#d5dde4"
+    slate: "#63798a"
     mist: "#e7edf2"
   foreground: "#1b2634"
   background: "#eef3f6"
   primary: "#8f621f"
   secondary: "#009ed9"
-  tertiary: "#5a6b7a"
-  success: "#237a57"
+  tertiary: "#63798a"
+  success: "#1f8a4c"
   info: "#009ed9"
   warning: "#8f621f"
-  danger: "#c05563"
+  danger: "#cf4444"
   light: "#e7edf2"
 
 typography:

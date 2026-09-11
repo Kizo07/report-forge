@@ -1257,16 +1257,16 @@ QUANTFLOW_PLOTLY_THEMES = {
         "ramp": ["#b09a5e", "#8f621f", "#6d4c17", "#14756c", "#0f4c44"],
     },
     "ledger-dark": {
-        "paper_bg": "#060a12", "plot_bg": "#0c1220", "font": "#e9eff5",
-        "grid": "#14202f", "primary": "#e3ac55", "secondary": "#08bfff",
-        "positive": "#3fbfae", "negative": "#e66785", "muted": "#819aaa",
-        "ramp": ["#6b5a26", "#a3853c", "#e3ac55", "#08bfff", "#3fbfae"],
+        "paper_bg": "#060a12", "plot_bg": "#0b1220", "font": "#e8eef4",
+        "grid": "#16202e", "primary": "#e3ac55", "secondary": "#08bfff",
+        "positive": "#34d399", "negative": "#f87171", "muted": "#93a3b8",
+        "ramp": ["#6b5a26", "#a3853a", "#e3ac55", "#08bfff", "#7fd8ff"],
     },
     "ledger-light": {
         "paper_bg": "#eef3f6", "plot_bg": "#eef3f6", "font": "#22303c",
-        "grid": "#cfd9e1", "primary": "#8f621f", "secondary": "#009ed9",
-        "positive": "#237a57", "negative": "#c05563", "muted": "#5a6b7a",
-        "ramp": ["#b09a5e", "#8f621f", "#6d4c17", "#009ed9", "#3fbfae"],
+        "grid": "#d5dde4", "primary": "#8f621f", "secondary": "#009ed9",
+        "positive": "#1f8a4c", "negative": "#cf4444", "muted": "#63798a",
+        "ramp": ["#b09a5e", "#8f621f", "#6d4c17", "#009ed9", "#075e7d"],
     },
 }
 
