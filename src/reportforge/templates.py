@@ -1237,6 +1237,18 @@ STUDIO_HTML_HEADER = """\
 """
 
 STUDIO_TYPT_TEMPLATE = r"""// report-forge "studio" — flexible editorial Typst template
+// Column-spanning heroes: Quarto's Typst writer wraps .column-page figures
+// in #wideblock(...) from the marginalia package. Without marginalia.setup
+// that wrapper defers floats and breaks pagination (figures land pages
+// away, columns empty out). We never use margin notes, so redefine
+// wideblock: a show rule promotes the wrapped figure to a Typst-native
+// parent-scoped float (scope: "parent" + placement), which spans both
+// columns near its source. Verified on Typst 0.15 (placement required —
+// float: true errors).
+#let wideblock(side: "both", body) = {
+  show figure: set figure(scope: "parent", placement: top)
+  body
+}
 #let studio(
   title: none, subtitle: none, authors: (), keywords: (),
   date: none, abstract: none, abstract-title: none, thanks: none,
@@ -2352,6 +2364,13 @@ meta:
 """
 
 PORTFOLIO_LIGHT_TYPT_TEMPLATE = r"""// report-forge "portfolio-light" — studio structure, portfolio light palette
+// Column-spanning heroes: see studio template note. Redefine wideblock as a
+// Typst-native parent-scoped float (marginalia's wrapper breaks pagination
+// when its setup is absent).
+#let wideblock(side: "both", body) = {
+  show figure: set figure(scope: "parent", placement: top)
+  body
+}
 #let portfolio_light(
   title: none, subtitle: none, authors: (), keywords: (),
   date: none, abstract: none, abstract-title: none, thanks: none,
@@ -2650,6 +2669,13 @@ PORTFOLIO_LIGHT_TYPT_TEMPLATE = r"""// report-forge "portfolio-light" — studio
 """
 
 PORTFOLIO_DARK_TYPT_TEMPLATE = r"""// report-forge "portfolio-dark" — studio structure, portfolio dark palette
+// Column-spanning heroes: see studio template note. Redefine wideblock as a
+// Typst-native parent-scoped float (marginalia's wrapper breaks pagination
+// when its setup is absent).
+#let wideblock(side: "both", body) = {
+  show figure: set figure(scope: "parent", placement: top)
+  body
+}
 #let portfolio_dark(
   title: none, subtitle: none, authors: (), keywords: (),
   date: none, abstract: none, abstract-title: none, thanks: none,
@@ -4059,6 +4085,13 @@ $endif$
 # generator after portfolio changes.
 
 LEDGER_DARK_TYPT_TEMPLATE = r"""// report-forge "ledger-dark" — studio structure, Cyan Ledger midnight palette (derived; see scripts/derive_ledger_templates.py)
+// Column-spanning heroes: see studio template note. Redefine wideblock as a
+// Typst-native parent-scoped float (marginalia's wrapper breaks pagination
+// when its setup is absent).
+#let wideblock(side: "both", body) = {
+  show figure: set figure(scope: "parent", placement: top)
+  body
+}
 #let ledger_dark(
   title: none, subtitle: none, authors: (), keywords: (),
   date: none, abstract: none, abstract-title: none, thanks: none,
@@ -4961,6 +4994,13 @@ meta:
 """
 
 LEDGER_LIGHT_TYPT_TEMPLATE = r"""// report-forge "ledger-light" — studio structure, Cyan Ledger ice palette (derived; see scripts/derive_ledger_templates.py)
+// Column-spanning heroes: see studio template note. Redefine wideblock as a
+// Typst-native parent-scoped float (marginalia's wrapper breaks pagination
+// when its setup is absent).
+#let wideblock(side: "both", body) = {
+  show figure: set figure(scope: "parent", placement: top)
+  body
+}
 #let ledger_light(
   title: none, subtitle: none, authors: (), keywords: (),
   date: none, abstract: none, abstract-title: none, thanks: none,
