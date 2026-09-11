@@ -22,6 +22,15 @@ Checks:
      crossref warnings. Write `USD B` / `USD`, or escape as `\\$`.
   8. Every `#`/`##` heading needs a preceding blank line (outside code
      fences) — without it the marker renders as literal body text.
+  9. Encoding variety (needs stamped charts, see save_figure): with 6+
+     stamped figures, bar-only figures must be <=50% and at least 2
+     figures must carry a non-default encoding (heatmap/box/violin/
+     treemap/pie/scatterpolar/candlestick/area/coef) — bars are not the
+     default.
+ 10. Wide markdown tables in a single text column: estimated width
+     (per-column max cell length + 3 chars padding each) over
+     MAX_TABLE_WIDTH must ride ::: {column-page}, split, or move to the
+     appendix (MSFT p4 overflow).
 """
 
 import re
@@ -37,12 +46,23 @@ BANNED = [
     "honestly labeled", "announces itself",
 ]
 
-# Per-theme accent targets (sampled pixels match within TOL).
+# Per-theme palette targets (sampled pixels match within TOL).
+# Full palette, not just the two brand accents: sign-colored dots
+# (coef plots) and ramp-colored boxes legitimately carry no gold/cyan
+# yet are fully themed (pilot-variety, 2026-09-11).
 ACCENTS = {
-    "light": [(143, 98, 31), (20, 117, 108)],      # gold #8f621f, teal #14756c
-    "dark": [(201, 162, 39), (86, 196, 196)],       # gold #c9a227, teal #56cfc4
-    "ledger-light": [(143, 98, 31), (0, 158, 217)],  # gold #8f621f, cyan #009ed9
-    "ledger-dark": [(227, 172, 85), (8, 191, 255)],  # gold #e3ac55, cyan #08bfff
+    "light": [(143, 98, 31), (20, 117, 108), (46, 125, 50),
+              (198, 40, 40), (109, 98, 80), (176, 154, 94),
+              (109, 76, 23), (15, 76, 68)],
+    "dark": [(201, 162, 39), (86, 196, 196), (63, 185, 80),
+             (248, 81, 73), (154, 164, 178), (92, 83, 32),
+             (138, 122, 42), (121, 192, 255)],
+    "ledger-light": [(143, 98, 31), (0, 158, 217), (31, 138, 76),
+                     (207, 68, 68), (99, 121, 138), (176, 154, 94),
+                     (109, 76, 23), (7, 94, 125)],
+    "ledger-dark": [(227, 172, 85), (8, 191, 255), (52, 211, 153),
+                    (248, 113, 113), (147, 163, 184), (107, 90, 38),
+                    (163, 133, 58), (127, 216, 255)],
 }
 
 # Absolute insanity cap (px @scale=2): must fit our own tier spec
@@ -55,6 +75,21 @@ FULLWIDTH_SHARE = 0.60
 MAX_FULLWIDTH_RUN = 2
 MIN_ACCENT_PX = 20
 LIGHT_BRIGHTNESS_FLOOR = 150
+# Variety gate (check 9): bar-only = every stamped trace kind is "bar".
+# Plain "scatter" (line charts) earns no credit — it is the other half
+# of the old default. Credited encodings are the ones bars can't do.
+VARIETY_CREDIT = frozenset({
+    "heatmap", "box", "violin", "treemap", "pie", "scatterpolar",
+    "barpolar", "candlestick", "ohlc", "area", "coef",
+})
+MIN_VARIETY_N = 6
+BAR_ONLY_MAX_SHARE = 0.50
+MIN_VARIETY_CREDIT = 2
+# Table-width rule (check 10): single-column tables wider than this
+# overflow into the gutter. Width is estimated as the sum of per-column
+# max cell lengths + 3 chars per column of padding — a 5-col table of
+# short numbers fits, a 3-col table with a 75-char cell does not.
+MAX_TABLE_WIDTH = 58
 # Light paper corner targets (#e5ddcc portfolio, #eef3f6 ledger ice):
 # catches white-background charts (wrong template / default-style
 # fallback) that pass brightness+accents.
@@ -134,6 +169,53 @@ def main() -> int:
         if tic in low:
             bad.append(f"qmd: banned tic {tic!r} present")
 
+    # Wide markdown tables in a single text column overflow into the
+    # gutter (MSFT ledger-light p4, 2026-09-11). Tables with >3 columns
+    # or cells over 28 chars must ride column-page, split, or move to
+    # the appendix — unless already inside a ::: {column-page} div.
+    fenced = False
+    divstack: list[bool] = []
+    i = 0
+    while i < len(lines):
+        ln = lines[i]
+        s = ln.strip()
+        if s.startswith("```"):
+            fenced = not fenced
+            i += 1
+            continue
+        if not fenced and s.startswith(":::"):
+            if "{" in s:
+                divstack.append("column-page" in s)
+            elif divstack:
+                divstack.pop()
+            i += 1
+            continue
+        if (not fenced and s.startswith("|") and i + 1 < len(lines)
+                and re.match(r"^\|[\s:\-|]+\|\s*$",
+                             lines[i + 1].strip())):
+            j = i
+            rows = []
+            while j < len(lines) and lines[j].strip().startswith("|"):
+                rows.append(lines[j].strip())
+                j += 1
+            content = [r for k, r in enumerate(rows) if k != 1]
+            split = [r.strip("|").split("|") for r in content]
+            ncols = max(len(r) for r in split)
+            colw = [0] * ncols
+            for r in split:
+                for c, cell in enumerate(r):
+                    colw[c] = max(colw[c], len(cell.strip()))
+            width_est = sum(colw) + 3 * ncols
+            if not any(divstack) and width_est > MAX_TABLE_WIDTH:
+                bad.append(
+                    f"qmd:{i + 1}: table ~{width_est} chars wide in a "
+                    f"single text column — wrap in "
+                    f"::: {{column-page}}, split it, or move to the "
+                    f"appendix (overflows like MSFT p4)")
+            i = j
+            continue
+        i += 1
+
     fm = body.split("---")
     head = fm[1] if len(fm) > 1 else ""
     m = re.search(r"^reportforge-template:\s*[\"']?([\w-]+)", head, re.MULTILINE)
@@ -146,13 +228,18 @@ def main() -> int:
     accents = ACCENTS[theme]
 
     charts = proj / "charts"
+    stamped: list[set[str]] = []
     if charts.is_dir():
         for png in sorted(charts.glob("*.png")):
             try:
-                im = Image.open(png).convert("RGB")
+                fh = Image.open(png)
+                stamp = dict(fh.info).get("QuantFlow-Traces")
+                im = fh.convert("RGB")
             except Exception as e:  # noqa: BLE001
                 bad.append(f"{png.name}: unreadable ({e})")
                 continue
+            if stamp:
+                stamped.append(set(str(stamp).split(",")))
             w, h = im.size
             if w > ABS_MAX_W or h > ABS_MAX_H:
                 bad.append(f"{png.name}: export {w}x{h} exceeds absolute "
@@ -163,7 +250,7 @@ def main() -> int:
                   for x in range(0, im.width, 7)]
             n_accent = sum(1 for p in px if _matches(p, accents))
             if n_accent < MIN_ACCENT_PX:
-                bad.append(f"{png.name}: no QuantFlow accent pixels "
+                bad.append(f"{png.name}: no QuantFlow palette pixels "
                            f"({n_accent} sampled) — theme not applied?")
             if theme in LIGHT_PAPERS:
                 lum = statistics.mean(
@@ -205,6 +292,28 @@ def main() -> int:
                 if "matplotlib" in sw.lower() or "seaborn" in sw.lower():
                     bad.append(f"{png.name}: non-engine fallback chart "
                                f"({sw}) — engine_charts_only is set")
+
+    if stamped:
+        if len(stamped) >= MIN_VARIETY_N:
+            bar_only = sum(1 for kinds in stamped if kinds <= {"bar"})
+            if bar_only / len(stamped) > BAR_ONLY_MAX_SHARE:
+                bad.append(
+                    f"charts: {bar_only}/{len(stamped)} stamped figures "
+                    f"are bar-only "
+                    f"(>{BAR_ONLY_MAX_SHARE:.0%}) — match encodings to "
+                    f"data (heatmap/box/treemap/area/radar/coef/scatter "
+                    f"with trend); bars are not the default")
+            credited = sum(1 for kinds in stamped
+                           if kinds & VARIETY_CREDIT)
+            if credited < MIN_VARIETY_CREDIT:
+                bad.append(
+                    f"charts: only {credited}/{len(stamped)} stamped "
+                    f"figures carry a non-default encoding — need at "
+                    f"least {MIN_VARIETY_CREDIT} "
+                    f"(heatmap/box/violin/treemap/pie/scatterpolar/"
+                    f"candlestick/area/coef)")
+        # Fewer than MIN_VARIETY_N stamped figures (or none: pre-stamp
+        # reports): gate skips — unstamped history is not evidence.
 
     if bad:
         print(f"figure_lint: {len(bad)} violation(s) in {proj}:")
