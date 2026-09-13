@@ -1,0 +1,48 @@
+color:
+  palette:
+    paper: "#eef3f6"
+    panel: "#e7edf2"
+    ink: "#1b2634"
+    muted: "#63798a"
+    gold: "#8f621f"
+    aqua: "#009ed9"
+    line: "#d5dde4"
+    slate: "#63798a"
+    mist: "#e7edf2"
+  foreground: "#1b2634"
+  background: "#eef3f6"
+  primary: "#8f621f"
+  secondary: "#009ed9"
+  tertiary: "#63798a"
+  success: "#1f8a4c"
+  info: "#009ed9"
+  warning: "#8f621f"
+  danger: "#cf4444"
+  light: "#e7edf2"
+
+typography:
+  fonts:
+    - family: Space Grotesk
+      source: google
+      weight: [400, 600]
+    - family: Inter
+      source: google
+      weight: [400, 500, 600]
+    - family: IBM Plex Mono
+      source: google
+  base:
+    family: Inter
+    size: 1rem
+  headings:
+    family: Space Grotesk
+    weight: 600
+    color: "#1b2634"
+  monospace: IBM Plex Mono
+  monospace-inline:
+    color: "#009ed9"
+    background-color: "#dde5ec"
+  monospace-block:
+    background-color: panel
+
+meta:
+  name: ReportForge Ledger Light

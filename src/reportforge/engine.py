@@ -663,18 +663,15 @@ def _write_scaffold_manifest(root: Path, title: str, brief: str,
 
 
 def template_version() -> str:
-    """C-2 R1-F4: content hash (12-hex) of the template sources.
+    """C-2 R1-F4: content hash (12-hex) of the template assets.
 
     A version constant would never move on template edits (``__version__``
     is ``0.1.0`` regardless) — the hash makes every template change
-    visible in every future manifest. Computed live so working-tree edits
-    stamp honestly; old manifests keep theirs forever.
+    visible in every future manifest. Phase 2: hashes the asset tree
+    (templates/_assets/**) instead of two module files. Computed live so
+    working-tree edits stamp honestly; old manifests keep theirs forever.
     """
-    h = hashlib.sha256()
-    base = Path(__file__).resolve().parent
-    for name in ("templates.py", "templates_domain.py"):
-        h.update((base / name).read_bytes())
-    return h.hexdigest()[:12]
+    return templates.content_hash()
 
 
 def _quarto_version() -> str | None:

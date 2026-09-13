@@ -281,12 +281,20 @@ def _load_derive_module():
 def test_derive_check_detects_stale_ledger_blocks(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys
 ) -> None:
+    """Phase 2: staleness is detected per asset file — a hand-edit to a
+    derived ledger asset (simulated by pointing ASSETS at a mutated copy)
+    must fail --check."""
     module = _load_derive_module()
-    src = module.TPL
-    stale = tmp_path / "templates.py"
-    stale.write_text(src.read_text().replace("#0b1220", "#0c1220", 1))
-    monkeypatch.setattr(module, "TPL", stale)
-    assert module.main.__module__ == "derive_ledger_templates"
+    import shutil
+
+    mutated_assets = tmp_path / "_assets"
+    shutil.copytree(module.ASSETS, mutated_assets)
+    victim = mutated_assets / "ledger-dark" / "brand.yml"
+    text = victim.read_text(encoding="utf-8")
+    assert "#0b1220" in text, "expected the midnight paper token in ledger-dark brand"
+    victim.write_text(text.replace("#0b1220", "#0c1220", 1), encoding="utf-8")
+    monkeypatch.setattr(module, "ASSETS", mutated_assets)
+
     import sys
 
     monkeypatch.setattr(sys, "argv", ["derive_ledger_templates.py", "--check"])

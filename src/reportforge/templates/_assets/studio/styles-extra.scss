@@ -1,0 +1,442 @@
+
+/* Studio: responsive editorial system. */
+:root {
+  --rf-accent: <% accent %>;
+  --rf-paper: #f8f7f3;
+  --rf-panel: #ffffff;
+  --rf-ink: #171923;
+  --rf-muted: #62697a;
+  --rf-line: #dfe1e7;
+}
+
+body {
+  background: var(--rf-paper);
+  color: var(--rf-ink);
+}
+
+#title-block-header {
+  display: none;
+}
+
+.rf-studio-header {
+  --rf-accent: #4f46e5;
+  position: relative;
+  width: min(1120px, calc(100% - 3rem));
+  margin: 2rem auto 3.5rem;
+  overflow: hidden;
+  border: 1px solid var(--rf-line);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 88% 8%, color-mix(in srgb, var(--rf-accent) 16%, transparent), transparent 30%),
+    linear-gradient(145deg, #ffffff 0%, #f4f3ee 100%);
+  box-shadow: 0 24px 70px rgba(23, 25, 35, 0.09);
+}
+
+.rf-studio-header::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 8px;
+  background: var(--rf-accent);
+}
+
+.rf-title-frame {
+  padding: 4.6rem 5rem 2.6rem;
+}
+
+.rf-layout-compact .rf-title-frame {
+  padding: 2.4rem 3rem 1.9rem;
+}
+
+.rf-eyebrow {
+  margin: 0 0 1rem;
+  color: var(--rf-accent);
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.rf-display-title {
+  max-width: 900px;
+  margin: 0;
+  color: var(--rf-ink);
+  font-family: "Space Grotesk", sans-serif;
+  font-size: clamp(2.5rem, 6vw, 5.1rem);
+  font-weight: 700;
+  letter-spacing: -0.055em;
+  line-height: 0.98;
+  overflow-wrap: anywhere;
+}
+
+.rf-layout-compact .rf-display-title {
+  font-size: clamp(2rem, 4.5vw, 3.45rem);
+  line-height: 1.02;
+}
+
+.rf-display-subtitle {
+  max-width: 760px;
+  margin: 1.25rem 0 0;
+  color: var(--rf-muted);
+  font-size: clamp(1.05rem, 2vw, 1.35rem);
+  line-height: 1.45;
+}
+
+.rf-title-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 1.25rem;
+  align-items: center;
+  margin-top: 2rem;
+  color: var(--rf-muted);
+  font-size: 0.82rem;
+}
+
+.rf-title-meta span + span::before,
+.rf-title-meta span + time::before,
+.rf-title-meta time::before {
+  content: "·";
+  margin-right: 1.25rem;
+  color: var(--rf-line);
+}
+
+.rf-organization {
+  color: var(--rf-ink);
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 700;
+}
+
+.rf-deck {
+  max-width: 800px;
+  margin: 2rem 0 0;
+  padding-top: 1.35rem;
+  border-top: 1px solid var(--rf-line);
+  color: var(--rf-muted);
+  font-size: 1rem;
+  line-height: 1.65;
+}
+
+.rf-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  border-top: 1px solid var(--rf-line);
+  background: var(--rf-line);
+}
+
+.rf-metrics-1 {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.rf-metrics-2,
+.rf-metrics-4 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.rf-metric {
+  min-width: 0;
+  padding: 1.35rem 1.65rem;
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.rf-metric-value {
+  color: var(--rf-ink);
+  font-family: "Space Grotesk", sans-serif;
+  font-size: clamp(1.35rem, 3vw, 2rem);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  overflow-wrap: anywhere;
+}
+
+.rf-metric-label {
+  margin-top: 0.2rem;
+  color: var(--rf-muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+/* Cover infographics: verdict band, exec-summary key points, scenarios. */
+.rf-verdict {
+  display: flex;
+  align-items: baseline;
+  gap: 0.9rem;
+  margin: 0;
+  padding: 1.15rem 1.65rem;
+  border-top: 1px solid var(--rf-line);
+  border-left: 4px solid var(--rf-accent);
+  background: color-mix(in srgb, var(--rf-accent) 10%, transparent);
+}
+.rf-verdict-tag {
+  flex: none;
+  color: var(--rf-accent);
+  font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.rf-verdict-text {
+  color: var(--rf-ink);
+  font-family: Fraunces, Georgia, serif;
+  font-size: 1.12rem;
+  font-weight: 600;
+}
+.rf-key-points {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  border-top: 1px solid var(--rf-line);
+  background: var(--rf-line);
+}
+.rf-key-point {
+  display: flex;
+  gap: 0.7rem;
+  align-items: flex-start;
+  background: var(--rf-panel);
+  padding: 1.1rem 1.4rem;
+}
+.rf-key-point-mark::before {
+  content: "◆";
+  color: var(--rf-accent);
+  font-size: 0.8rem;
+  line-height: 1.7;
+}
+.rf-key-point p {
+  margin: 0;
+  color: var(--rf-ink);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+.rf-scenarios {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  border-top: 1px solid var(--rf-line);
+  background: var(--rf-line);
+}
+.rf-scenario {
+  background: var(--rf-panel);
+  padding: 1.1rem 1.4rem;
+}
+.rf-scenario-base {
+  background: color-mix(in srgb, var(--rf-accent) 8%, var(--rf-panel));
+  box-shadow: inset 0 3px 0 var(--rf-accent);
+}
+.rf-scenario-label {
+  color: var(--rf-muted);
+  font-family: "IBM Plex Mono", "JetBrains Mono", monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.rf-scenario-value {
+  margin: 0.15rem 0 0.3rem;
+  color: var(--rf-ink);
+  font-family: Fraunces, Georgia, serif;
+  font-size: 1.6rem;
+  font-weight: 600;
+}
+.rf-scenario-detail {
+  color: var(--rf-muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+/* Showcase tables — spreadsheet look: banded header, zebra rows, label
+   column, tabular numerals. Wrap any Markdown table in ::: {.rf-showtable}
+   (add .rf-nums-right to right-align data columns). */
+.rf-showtable {
+  margin: 1.5rem 0;
+  border: 1px solid var(--rf-line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--rf-panel);
+}
+.rf-showtable table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  margin: 0;
+  font-size: 0.86rem;
+}
+.rf-showtable thead th {
+  border-bottom: 2px solid var(--rf-accent);
+  background: color-mix(in srgb, var(--rf-accent) 13%, transparent);
+  color: var(--rf-ink);
+  font-weight: 700;
+  text-align: left;
+  padding: 0.65rem 0.8rem;
+  overflow-wrap: anywhere;
+}
+.rf-showtable tbody td {
+  border-bottom: 1px solid var(--rf-line);
+  color: var(--rf-ink);
+  padding: 0.55rem 0.8rem;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+.rf-showtable tbody tr:nth-child(even) td {
+  background: color-mix(in srgb, currentColor 4%, transparent);
+}
+.rf-showtable tbody tr:last-child td {
+  border-bottom: none;
+}
+.rf-showtable tbody tr td:first-child {
+  font-weight: 600;
+}
+.rf-showtable.rf-nums-right th:nth-child(n+2),
+.rf-showtable.rf-nums-right td:nth-child(n+2) {
+  text-align: right;
+}
+@media (max-width: 640px) {
+  .rf-key-points,
+  .rf-scenarios {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+
+main.content {
+  max-width: 880px;
+}
+
+main.content section.level1 > h1 {
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  gap: 0.7rem;
+  align-items: center;
+  margin-top: 3.25rem;
+  padding: 0;
+  border: 0;
+  color: var(--rf-ink);
+  font-size: clamp(1.65rem, 3vw, 2.2rem);
+  letter-spacing: -0.035em;
+}
+
+main.content section.level1 > h1::before {
+  content: "";
+  width: 30px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--rf-accent, #4f46e5);
+}
+
+main.content h2 {
+  color: var(--rf-ink);
+  letter-spacing: -0.025em;
+}
+
+.studio-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+.studio-card {
+  padding: 1.35rem 1.45rem;
+  border: 1px solid var(--rf-line);
+  border-radius: 14px;
+  background: var(--rf-panel);
+}
+
+.studio-card h2 {
+  margin-top: 0;
+  font-size: 1rem;
+}
+
+/* Minimal title layout: no card chrome — plain themed title block. */
+.rf-layout-minimal {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.rf-layout-minimal .rf-title-frame {
+  padding: 1.5rem 0 0;
+}
+
+.rf-layout-minimal .rf-display-title {
+  font-size: clamp(2rem, 4.5vw, 3.1rem);
+}
+
+.rf-layout-minimal .rf-metric-grid {
+  background: transparent;
+}
+
+.rf-layout-minimal .rf-metric {
+  background: transparent;
+}
+
+blockquote {
+  margin: 1.6rem 0;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--rf-line);
+  border-left: 5px solid var(--rf-accent, #4f46e5);
+  border-radius: 0 12px 12px 0;
+  background: var(--rf-panel);
+  color: var(--rf-ink);
+  font-style: normal;
+}
+
+table {
+  overflow: hidden;
+  border: 1px solid var(--rf-line);
+  border-radius: 10px;
+  background: var(--rf-panel);
+}
+
+thead {
+  background: color-mix(in srgb, var(--rf-accent) 8%, var(--rf-panel));
+}
+
+.figure-caption,
+caption {
+  color: var(--rf-muted);
+  text-align: left;
+}
+
+@media (max-width: 720px) {
+  .rf-studio-header {
+    width: min(100% - 1rem, 1120px);
+    margin-top: 0.5rem;
+    border-radius: 16px;
+  }
+
+  .rf-title-frame,
+  .rf-layout-compact .rf-title-frame {
+    padding: 2.3rem 1.5rem 1.7rem 1.8rem;
+  }
+
+  .rf-display-title {
+    font-size: clamp(2.15rem, 12vw, 3.4rem);
+  }
+
+  .rf-title-meta {
+    display: grid;
+    gap: 0.35rem;
+  }
+
+  .rf-title-meta span + span::before,
+  .rf-title-meta span + time::before,
+  .rf-title-meta time::before {
+    content: none;
+  }
+
+  .rf-metric-grid,
+  .studio-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .rf-metric {
+    padding: 1rem 1.5rem;
+  }
+}
+
+@media print {
+  .rf-studio-header {
+    box-shadow: none;
+    break-inside: avoid;
+  }
+}

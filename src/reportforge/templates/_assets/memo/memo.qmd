@@ -1,0 +1,21 @@
+---
+title: <% title_yaml %>
+<%% if author%%>
+author: <% author_yaml %>
+<%% endif%%>
+date: <% date_yaml %>
+date-format: long
+---
+
+# Purpose
+
+One paragraph: what this memo decides or communicates.
+
+# Key points
+
+- Point one.
+- Point two.
+
+# Details
+
+Short sections. No table of contents, no numbered sections.

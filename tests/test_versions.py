@@ -9,14 +9,23 @@ from pathlib import Path
 
 import pytest
 
+from reportforge import templates as reportforge_templates
 from reportforge import engine
 from reportforge import manifest as M
 
 
 def _expected_template_version() -> str:
+    """Independent recomputation over the asset tree (mirrors
+    templates.content_hash; kept separate so the test can disagree)."""
+    assets = Path(reportforge_templates.__file__).parent / "_assets"
     h = hashlib.sha256()
-    for name in ("templates.py", "templates_domain.py"):
-        h.update((Path(engine.__file__).parent / name).read_bytes())
+    for p in sorted(assets.rglob("*")):
+        if not p.is_file():
+            continue
+        h.update(p.relative_to(assets).as_posix().encode())
+        h.update(b"\x00")
+        h.update(p.read_bytes())
+        h.update(b"\x00")
     return h.hexdigest()[:12]
 
 

@@ -1,0 +1,91 @@
+---
+title: <% title_yaml %>
+<%% if subtitle%%>
+subtitle: <% subtitle_yaml %>
+<%% endif%%>
+<%% if author%%>
+author: <% author_yaml %>
+<%% endif%%>
+date: <% date_yaml %>
+date-format: long
+abstract: <% abstract_yaml %>
+reportforge-template: "<% template_name %>"
+---
+
+# Signal summary {-}
+
+One short paragraph: what the signal measures, the asset universe, the
+rebalance cadence, and the headline performance stat with its window.
+
+| Stat | Value | Window |
+|------|------:|--------|
+| Long-short Sharpe | 0.84 | 2016–2026 |
+| Information coefficient | 0.047 | monthly |
+| Annual turnover (x) | 3.8 | trailing 12m |
+| Drawdown (%) | -11.2 | 2020 peak-to-trough |
+
+: Signal headline statistics. {#tbl-stats}
+
+# Definition
+
+The signal in one sentence, then the precise formula in words: inputs,
+transformation, neutralizations, and the window. A signal that cannot
+be restated exactly is not a signal.
+
+# Construction
+
+Universe filters, weighting, rebalance timing, and execution
+assumptions. State the neutralization set (sector, beta, size) and the
+treatment of missing data.
+
+# Performance
+
+![Cumulative long-short return, net of costs.](assets/example-chart.png){#fig-example width=85%}
+
+As @fig-example shows, the signal earned its keep in the high-
+dispersion regime. Read through the decay: where the edge concentrated
+by year and by regime, in a table.
+
+# Costs and turnover
+
+Turnover by decile, the cost model, and the breakeven spread in bps
+per unit of turnover. The gross-to-net bridge belongs here.
+
+# Combinations
+
+Correlation with the existing book's signals, and the marginal
+contribution after combination. A signal that duplicates what the book
+already owns earns nothing — show the residual.
+
+# Robustness
+
+Specification checks: alternative windows, neutralization sets, and
+universe filters. The honest section — report the specifications where
+the signal weakens, not only where it holds.
+
+# Risks
+
+1. The regime that kills the edge, with the monitoring metric.
+2. The capacity limit, and the AUM at which the net curve flattens.
+
+# Method and data {.appendix .unnumbered}
+
+Data vintages, point-in-time conventions, and the backtest engine.
+
+```{python}
+# Writes the print-quality exhibit PNG referenced by @fig-example above.
+# NOTE: do NOT use `#| label:` / `#| fig-cap:` on executable chunks here —
+# Quarto's typst-PDF path emits an undefined `quarto_super` helper for
+# them. Markdown embeds with {#fig-x} + caption text carry the metadata.
+import pandas as pd
+import plotly.express as px
+import numpy as np
+
+rng = np.random.default_rng(7)
+months = pd.period_range("2016-01", periods=120, freq="M").astype(str)
+ret = np.cumsum(rng.normal(0.0055, 0.018, 120))
+df = pd.DataFrame({"month": months, "long_short": 100 * (1 + ret)})
+fig = px.line(df, x="month", y="long_short")
+fig.update_layout(template="plotly_white", title="Long-short cumulative return (net, 100 = start)", font=dict(size=16))
+fig.write_image("assets/example-chart.png", width=9 * 100, height=4.5 * 100, scale=3)
+```
