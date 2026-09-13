@@ -2,7 +2,7 @@
   "family": "standard",
   "pages": 2,
   "ink_per_page": [
-    0.0368,
+    0.0367,
     0.027
   ],
   "toolchain": {
@@ -12,5 +12,5 @@
     "dpi": 50,
     "white_threshold": 245
   },
-  "index_qmd_sha256": "6c34343ef50efe1b2a800ded391787506785d37a0c4e833cb6044b86fb05aab7"
+  "index_qmd_sha256": "242a0c33a436e28e7c8b58e13f50bccc85e57e35b3ebab80fcb816ed3e1f8cc5"
 }

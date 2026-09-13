@@ -7,6 +7,9 @@ stub-able internals) behave exactly as when engine was one module.
 
 from __future__ import annotations
 
+# NOTE (Phase 3): import order matters — `sections` defines
+# `_section_op_errors`, which `registry`/`release`/`cover` apply as a
+# decorator at THEIR import time (via `_E.`). Keep `sections` before them.
 from reportforge.engine._impl import (  # noqa: F401
     BRAND_TOKENS,
     EXEC_OUTPUT_TAIL,

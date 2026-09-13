@@ -9,7 +9,7 @@ title-layout: "hero"
 accent: "#8f621f"
 accent-typst: "8f621f"
 
-date: "2026-09-12"
+date: "2026-09-13"
 date-format: long
 abstract: "Add a short abstract here."
 

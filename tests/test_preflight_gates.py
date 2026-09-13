@@ -132,3 +132,12 @@ def test_no_probe_warnings_when_toolchain_complete(isolated_reports, monkeypatch
     result = engine.render_report("probe-clean", formats=["html"])
     assert result["ok"] is True
     assert "toolchain_warnings" not in result
+
+
+def test_cross_module_decorator_chain_intact():
+    """Milestone C review finding 2: registry/release/cover functions are
+    wrapped by sections._section_op_errors across the package split; the
+    functools.wraps marker proves the decorator chain survived."""
+    assert hasattr(engine.register_source, "__wrapped__")
+    assert hasattr(engine.rollforward_report, "__wrapped__")
+    assert hasattr(engine.derive_cover, "__wrapped__")

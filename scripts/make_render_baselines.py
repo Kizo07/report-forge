@@ -32,6 +32,7 @@ _BASELINE_TMP = tempfile.mkdtemp(prefix="rf-baselines-")
 os.environ["REPORTFORGE_REPORTS_DIR"] = _BASELINE_TMP
 
 from reportforge import engine  # noqa: E402
+from reportforge import templates  # noqa: E402
 
 FAMILIES = [
     "standard", "memo", "whitepaper", "modern", "studio",
@@ -74,6 +75,10 @@ def baseline_for(family: str) -> dict:
     pdf = root / "output" / "index.pdf"
     ink = page_ink_fractions(pdf)
     qmd = (root / "index.qmd").read_text(encoding="utf-8")
+    # The scaffold embeds today's date; hash the NORMALIZED text so the
+    # input gate does not expire at midnight (Milestone C review, finding 1).
+    import hashlib
+    normalized = templates._normalize_scaffold_text(qmd)
     return {
         "family": family,
         "pages": len(ink),
@@ -85,8 +90,8 @@ def baseline_for(family: str) -> dict:
             "dpi": DPI,
             "white_threshold": WHITE_THRESHOLD,
         },
-        "index_qmd_sha256": __import__("hashlib").sha256(
-            qmd.encode("utf-8")).hexdigest(),
+        "index_qmd_sha256": hashlib.sha256(
+            normalized.encode("utf-8")).hexdigest(),
     }, qmd
 
 

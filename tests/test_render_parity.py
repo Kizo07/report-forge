@@ -12,6 +12,7 @@ Regenerate baselines only after a DELIBERATE template/toolchain change:
     .venv/bin/python scripts/make_render_baselines.py
 """
 
+import hashlib
 import importlib.util
 import json
 import os
@@ -19,7 +20,7 @@ from pathlib import Path
 
 import pytest
 
-from reportforge import engine
+from reportforge import engine, templates
 
 
 @pytest.fixture
@@ -72,7 +73,10 @@ def test_family_render_parity(isolated_reports, family: str):
     # Input parity: the scaffolded source must be byte-identical to the
     # baseline's before we even compare output ink.
     qmd = isolated_reports / slug / "index.qmd"
-    qmd_sha = engine.hashlib.sha256(qmd.read_bytes()).hexdigest()
+    # date-normalized on both sides: the scaffold embeds today's date
+    qmd_sha = hashlib.sha256(
+        templates._normalize_scaffold_text(
+            qmd.read_text(encoding="utf-8")).encode("utf-8")).hexdigest()
     assert qmd_sha == baseline["index_qmd_sha256"], (
         f"{family}: scaffolded index.qmd drifted from the baseline source")
 

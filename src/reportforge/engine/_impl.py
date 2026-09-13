@@ -519,7 +519,8 @@ def _render_release_stage(workdir: Path, release_seal, out_dir: Path,
 def _render_state_stage(workdir: Path, wanted: list[str], pdf_web_requested: bool,
                         src: Path, rendered_outputs: list[str]):
     """Stage 9 — machine-readable project state (WS-3) with the toolchain
-    stamp. -> (state, error|None); state is {} when the write failed."""
+    stamp. -> (state, error|None); state is the built dict even when
+    persisting it failed — {} only when the stamp itself was unobtainable."""
     state: dict = {}
     try:
         try:
