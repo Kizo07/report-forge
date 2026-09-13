@@ -1,0 +1,103 @@
+---
+title: <% title_yaml %>
+<%% if subtitle%%>
+subtitle: <% subtitle_yaml %>
+<%% endif%%>
+<%% if author%%>
+author: <% author_yaml %>
+<%% endif%%>
+date: <% date_yaml %>
+date-format: long
+abstract: <% abstract_yaml %>
+reportforge-template: "<% template_name %>"
+---
+
+# Executive summary
+
+Where the asset class sits: total market cap with its as-of, the
+regime that governs flows, and the one call for the horizon. Every
+price and flow figure carries its unit and timestamp.
+
+# Market structure
+
+Structure first, price second: realized and implied volatility,
+funding, basis, and open interest. State the venue-set the numbers
+come from — CEX prints differ from aggregated tape.
+
+| Metric | Latest | 30d avg | As-of |
+|--------|-------:|--------:|------|
+| Total market cap ($tn) | 3.4 | 3.3 | report date |
+| Perp funding, majors (bps/8h) | 3.1 | 1.8 | report date |
+| BTC futures basis, 3m (%) | 8.4 | 7.1 | report date |
+
+: Market structure gauges. {#tbl-structure}
+
+# Flows
+
+Spot ETF creations and redemptions by day and issuer, exchange net
+flows, and stablecoin issuance as the marginal dollar. Direction and
+magnitude — in a table.
+
+![Spot ETF net flows, trailing 60 sessions ($mm).](assets/example-chart.png){#fig-example width=85%}
+
+As @fig-example shows, the flow regime flipped in the middle of the
+window. Read through the issuer concentration: one issuer's print is
+not the market's vote.
+
+# On-chain readings
+
+Active addresses, exchange balances, and the holder-cohort moves that
+matter for the asset covered. Define every metric before using it —
+on-chain conventions vary by data vendor.
+
+# Protocol fundamentals
+
+For the asset covered: fee revenue, staking yield, token emission,
+and the supply schedule. Real yield net of emission is the number;
+gross yield is marketing.
+
+# Regulatory watch
+
+The dated events that reprice the class: filings, enforcement,
+legislation, and election calendars. Each event gets its date and the
+direction of its expected impact.
+
+# Scenarios
+
+Bear, base, and bull with probabilities, the variable that separates
+them, and the level that marks each.
+
+| Scenario | Probability (%) | BTC range ($k) | Driver |
+|----------|----------------:|---------------:|--------|
+| Bear | 30 | 48–62 | Risk-off, ETF outflows |
+| Base | 50 | 62–84 | Range, stable flows |
+| Bull | 20 | 84–105 | Policy break, supply squeeze |
+
+: Scenario grid for the outlook horizon. {#tbl-scenarios}
+
+# Risks
+
+1. The liquidity risk unique to the venue set, with the depth numbers.
+2. The regulatory tail, and the position size it justifies.
+
+# Method and data {.appendix .unnumbered}
+
+Venues, data vendors, UTC conventions, and the treatment of weekend
+prints.
+
+```{python}
+# Writes the print-quality exhibit PNG referenced by @fig-example above.
+# NOTE: do NOT use `#| label:` / `#| fig-cap:` on executable chunks here —
+# Quarto's typst-PDF path emits an undefined `quarto_super` helper for
+# them. Markdown embeds with {#fig-x} + caption text carry the metadata.
+import pandas as pd
+import plotly.express as px
+import numpy as np
+
+days = pd.bdate_range("2026-06-01", periods=60)
+flows = np.random.default_rng(11).normal(180, 320, 60)
+df = pd.DataFrame({"flow_mm": flows}, index=days)
+fig = px.bar(df, x=df.index, y="flow_mm")
+fig.update_layout(template="plotly_white", title="Spot ETF net flows ($mm/day)", font=dict(size=16))
+fig.write_image("assets/example-chart.png", width=9 * 100, height=4.5 * 100, scale=3)
+```

@@ -1,0 +1,16 @@
+{
+  "family": "modern",
+  "pages": 2,
+  "ink_per_page": [
+    0.3057,
+    0.0459
+  ],
+  "toolchain": {
+    "quarto": "1.10.18",
+    "poppler": "pdfinfo version 26.08.0",
+    "reportforge": "0.1.0",
+    "dpi": 50,
+    "white_threshold": 245
+  },
+  "index_qmd_sha256": "b0570dffd9c4801a3cb44c9b74974b6d463d63251ffe732dfc41f3873439d810"
+}

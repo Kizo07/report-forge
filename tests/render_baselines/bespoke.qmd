@@ -1,0 +1,5 @@
+---
+title: "Untitled"
+---
+
+<!-- Write content with reportforge_write_report_body or reportforge_append_section, then render_report. -->

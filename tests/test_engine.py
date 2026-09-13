@@ -142,6 +142,8 @@ def test_render_directory_resolves_project_and_returns_created_output(
     def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         cwd = Path(str(kwargs.get("cwd", project)))
         calls.append((command, cwd))
+        if command[0] != "quarto":  # toolchain-stamp probes: tag the program
+            return subprocess.CompletedProcess(command, 0, f"{command[0]} probe\n", "")
         if command[:2] == ["quarto", "--version"]:
             return subprocess.CompletedProcess(command, 0, "1.7.0\n", "")
         output = project / "output" / "index.html"
@@ -149,17 +151,20 @@ def test_render_directory_resolves_project_and_returns_created_output(
         output.write_text("<html><body>created</body></html>")
         return subprocess.CompletedProcess(command, 0, "rendered", "")
 
-    monkeypatch.setattr(engine.subprocess, "run", fake_run)
+    monkeypatch.setattr(subprocess, "run", fake_run)
 
     result = engine.render_report(str(project), formats=["html"])
 
     assert result["ok"] is True
     assert result["outputs"] == [str(project / "output" / "index.html")]
     # C-2/C-4: seal pre-compute version, the render itself, state stamp.
-    assert [c[0][:2] for c in calls] == [["quarto", "--version"],
-                                         ["quarto", "render"],
-                                         ["quarto", "--version"]]
-    assert calls[1] == (
+    # (Phase 0's extended toolchain stamp adds non-quarto probes — pandoc,
+    # typst, poppler, chromium — so the sequence check filters to quarto.)
+    quarto_calls = [c for c in calls if c[0][0] == "quarto"]
+    assert [c[0][:2] for c in quarto_calls] == [["quarto", "--version"],
+                                                ["quarto", "render"],
+                                                ["quarto", "--version"]]
+    assert quarto_calls[1] == (
         ["quarto", "render", str(project / "index.qmd"), "--to", "html"],
         project,
     )
@@ -183,7 +188,7 @@ def test_render_returns_only_outputs_requested_in_current_run(
         (output_dir / "index.html").write_text("<html><body>fresh</body></html>")
         return subprocess.CompletedProcess(command, 0, "rendered", "")
 
-    monkeypatch.setattr(engine.subprocess, "run", fake_run)
+    monkeypatch.setattr(subprocess, "run", fake_run)
 
     result = engine.render_report(scaffold["source"], formats=["html"])
 

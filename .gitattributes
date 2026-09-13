@@ -1,0 +1,2 @@
+# Template assets are load-bearing byte-exact sources: no EOL normalization
+src/reportforge/templates/_assets/** -text

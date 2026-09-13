@@ -9,14 +9,24 @@ from pathlib import Path
 
 import pytest
 
+from reportforge import templates as reportforge_templates
 from reportforge import engine
 from reportforge import manifest as M
 
 
 def _expected_template_version() -> str:
+    """Independent recomputation: derive from SPEC + DOMAIN_SLUGS (the
+    declared mapping) rather than re-walking the tree, so a systematic
+    error in content_hash's traversal cannot hide (milestone B review 5)."""
+    assets = Path(reportforge_templates.__file__).parent / "_assets"
+    rels = list(reportforge_templates.SPEC.values())
+    rels += [f"domains/{slug}.qmd" for slug in reportforge_templates.DOMAIN_SLUGS.values()]
     h = hashlib.sha256()
-    for name in ("templates.py", "templates_domain.py"):
-        h.update((Path(engine.__file__).parent / name).read_bytes())
+    for rel in sorted(rels):
+        h.update(rel.encode())
+        h.update(b"\x00")
+        h.update((assets / rel).read_bytes())
+        h.update(b"\x00")
     return h.hexdigest()[:12]
 
 
@@ -40,6 +50,8 @@ def test_render_stamps_toolchain_in_state(tmp_path, monkeypatch):
     project = Path(res["path"])
 
     def fake_run(command, **kwargs):
+        if command[0] != "quarto":  # toolchain-stamp probes: tag the program
+            return subprocess.CompletedProcess(command, 0, f"{command[0]} probe\n", "")
         if command[:2] == ["quarto", "--version"]:
             return subprocess.CompletedProcess(command, 0, "1.7.0\n", "")
         out = project / "output" / "index.html"
@@ -47,7 +59,7 @@ def test_render_stamps_toolchain_in_state(tmp_path, monkeypatch):
         out.write_text("<html></html>")
         return subprocess.CompletedProcess(command, 0, "rendered", "")
 
-    monkeypatch.setattr(engine.subprocess, "run", fake_run)
+    monkeypatch.setattr(subprocess, "run", fake_run)
     out = engine.render_report(str(project), formats=["html"])
     assert out["ok"] is True
     state = json.loads((project / ".reportforge-state.json").read_text())

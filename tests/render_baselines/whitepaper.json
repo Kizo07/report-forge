@@ -1,0 +1,18 @@
+{
+  "family": "whitepaper",
+  "pages": 4,
+  "ink_per_page": [
+    0.0069,
+    0.0694,
+    0.0582,
+    0.0051
+  ],
+  "toolchain": {
+    "quarto": "1.10.18",
+    "poppler": "pdfinfo version 26.08.0",
+    "reportforge": "0.1.0",
+    "dpi": 50,
+    "white_threshold": 245
+  },
+  "index_qmd_sha256": "b4c17564dff9130e39956d2f1871ea31698890883294d72c04aa888234bdb35a"
+}

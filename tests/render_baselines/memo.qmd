@@ -1,0 +1,19 @@
+---
+title: "Baseline Memo"
+
+date: "2026-09-13"
+date-format: long
+---
+
+# Purpose
+
+One paragraph: what this memo decides or communicates.
+
+# Key points
+
+- Point one.
+- Point two.
+
+# Details
+
+Short sections. No table of contents, no numbered sections.

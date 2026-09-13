@@ -1,0 +1,64 @@
+project:
+  type: default
+  output-dir: output
+
+execute:
+  jupyter: <% jupyter_kernel %>
+  echo: false
+  warning: false
+  message: false
+  fig-dpi: 300
+  freeze: auto
+
+number-sections: <% number_sections %>
+<%% if exhibit_labels %%>
+
+crossref:
+  fig-title: Exhibit
+  tbl-title: Exhibit
+  fig-prefix: Exhibit
+  tbl-prefix: Exhibit
+  sec-prefix: Section
+<%% endif %%>
+
+format:
+  html:
+    toc: <% toc %>
+    toc-depth: 3
+    theme:
+      - brand
+      - styles.scss
+    code-fold: true
+    code-tools: false
+    link-external-newwindow: true
+<%% if titlepage %%>
+  # `titlepage` is a format:typst option — format:pdf silently ignores it.
+  # Swap the whole print block so the promised title page actually renders.
+  typst:
+    papersize: <% papersize %>
+    titlepage: true
+    template-partials:
+      - assets/typst-template.typ
+      - assets/typst-show.typ
+    margin-x: 2cm
+    margin-y: 2.2cm
+    toc: <% toc %>
+    number-sections: <% number_sections %>
+    colorlinks: true
+<%% else %%>
+  pdf:
+    pdf-engine: typst
+    papersize: <% papersize %>
+    margin-x: 2cm
+    margin-y: 2.2cm
+    toc: <% toc %>
+    number-sections: <% number_sections %>
+    fig-pos: t
+    colorlinks: true
+    linkcolor: "#1a2e4a"
+    urlcolor: "#3d6b9e"
+    citecolor: "#5b6b7f"
+<%% endif %%>
+  docx:
+    reference-doc: assets/reference-doc.docx
+    toc: <% toc %>

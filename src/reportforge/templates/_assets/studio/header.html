@@ -1,0 +1,44 @@
+<header class="rf-studio-header rf-layout-<% title_layout %>" style="--rf-accent: <% accent %>" role="banner">
+  <div class="rf-title-frame">
+<%% if eyebrow %%>
+    <p class="rf-eyebrow"><% eyebrow_html %></p>
+<%% endif %%>
+    <h1 class="rf-display-title"><% title_html %></h1>
+<%% if subtitle %%>
+    <p class="rf-display-subtitle"><% subtitle_html %></p>
+<%% endif %%>
+    <div class="rf-title-meta">
+<%% if organization %%>
+      <span class="rf-organization"><% organization_html %></span>
+<%% endif %%>
+<%% if author %%>
+      <span><% author_html %></span>
+<%% endif %%>
+      <time><% date_html %></time>
+    </div>
+<%% if abstract %%>
+    <p class="rf-deck"><% abstract_html %></p>
+<%% endif %%>
+  </div>
+<%% if metrics_html %%>
+  <div class="rf-metric-grid rf-metrics-<% metrics_count %>" aria-label="Key metrics">
+<% metrics_html %>
+  </div>
+<%% endif %%>
+<%% if verdict %%>
+  <div class="rf-verdict" role="note">
+    <span class="rf-verdict-tag">Conviction call</span>
+    <span class="rf-verdict-text"><% verdict_html %></span>
+  </div>
+<%% endif %%>
+<%% if key_points_html %%>
+  <div class="rf-key-points" aria-label="Executive summary">
+<% key_points_html %>
+  </div>
+<%% endif %%>
+<%% if scenarios_html %%>
+  <div class="rf-scenarios" aria-label="Scenarios">
+<% scenarios_html %>
+  </div>
+<%% endif %%>
+</header>

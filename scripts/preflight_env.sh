@@ -64,6 +64,14 @@ else
   fail=1
 fi
 
+# Pandoc (DOCX reference-doc bootstrap; reported + required).
+if command -v pandoc >/dev/null 2>&1; then
+  echo "pandoc: $(pandoc --version | head -1)"
+else
+  echo "  MISSING: pandoc on PATH"
+  fail=1
+fi
+
 # Reportforge kernel must be installable (the engine does this at scaffold
 # time, but verify the mechanism works).
 if "$PY" -c "import ipykernel" >/dev/null 2>&1; then
