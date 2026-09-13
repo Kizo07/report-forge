@@ -35,7 +35,7 @@ carries its own commissioning record.
 
 | Key | Type | Required | Notes |
 | --- | --- | --- | --- |
-| `project` | string | ✅ | kebab-case slug (`^[a-z0-9][a-z0-9-]*$`), becomes the directory name |
+| `project` | string | ✅ | kebab-strict slug (`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$` — no underscores, no trailing hyphen), becomes the directory name |
 | `template` | string | ✅ | one of `reportforge_list_templates` names (10 families + 9 domain bodies + bespoke) |
 | `title`, `subtitle`, `author`, `abstract`, `firm`, `confidential_mark`, `organization`, `eyebrow`, `title_layout`, `verdict`, `accent`, `frontmatter_yaml`, `body` | string | — | 1:1 with `scaffold_report` kwargs |
 | `formats` | list[string] | — | subset of `["html", "pdf", "docx", "pdf-web"]` |
@@ -51,13 +51,24 @@ carries its own commissioning record.
 1. **Strict validation, all errors at once.** `scaffold_from_brief` never
    fails on the first problem — `errors` lists everything so an agent can
    fix the brief in one round trip.
-2. **Template/format validation stays with the engine.** The brief
+2. **Template compatibility is a loud error, not a silent drop.**
+   Cover fields (`metrics`, `key_points`, `scenarios`, `verdict`) apply
+   only to editorial templates (studio, portfolio-*, ledger-*); layout
+   fields (`eyebrow`, `title_layout`, `accent`, `organization`,
+   `confidential_mark`) apply to editorial + modern; `frontmatter_yaml`
+   and `body` apply only to `bespoke`. A brief that sets a field its
+   template ignores is REJECTED with the dropped fields named — a brief
+   never succeeds while silently discarding input.
+3. **Uniform failure envelope.** Both validation and engine-stage
+   failures return `{"ok": False, "error", "errors": [...]}` so producer
+   repair loops handle one shape.
+4. **Template/format validation stays with the engine.** The brief
    validator checks structure; unknown templates/formats are rejected by
    `scaffold_report` with its normal message.
-3. **Commissioning record.** On success the normalized brief (envelope
+5. **Commissioning record.** On success the normalized brief (envelope
    stripped) is stored in the manifest's `report_brief` field, and the
    tool result echoes `{"schema": "report_brief", "version": 1}`.
-4. **Compatibility.** Manifest schema bumped 4 → 5; schema-4 manifests
+6. **Compatibility.** Manifest schema bumped 4 → 5; schema-4 manifests
    keep loading (`report_brief` defaults to `{}`). Old report-forge
    loaders reading new manifests fail loudly per contract §1.4 — expected.
 

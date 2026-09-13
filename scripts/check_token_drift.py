@@ -18,6 +18,7 @@ the first argument or ALPHA_ENGINE_PATH (default: sibling checkout).
 from __future__ import annotations
 
 import ast
+import os
 import sys
 from pathlib import Path
 
@@ -69,11 +70,10 @@ def load_alpha_themes(alpha_root: Path) -> dict:
                 continue
             try:
                 value = ast.literal_eval(node.value)
-            except ValueError:
+            except (ValueError, TypeError, SyntaxError):
                 continue
             if name in ALPHA_PALETTE_NAMES:
                 literals[name] = value
-            elif name == "QUANTFLOW_THEMES":
                 # {"quantflow-dark": QUANTFLOW_DARK, ...} — values are name
                 # references, not literals; extract them positionally.
                 if isinstance(node.value, ast.Dict):
@@ -91,9 +91,17 @@ def normalize_hex(value: str) -> str:
     return value.strip().lower()
 
 
-def check(alpha_root: Path) -> list[str]:
+# alpha-only keys report-forge intentionally does not mirror (its plotly
+# template never reads them; alpha's "border" always equals "grid").
+ALLOWED_ALPHA_ONLY_KEYS = {"border"}
+
+
+def check(alpha_root: Path) -> tuple[list[str], dict]:
+    """Compare EVERY shared palette key (ramp via its alias) between the
+    two mirrors. -> (drift list, coverage report)."""
     alpha_themes = load_alpha_themes(alpha_root)
     drift: list[str] = []
+    compared: dict[str, list[str]] = {}
     for alpha_name, rf_name in SHARED.items():
         alpha_pal = alpha_themes.get(alpha_name)
         rf_pal = QUANTFLOW_PLOTLY_THEMES.get(rf_name)
@@ -101,20 +109,25 @@ def check(alpha_root: Path) -> list[str]:
             drift.append(f"{rf_name}: palette missing on one side "
                          f"(alpha={alpha_pal is not None}, reportforge={rf_pal is not None})")
             continue
-        for rf_key, alpha_key in RAMP_ALIAS.items():
-            a_val = alpha_pal.get(alpha_key)
-            r_val = rf_pal.get(rf_key)
-            if isinstance(a_val, list) and isinstance(r_val, list):
-                a_cmp = [normalize_hex(v) for v in a_val]
-                r_cmp = [normalize_hex(v) for v in r_val]
+        compared[rf_name] = []
+        for alpha_key, alpha_value in alpha_pal.items():
+            if alpha_key in ALLOWED_ALPHA_ONLY_KEYS:
+                continue
+            rf_key = next((r for r, a in RAMP_ALIAS.items() if a == alpha_key),
+                          alpha_key)
+            if rf_key not in rf_pal:
+                drift.append(f"{rf_name}.{rf_key}: missing (alpha has {alpha_key}={alpha_value!r})")
+                continue
+            compared[rf_name].append(rf_key)
+            if isinstance(alpha_value, list):
+                a_cmp = [normalize_hex(v) for v in alpha_value]
+                r_cmp = [normalize_hex(v) for v in rf_pal[rf_key]]
                 if a_cmp != r_cmp:
                     drift.append(f"{rf_name}.{rf_key}: {r_cmp} != alpha {a_cmp}")
-                continue
-            if a_val is not None and r_val is not None:
-                if normalize_hex(str(a_val)) != normalize_hex(str(r_val)):
-                    drift.append(
-                        f"{rf_name}.{rf_key}: {r_val} != alpha {a_val} ({alpha_key})")
-    return drift
+            elif normalize_hex(str(alpha_value)) != normalize_hex(str(rf_pal[rf_key])):
+                drift.append(
+                    f"{rf_name}.{rf_key}: {rf_pal[rf_key]} != alpha {alpha_value} ({alpha_key})")
+    return drift, compared
 
 
 def main() -> int:
@@ -124,16 +137,18 @@ def main() -> int:
     if not Path(alpha_root).exists():
         print(f"check_token_drift: alpha_engine not found at {alpha_root} — nothing to compare")
         return 0
-    drift = check(Path(alpha_root))
+    drift, compared = check(Path(alpha_root))
     if drift:
         print("check_token_drift: DRIFT detected (report-forge vs alpha_engine.viz):")
         for d in drift:
             print(f"  {d}")
         return 1
-    print("check_token_drift: report-forge tokens in sync with alpha_engine.viz")
+    coverage = ", ".join(
+        f"{name}[{len(keys)} keys]" for name, keys in compared.items())
+    print(f"check_token_drift: in sync with alpha_engine.viz (compared: {coverage}; "
+          f"alpha-only keys allowed: {sorted(ALLOWED_ALPHA_ONLY_KEYS)})")
     return 0
 
 
 if __name__ == "__main__":
-    import os
     raise SystemExit(main())

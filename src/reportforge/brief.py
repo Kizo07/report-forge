@@ -22,7 +22,9 @@ import re
 SCHEMA_NAME = "report_brief"
 SCHEMA_VERSION = 1
 
-SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+# kebab-strict by contract (no underscores, no leading/trailing hyphen) —
+# intentionally tighter than scaffold's permissive sanitizer.
+SLUG_RE = re.compile(r"^[a-z0-9]([a-z0-9-]*[a-z0-9])?$")
 
 # str-valued optional fields, mapped 1:1 onto scaffold_report kwargs.
 _STR_FIELDS = (
@@ -127,9 +129,10 @@ def parse_brief(data) -> dict:
 def brief_to_scaffold_kwargs(parsed: dict) -> dict:
     """Map a normalized brief onto reportforge.engine.scaffold_report kwargs.
 
-    `project` becomes `slug`; `brief` (free text) becomes the manifest
-    description via the `brief_description` key handled by the engine —
-    everything else is a 1:1 kwarg.
+    `project` becomes `slug`. `brief` (free text) is EXCLUDED from the
+    kwargs: it is commissioning metadata, stored whole in the manifest's
+    `report_brief` record (`manifest.brief` itself remains the subtitle).
+    Everything else maps 1:1.
     """
     kwargs: dict = {"slug": parsed["project"], "template": parsed["template"]}
     for key in _STR_FIELDS:

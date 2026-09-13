@@ -172,6 +172,11 @@ class Manifest:
             )
         known = {f for f in cls.__dataclass_fields__}
         init = {k: v for k, v in data.items() if k in known}
+        report_brief = init.get("report_brief")
+        if report_brief is not None and not isinstance(report_brief, dict):
+            raise ManifestError("manifest 'report_brief' is not an object")
+        # v4 -> v5 migration is implicit: report_brief absent in old
+        # manifests defaults to {} via the dataclass field default.
         for map_name, validator in (("sources", validate_source),
                                     ("exhibits", validate_exhibit),
                                     ("facts", validate_fact)):

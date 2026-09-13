@@ -210,6 +210,8 @@ def rollforward_report(project: str, new_slug: str, brief: str = "",
         new_manifest.exhibits = json.loads(json.dumps(src_manifest.exhibits))
         new_manifest.facts = json.loads(json.dumps(src_manifest.facts))
         new_manifest.registry_version = src_reg
+        # A new period has no commissioning record: report_brief stays {}
+        # (the lineage lives in supersedes below).
         new_manifest.supersedes = {
             "report": src_manifest.report_id,
             "release_id": src_release_id,

@@ -40,7 +40,6 @@ def _valid_brief(**overrides) -> dict:
         "template": "memo",
         "formats": ["html"],
         "title": "Brief Probe",
-        "verdict": "HOLD — contract validation probe",
     }
     brief.update(overrides)
     return brief
@@ -140,8 +139,7 @@ def test_scaffold_from_brief_matches_kwargs_scaffold(isolated_reports):
     kwargs call."""
     engine.scaffold_from_brief(_valid_brief(project="parity-a"))
     engine.scaffold_report(
-        slug="parity-b", template="memo", formats=["html"], title="Brief Probe",
-        verdict="HOLD — contract validation probe")
+        slug="parity-b", template="memo", formats=["html"], title="Brief Probe")
     a = templates.scaffold_tree_hash(isolated_reports / "parity-a")
     b = templates.scaffold_tree_hash(isolated_reports / "parity-b")
     # manifests legitimately differ (report_brief + id/title text) —
@@ -174,3 +172,29 @@ def test_mcp_tool_registered():
 
     tools = {t.name for t in asyncio.run(mcp.list_tools())}
     assert "reportforge_scaffold_from_brief" in tools
+
+
+def test_scaffold_from_brief_bespoke_records_brief(isolated_reports):
+    """Milestone D blocking finding 1: the bespoke scaffold path must
+    forward the commissioning record like every other path."""
+    result = engine.scaffold_from_brief(_valid_brief(
+        project="brief-bespoke",
+        template="bespoke",
+        frontmatter_yaml='title: "Bespoke From Brief"',
+        body="# Bespoke body\n",
+        brief="bespoke commissioning note"))
+    assert result["ok"] is True, result
+    manifest = json.loads(
+        (isolated_reports / "brief-bespoke" / "report.json").read_text(encoding="utf-8"))
+    assert manifest["report_brief"]["template"] == "bespoke"
+    assert manifest["report_brief"]["brief"] == "bespoke commissioning note"
+
+
+def test_brief_rejects_fields_the_template_ignores(isolated_reports):
+    """Milestone D finding 3: a brief that sets cover fields on a
+    non-editorial template is a loud error, never a silent drop."""
+    result = engine.scaffold_from_brief(_valid_brief(
+        project="brief-drop", template="memo",
+        metrics=[{"label": "Target", "value": "$1"}]))
+    assert result["ok"] is False
+    assert any("metrics" in e for e in result["errors"])

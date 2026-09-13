@@ -215,6 +215,7 @@ def scaffold_report(
             brief=subtitle or "",
             profile=preset,
             formats=kept_formats + (["pdf-web"] if pdf_web_requested else []),
+            report_brief=report_brief,
         )
         return {
             "ok": True,
@@ -634,11 +635,53 @@ def scaffold_from_brief(brief: dict) -> dict:
                      + " | ".join(errors),
             "errors": errors,
         }
+    errors = _brief_template_dropped_fields(parsed)
+    if errors:
+        return {
+            "ok": False,
+            "error": "report_brief sets field(s) the template ignores: "
+                     + " | ".join(errors),
+            "errors": errors,
+        }
     kwargs = brief_mod.brief_to_scaffold_kwargs(parsed)
     result = scaffold_report(report_brief=parsed, **kwargs)
-    if result.get("ok"):
-        result["report_brief"] = {
-            "schema": brief_mod.SCHEMA_NAME,
-            "version": brief_mod.SCHEMA_VERSION,
-        }
+    if not result.get("ok"):
+        # uniform contract: engine-stage failures keep the same shape as
+        # validation failures so producer repair loops handle one envelope
+        return {"ok": False, "error": result.get("error", "scaffold failed"),
+                "errors": [result.get("error", "scaffold failed")]}
+    result["report_brief"] = {
+        "schema": brief_mod.SCHEMA_NAME,
+        "version": brief_mod.SCHEMA_VERSION,
+    }
     return result
+
+
+def _brief_template_dropped_fields(parsed: dict) -> list[str]:
+    """Field/template compatibility (scaffold silently zeroes fields a
+    template ignores — for the contract that must be a loud error, not a
+    silent drop)."""
+    template = parsed.get("template", "")
+    errors: list[str] = []
+    editorial = template in _E._EDITORIAL_TEMPLATES
+    layout_capable = editorial or template == "modern"
+    if not editorial:
+        for key in ("metrics", "key_points", "scenarios", "verdict"):
+            if key in parsed:
+                errors.append(
+                    f"{key!r} applies only to editorial templates "
+                    f"({sorted(_E._EDITORIAL_TEMPLATES)}); template {template!r} ignores it")
+    if not layout_capable:
+        for key in ("eyebrow", "title_layout", "accent", "organization",
+                    "confidential_mark"):
+            if key in parsed and parsed.get(key):
+                errors.append(
+                    f"{key!r} applies only to editorial/modern templates; "
+                    f"template {template!r} ignores it")
+    if template != "bespoke":
+        for key in ("frontmatter_yaml", "body"):
+            if key in parsed:
+                errors.append(
+                    f"{key!r} applies only to template 'bespoke'; "
+                    f"template {template!r} ignores it")
+    return errors

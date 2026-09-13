@@ -37,7 +37,9 @@ def _load_check():
 
 def test_reportforge_tokens_match_alpha_engine():
     module = _load_check()
-    drift = module.check(ALPHA_ROOT)
+    drift, coverage = module.check(ALPHA_ROOT)
+    assert len(coverage) == len(module.SHARED), (
+        f"coverage narrowed: compared {sorted(coverage)}")
     assert not drift, (
         "identity tokens drifted from alpha_engine.viz (canonical):\n"
         + "\n".join(drift)

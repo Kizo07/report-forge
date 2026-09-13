@@ -92,7 +92,7 @@ def test_schema2_migrates_and_stamps_4(tmp_path):
     assert raw2["schema_version"] == 5  # migration sticks
 
 
-def test_schema5_rejected_loudly(tmp_path):
+def test_schema6_rejected_loudly(tmp_path):
     root = tmp_path / "v4"
     root.mkdir()
     (root / "index.qmd").write_text("---\ntitle: T\n---\n\n# T\n")
