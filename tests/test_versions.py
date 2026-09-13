@@ -65,7 +65,8 @@ def test_render_stamps_toolchain_in_state(tmp_path, monkeypatch):
     state = json.loads((project / ".reportforge-state.json").read_text())
     assert state["toolchain"]["quarto"] == "1.7.0"
     assert state["toolchain"]["python"].split(".")[0] >= "3"
-    assert state["toolchain"]["reportforge"] == "0.1.0"
+    from reportforge import __version__ as expected_version
+    assert state["toolchain"]["reportforge"] == expected_version
     m = json.loads((project / "report.json").read_text())
     assert "toolchain" not in m  # §1.3: render writes artifacts, not the manifest
 

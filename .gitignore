@@ -12,3 +12,7 @@ htmlcov/
 reports/*/.quarto/
 reports/*/_freeze/
 reports/*/output/
+
+# Scratch working reports (pattern-matched; showcase reports stay addable)
+reports/*-scratch/
+reports/*-workspace/
