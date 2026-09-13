@@ -63,12 +63,23 @@ def _baseline(family: str) -> dict:
 @pytest.mark.parametrize("family", FAMILIES)
 def test_family_render_parity(isolated_reports, family: str):
     baseline = _baseline(family)
-    result = engine.scaffold_report(f"parity-{family}", template=family, formats=["pdf"])
+    # Same slug as scripts/make_render_baselines.py: the slug feeds the
+    # default title, so a different name would legitimately change the ink.
+    slug = f"baseline-{family}"
+    result = engine.scaffold_report(slug, template=family, formats=["pdf"])
     assert result["ok"], result
-    rendered = engine.render_report(f"parity-{family}", formats=["pdf"])
+
+    # Input parity: the scaffolded source must be byte-identical to the
+    # baseline's before we even compare output ink.
+    qmd = isolated_reports / slug / "index.qmd"
+    qmd_sha = engine.hashlib.sha256(qmd.read_bytes()).hexdigest()
+    assert qmd_sha == baseline["index_qmd_sha256"], (
+        f"{family}: scaffolded index.qmd drifted from the baseline source")
+
+    rendered = engine.render_report(slug, formats=["pdf"])
     assert rendered["ok"], rendered
 
-    pdf = isolated_reports / f"parity-{family}" / "output" / "index.pdf"
+    pdf = isolated_reports / slug / "output" / "index.pdf"
     ink = _ink(pdf)
 
     assert len(ink) == baseline["pages"], (
