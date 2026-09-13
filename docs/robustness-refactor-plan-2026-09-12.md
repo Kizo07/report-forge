@@ -191,7 +191,16 @@ CLI / MCP server (unchanged imports)
 4. All 10 reference projects render with page counts equal to and ink signatures within ±2 % relative of the Phase 0 baseline on the pinned poppler; the full pinned suite is green, including the retargeted monkeypatch tests.
 5. No public API (CLI flags, MCP tool names/signatures) changed — verified by `test_cli.py` + `test_mcp_server.py` untouched and green.
 
-## 7. Sequencing summary
+## 7. Milestone log
+
+| Milestone | Verdict | Notes |
+| --- | --- | --- |
+| Phase 0 (commit `cb6126c`) | — | Pinned env: CPython 3.14.7 venv rebuilt (original symlinked-interpreter venv broke); baseline 373 passed. Plan wording note (A-review N7): the parity metric actually recorded is a grayscale per-page ink fraction at 50 dpi (near-white threshold 245), not page_ink.py's gap/balance stats. |
+| Phases 0+1 (muse review A) | APPROVE-WITH-NITS | M1 error contract completed (QuartoNotFoundError from run_quarto; RendererError→dict translation at the facade), M2 probe tests, M3 freeze_release stamp, M4 which() routed through seam, M5 in-suite subprocess-confinement test, M6/N1/N2/N3/N5/N8 adopted. M6 noted: PDF-ink parity does not cover HTML-only assets — Phase 2's scaffold-tree hash tests are the backstop. Overlay spike result: studio vs portfolio-light differ by 68/303 changed lines (comments, entry-point name, palette block) — an overlay spec would need 68 pinned replacements; **fallback selected per plan §4 Phase 2.0**: per-family bodies stay standalone, palette/token dedupe via shared files only. |
+| Phase 2 | pending | |
+| Phase 3 | pending | |
+
+## 8. Sequencing summary
 
 | Phase | Depends on | Effort | Risk |
 | --- | --- | --- | --- |

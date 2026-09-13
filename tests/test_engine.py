@@ -142,6 +142,8 @@ def test_render_directory_resolves_project_and_returns_created_output(
     def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         cwd = Path(str(kwargs.get("cwd", project)))
         calls.append((command, cwd))
+        if command[0] != "quarto":  # toolchain-stamp probes: tag the program
+            return subprocess.CompletedProcess(command, 0, f"{command[0]} probe\n", "")
         if command[:2] == ["quarto", "--version"]:
             return subprocess.CompletedProcess(command, 0, "1.7.0\n", "")
         output = project / "output" / "index.html"

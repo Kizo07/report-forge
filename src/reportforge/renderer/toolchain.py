@@ -71,15 +71,20 @@ def chromium_binary() -> str | None:
 
 
 def default_reference_docx() -> Path | None:
-    """Bootstrap a pandoc reference.docx into the repo cache (best effort)."""
+    """Bootstrap a pandoc reference.docx into the repo cache (best effort:
+    any failure leaves the previous behaviour — None, engine renders DOCX
+    without a reference doc)."""
     pandoc = shutil.which("pandoc")
     cache = REPO_ROOT / "assets_cache"
     cache.mkdir(exist_ok=True)
     target = cache / "reference-doc.docx"
     if not target.exists() and pandoc:
-        subprocess.run(
-            [pandoc, "-o", str(target), "--print-default-data-file", "reference.docx"],
-            capture_output=True,
-            timeout=60,
-        )
+        try:
+            subprocess.run(
+                [pandoc, "-o", str(target), "--print-default-data-file", "reference.docx"],
+                capture_output=True,
+                timeout=60,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return None
     return target if target.exists() else None

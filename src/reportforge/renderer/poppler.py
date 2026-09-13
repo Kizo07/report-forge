@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -13,7 +14,7 @@ POPPLER_TIMEOUT_S = 120
 def page_count(pdf: Path) -> int:
     """Page count via pdfinfo; -1 when unavailable/unreadable (legacy
     sentinel kept — callers decide whether that is fatal)."""
-    pdfinfo = __import__("shutil").which("pdfinfo")
+    pdfinfo = shutil.which("pdfinfo")
     if not pdfinfo:
         return -1
     try:

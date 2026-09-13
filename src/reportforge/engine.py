@@ -31,6 +31,8 @@ from reportforge.renderer import poppler as _rpoppler
 from reportforge.renderer import probe as _rprobe
 from reportforge.renderer import quarto as _rquarto
 from reportforge.renderer import toolchain as _rtoolchain
+from reportforge.renderer.quarto import CHROMIUM_PRINT_TIMEOUT_S
+from reportforge.renderer.quarto import QUARTO_TIMEOUT_S
 
 REPORTS_DIR = Path(
     os.environ.get(
@@ -38,8 +40,6 @@ REPORTS_DIR = Path(
         str(Path.home() / "Documents" / "report-forge" / "reports"),
     )
 ).expanduser()
-QUARTO_TIMEOUT_S = 900
-CHROMIUM_PRINT_TIMEOUT_S = _rquarto.CHROMIUM_PRINT_TIMEOUT_S
 # pdf-web is not a Quarto format: it post-processes the rendered html with
 # headless Chromium (print-to-pdf) so JS-rendered/plotly visuals survive.
 PUBLIC_FORMATS = ("html", "pdf", "docx", "pdf-web")
@@ -698,9 +698,12 @@ def _toolchain_stamp() -> dict:
         "quarto": _quarto_version(),
         "python": sys.version.split()[0],
         "reportforge": _REPORTFORGE_VERSION,
-        "pandoc": _tool_version(["pandoc", "--version"]) if shutil.which("pandoc") else None,
-        "typst": _tool_version(["typst", "--version"]) if shutil.which("typst") else "quarto-bundled",
-        "poppler": _tool_version(["pdfinfo", "-v"]) if shutil.which("pdfinfo") else None,
+        "pandoc": _tool_version(["pandoc", "--version"]) if _rtoolchain.which("pandoc") else None,
+        # typst: version string when standalone-installed, else the
+        # "quarto-bundled" sentinel — quarto ships its own typst and
+        # exposes no version probe for it (N3, milestone A review).
+        "typst": _tool_version(["typst", "--version"]) if _rtoolchain.which("typst") else "quarto-bundled",
+        "poppler": _tool_version(["pdfinfo", "-v"]) if _rtoolchain.which("pdfinfo") else None,
         "chromium": _tool_version([chromium, "--version"]) if chromium else None,
     }
 
@@ -874,7 +877,7 @@ def render_report(source: str, formats: list[str] | None = None, project: str | 
     workdir = _project_root_of(src) or src.parent
     # Binary presence, not a version probe: the stamp (post-render) is the
     # one that needs a working quarto; refusing early only needs the binary.
-    if shutil.which("quarto") is None:
+    if _rtoolchain.which("quarto") is None:
         return {
             "ok": False,
             "error": ("quarto not found on PATH — install Quarto (https://quarto.org) "
@@ -972,8 +975,13 @@ def render_report(source: str, formats: list[str] | None = None, project: str | 
                 timeout=QUARTO_TIMEOUT_S,
                 env=env,
             )
-        except _rerrors.ToolTimeoutError:
-            return {"ok": False, "error": f"quarto render ({fmt}) timed out after {QUARTO_TIMEOUT_S}s"}
+        except _rerrors.ToolTimeoutError as exc:
+            return {"ok": False, "error": f"quarto render ({fmt}) timed out after {exc.timeout_s}s"}
+        except _rerrors.RendererError as exc:
+            # Seam contract: every renderer failure mode crosses as a
+            # RendererError subclass and is translated here — the one place
+            # the public {"ok": False, ...} shape is produced for quarto.
+            return {"ok": False, "error": str(exc)}
         full_log = proc.stdout + proc.stderr
         # WS-3: persist the full render log — Typst/PDF failures are the #1
         # iteration blocker; the agent must be able to read the actual error
@@ -1136,11 +1144,7 @@ def freeze_release(project: str) -> dict:
             return err
         assert manifest is not None
         try:
-            current = _release_inputs(root, manifest, {
-                "quarto": _quarto_version(),
-                "python": sys.version.split()[0],
-                "reportforge": _REPORTFORGE_VERSION,
-            })
+            current = _release_inputs(root, manifest, _toolchain_stamp())
         except OSError as exc:
             return {"ok": False, "error": f"cannot hash release inputs: {exc}"}
         if current["release_id"] != record.get("release_id"):
@@ -1665,7 +1669,7 @@ def run_file(path: str, project: str, args: list[str] | None = None, timeout: in
     elif ext == ".sh":
         cmd = ["bash", str(script)]
     elif ext == ".r":
-        rscript = shutil.which("Rscript")
+        rscript = _rtoolchain.which("Rscript")
         if not rscript:
             return {"ok": False, "error": "Rscript not found on PATH"}
         cmd = [rscript, str(script)]
@@ -4271,7 +4275,7 @@ def reportforge_capabilities() -> dict:
         "content_neutral": bool(t.get("content_neutral", False)),
     } for t in templates]
     exec_on = _exec_enabled()
-    pdftoppm = shutil.which("pdftoppm")
+    pdftoppm = _rtoolchain.which("pdftoppm")
     return {
         "schema_version": 1,
         "server": "reportforge",
@@ -4450,7 +4454,7 @@ def render_preview(project: str, revision: int | None = None) -> dict:
         warnings.append("state file predates registry binding; re-render to bind "
                         "previews to an exact registry version")
 
-    pdftoppm = shutil.which("pdftoppm")
+    pdftoppm = _rtoolchain.which("pdftoppm")
     if not pdftoppm:
         return {"ok": False, "error": "pdftoppm not found on PATH (previews unavailable)"}
 
@@ -4776,7 +4780,7 @@ def _declares_typst_format(workdir: Path) -> bool:
 
 
 def _quarto_tools_dir() -> Path | None:
-    quarto = shutil.which("quarto")
+    quarto = _rtoolchain.which("quarto")
     if not quarto:
         return None
     real = Path(quarto).resolve()

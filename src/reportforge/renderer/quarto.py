@@ -11,7 +11,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-from reportforge.renderer.errors import ToolTimeoutError
+from reportforge.renderer.errors import QuartoNotFoundError, ToolTimeoutError
 
 QUARTO_TIMEOUT_S = 900
 CHROMIUM_PRINT_TIMEOUT_S = 120
@@ -24,7 +24,12 @@ def run_quarto(
     timeout: int = QUARTO_TIMEOUT_S,
     env: dict | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    """Run a fully-formed quarto command line; ToolTimeoutError on timeout."""
+    """Run a fully-formed quarto command line.
+
+    Raises QuartoNotFoundError if the binary vanishes between discovery and
+    exec, ToolTimeoutError on timeout — the engine translates both into its
+    public dict contract.
+    """
     try:
         return subprocess.run(
             cmd,
@@ -34,6 +39,8 @@ def run_quarto(
             timeout=timeout,
             env=env,
         )
+    except FileNotFoundError as exc:
+        raise QuartoNotFoundError(f"{cmd[0]} not found on PATH while rendering") from exc
     except subprocess.TimeoutExpired as exc:
         raise ToolTimeoutError("quarto render", timeout) from exc
 

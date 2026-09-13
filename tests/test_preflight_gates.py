@@ -94,3 +94,41 @@ def test_kernel_fallback_reported_via_scaffold(tmp_path, monkeypatch):
     result = engine.scaffold_report("no-kernel", template="memo", formats=["html"])
     assert result["ok"] is True
     assert result["jupyter_kernel"] == "python3"
+
+
+def test_subprocess_confined_to_renderer_package():
+    """Phase 1 acceptance, enforced in-suite (milestone A review M5): the
+    engine must not import subprocess — every external process call lives
+    in reportforge.renderer."""
+    import inspect
+
+    assert not hasattr(engine, "subprocess")
+    assert "import subprocess" not in inspect.getsource(engine)
+
+
+def test_warn_only_probe_attached_when_tools_missing(isolated_reports, monkeypatch):
+    """Milestone A review M2: the warn-only probe must surface missing
+    tools as toolchain_warnings without failing the render."""
+    stamp = engine._toolchain_stamp()
+    stamp["poppler"] = None
+    monkeypatch.setattr(engine, "_toolchain_stamp", lambda: stamp)
+    engine.scaffold_report("probe-warn", template="memo", formats=["html"])
+    result = engine.render_report("probe-warn", formats=["html"])
+    assert result["ok"] is True
+    assert result.get("toolchain_warnings")
+    assert any("poppler" in w for w in result["toolchain_warnings"])
+
+
+def test_no_probe_warnings_when_toolchain_complete(isolated_reports, monkeypatch):
+    """Milestone A review M2: a healthy stamp must NOT add the key."""
+    real_stamp = engine._toolchain_stamp
+    def healthy_stamp() -> dict:
+        stamp = real_stamp()
+        stamp["poppler"] = "poppler 24.02 (test)"
+        stamp["pandoc"] = "pandoc 3.1 (test)"
+        return stamp
+    monkeypatch.setattr(engine, "_toolchain_stamp", healthy_stamp)
+    engine.scaffold_report("probe-clean", template="memo", formats=["html"])
+    result = engine.render_report("probe-clean", formats=["html"])
+    assert result["ok"] is True
+    assert "toolchain_warnings" not in result

@@ -40,6 +40,8 @@ def test_render_stamps_toolchain_in_state(tmp_path, monkeypatch):
     project = Path(res["path"])
 
     def fake_run(command, **kwargs):
+        if command[0] != "quarto":  # toolchain-stamp probes: tag the program
+            return subprocess.CompletedProcess(command, 0, f"{command[0]} probe\n", "")
         if command[:2] == ["quarto", "--version"]:
             return subprocess.CompletedProcess(command, 0, "1.7.0\n", "")
         out = project / "output" / "index.html"
