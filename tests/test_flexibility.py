@@ -394,6 +394,9 @@ def test_render_pdf_web_prints_html_via_chromium(
             out.parent.mkdir(parents=True, exist_ok=True)
             out.write_text("<html>page</html>")
             return subprocess.CompletedProcess(command, 0, "rendered", "")
+        # toolchain-stamp probes (Phase 0): answer benignly, no file side effects
+        if not any(a.startswith("--print-to-pdf=") for a in command):
+            return subprocess.CompletedProcess(command, 0, "probe 1.2.3\n", "")
         # chromium invocation: find --print-to-pdf=<path> and create the file
         pdf_target = next(a.split("=", 1)[1] for a in command if a.startswith("--print-to-pdf="))
         Path(pdf_target).write_bytes(b"%PDF-1.4 fake")
@@ -446,6 +449,8 @@ def test_pdf_web_suffix_when_typst_pdf_exists(
             out.parent.mkdir(parents=True, exist_ok=True)
             out.write_bytes(b"%PDF quarto")
             return subprocess.CompletedProcess(command, 0, "rendered", "")
+        if not any(a.startswith("--print-to-pdf=") for a in command):
+            return subprocess.CompletedProcess(command, 0, "probe 1.2.3\n", "")
         pdf_target = next(a.split("=", 1)[1] for a in command if a.startswith("--print-to-pdf="))
         Path(pdf_target).write_bytes(b"%PDF chromium")
         return subprocess.CompletedProcess(command, 0, "", "")

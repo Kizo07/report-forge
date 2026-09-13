@@ -156,10 +156,13 @@ def test_render_directory_resolves_project_and_returns_created_output(
     assert result["ok"] is True
     assert result["outputs"] == [str(project / "output" / "index.html")]
     # C-2/C-4: seal pre-compute version, the render itself, state stamp.
-    assert [c[0][:2] for c in calls] == [["quarto", "--version"],
-                                         ["quarto", "render"],
-                                         ["quarto", "--version"]]
-    assert calls[1] == (
+    # (Phase 0's extended toolchain stamp adds non-quarto probes — pandoc,
+    # typst, poppler, chromium — so the sequence check filters to quarto.)
+    quarto_calls = [c for c in calls if c[0][0] == "quarto"]
+    assert [c[0][:2] for c in quarto_calls] == [["quarto", "--version"],
+                                                ["quarto", "render"],
+                                                ["quarto", "--version"]]
+    assert quarto_calls[1] == (
         ["quarto", "render", str(project / "index.qmd"), "--to", "html"],
         project,
     )

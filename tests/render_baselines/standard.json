@@ -1,0 +1,16 @@
+{
+  "family": "standard",
+  "pages": 2,
+  "ink_per_page": [
+    0.0368,
+    0.027
+  ],
+  "toolchain": {
+    "quarto": "1.10.18",
+    "poppler": "pdfinfo version 26.08.0",
+    "reportforge": "0.1.0",
+    "dpi": 50,
+    "white_threshold": 245
+  },
+  "index_qmd_sha256": "6c34343ef50efe1b2a800ded391787506785d37a0c4e833cb6044b86fb05aab7"
+}

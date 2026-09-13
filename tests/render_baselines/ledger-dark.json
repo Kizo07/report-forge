@@ -1,0 +1,16 @@
+{
+  "family": "ledger-dark",
+  "pages": 2,
+  "ink_per_page": [
+    1.0,
+    1.0
+  ],
+  "toolchain": {
+    "quarto": "1.10.18",
+    "poppler": "pdfinfo version 26.08.0",
+    "reportforge": "0.1.0",
+    "dpi": 50,
+    "white_threshold": 245
+  },
+  "index_qmd_sha256": "17b00ad213ebc59250881b03252c906555bde8c8d06c78f04ee757cb1f6bfb3b"
+}

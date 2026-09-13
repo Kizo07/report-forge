@@ -686,6 +686,38 @@ def _quarto_version() -> str | None:
     return first[0].strip() if first else None
 
 
+def _tool_version(cmd: list[str]) -> str | None:
+    """First output line of `cmd --version`-style probe; None when absent.
+
+    Ignores the exit code: poppler tools print their version to stderr and
+    exit nonzero on `-v`.
+    """
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    lines = ((proc.stdout or "") + (proc.stderr or "")).strip().splitlines()
+    return lines[0].strip() if lines else None
+
+
+def _toolchain_stamp() -> dict:
+    """Toolchain binding for the release seal + state file (C-2, RF-09).
+
+    Manifest-blind by design (§1.3): this lands in .reportforge-state.json
+    and output/release.json only — never the manifest.
+    """
+    chromium = _chromium_binary()
+    return {
+        "quarto": _quarto_version(),
+        "python": sys.version.split()[0],
+        "reportforge": _REPORTFORGE_VERSION,
+        "pandoc": _tool_version(["pandoc", "--version"]) if shutil.which("pandoc") else None,
+        "typst": _tool_version(["typst", "--version"]) if shutil.which("typst") else "quarto-bundled",
+        "poppler": _tool_version(["pdfinfo", "-v"]) if shutil.which("pdfinfo") else None,
+        "chromium": _tool_version([chromium, "--version"]) if chromium else None,
+    }
+
+
 def _release_summary(root: Path) -> dict | None:
     """Sealed-release projection for status views; None when unsealed."""
     try:
@@ -867,6 +899,14 @@ def render_report(source: str, formats: list[str] | None = None, project: str | 
     if not src.is_file():
         return {"ok": False, "error": f"source is not a file: {src}"}
     workdir = _project_root_of(src) or src.parent
+    # Binary presence, not a version probe: the stamp (post-render) is the
+    # one that needs a working quarto; refusing early only needs the binary.
+    if shutil.which("quarto") is None:
+        return {
+            "ok": False,
+            "error": ("quarto not found on PATH — install Quarto (https://quarto.org) "
+                      "and re-run; refusing to attempt a render without it"),
+        }
     violation = _engine_charts_violation(workdir)
     if violation is not None:
         return {"ok": False, "error": violation}
@@ -927,11 +967,7 @@ def render_report(source: str, formats: list[str] | None = None, project: str | 
     release_seal = None
     if release_manifest_err is None and release_manifest is not None:
         try:
-            release_seal = _release_inputs(workdir, release_manifest, {
-                "quarto": _quarto_version(),
-                "python": sys.version.split()[0],
-                "reportforge": _REPORTFORGE_VERSION,
-            })
+            release_seal = _release_inputs(workdir, release_manifest, _toolchain_stamp())
         except OSError:
             release_seal = None
 
@@ -1078,11 +1114,7 @@ def render_report(source: str, formats: list[str] | None = None, project: str | 
             # produced these bytes. Lives in state (artifacts), never the
             # manifest (§1.3). A stamp failure fails loudly — silently
             # omitting it would fake reproducibility.
-            "toolchain": {
-                "quarto": _quarto_version(),
-                "python": sys.version.split()[0],
-                "reportforge": _REPORTFORGE_VERSION,
-            },
+            "toolchain": _toolchain_stamp(),
         }
         if state["toolchain"]["quarto"] is None:
             return {
