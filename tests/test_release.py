@@ -40,7 +40,7 @@ def _release(project: Path) -> dict:
 def test_separate_renders_share_one_release_id(tmp_path, monkeypatch):
     """C-4: html then pdf in separate calls seal the SAME snapshot."""
     project = _scaffold(monkeypatch, tmp_path)
-    monkeypatch.setattr(engine.subprocess, "run", _fake_run_factory(project))
+    monkeypatch.setattr(subprocess, "run", _fake_run_factory(project))
     assert engine.render_report(str(project), formats=["html"])["ok"] is True
     first = _release(project)
     assert engine.render_report(str(project), formats=["pdf"])["ok"] is True
@@ -54,7 +54,7 @@ def test_separate_renders_share_one_release_id(tmp_path, monkeypatch):
 def test_qmd_change_between_renders_fails_loudly(tmp_path, monkeypatch):
     """C-4: a changed index.qmd between format renders refuses to mix."""
     project = _scaffold(monkeypatch, tmp_path)
-    monkeypatch.setattr(engine.subprocess, "run", _fake_run_factory(project))
+    monkeypatch.setattr(subprocess, "run", _fake_run_factory(project))
     assert engine.render_report(str(project), formats=["html"])["ok"] is True
     qmd = project / "index.qmd"
     qmd.write_text(qmd.read_text() + "\n<!-- late edit -->\n")
@@ -65,7 +65,7 @@ def test_qmd_change_between_renders_fails_loudly(tmp_path, monkeypatch):
 
 def test_rerender_same_format_reseals(tmp_path, monkeypatch):
     project = _scaffold(monkeypatch, tmp_path)
-    monkeypatch.setattr(engine.subprocess, "run", _fake_run_factory(project))
+    monkeypatch.setattr(subprocess, "run", _fake_run_factory(project))
     assert engine.render_report(str(project), formats=["html"])["ok"] is True
     first = _release(project)
     assert engine.render_report(str(project), formats=["html"])["ok"] is True
@@ -76,7 +76,7 @@ def test_rerender_same_format_reseals(tmp_path, monkeypatch):
 
 def test_freeze_release_verifies_and_detects_drift(tmp_path, monkeypatch):
     project = _scaffold(monkeypatch, tmp_path)
-    monkeypatch.setattr(engine.subprocess, "run", _fake_run_factory(project))
+    monkeypatch.setattr(subprocess, "run", _fake_run_factory(project))
     engine.render_report(str(project), formats=["html", "pdf"])
     frozen = engine.freeze_release("rel-probe")
     assert frozen["ok"] is True and frozen["verified"] is True
@@ -98,7 +98,7 @@ def _approve(project: Path) -> None:
 def test_export_embeds_release_and_warns_when_absent(tmp_path, monkeypatch):
     """C-4: bundles carry release.json; pre-C reports warn, not fail."""
     project = _scaffold(monkeypatch, tmp_path, slug="rel-export")
-    monkeypatch.setattr(engine.subprocess, "run", _fake_run_factory(project))
+    monkeypatch.setattr(subprocess, "run", _fake_run_factory(project))
     engine.render_report(str(project), formats=["html", "pdf"])
     _approve(project)
     dest = tmp_path / "bundles"

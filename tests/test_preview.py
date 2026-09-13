@@ -93,7 +93,7 @@ def test_render_preview_missing_manifest_auto_imports(
     out = project / "output"
     out.mkdir(parents=True, exist_ok=True)
     (out / "index.pdf").write_bytes(b"%PDF-fake")
-    monkeypatch.setattr(engine.subprocess, "run", _fake_pdftoppm())
+    monkeypatch.setattr(subprocess, "run", _fake_pdftoppm())
     result = engine.render_preview("preview-nomanifest")
     assert result["ok"] is True, result.get("error")
     assert json.loads((project / "report.json").read_text())["revision"] == 1
@@ -115,7 +115,7 @@ def test_render_preview_requires_rendered_pdf(
     rendered_project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     (rendered_project / "output" / "index.pdf").unlink()
-    monkeypatch.setattr(engine.subprocess, "run", _fake_pdftoppm())
+    monkeypatch.setattr(subprocess, "run", _fake_pdftoppm())
     result = engine.render_preview("preview-fixture")
     assert result["ok"] is False
     assert "pdf" in result["error"].lower()
@@ -133,7 +133,7 @@ def test_render_preview_missing_pdftoppm_is_loud(
 def test_render_preview_produces_contact_sheet_page_and_exhibit_pngs(
     rendered_project: Path, isolated_reports: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(engine.subprocess, "run", _fake_pdftoppm())
+    monkeypatch.setattr(subprocess, "run", _fake_pdftoppm())
     result = engine.render_preview("preview-fixture")
 
     assert result["ok"] is True, result.get("error")
@@ -160,7 +160,7 @@ def test_render_preview_produces_contact_sheet_page_and_exhibit_pngs(
 def test_render_preview_binds_revision_and_no_host_paths(
     rendered_project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(engine.subprocess, "run", _fake_pdftoppm())
+    monkeypatch.setattr(subprocess, "run", _fake_pdftoppm())
     result = engine.render_preview("preview-fixture")
 
     assert result["report_id"] == "preview-fixture"
@@ -178,7 +178,7 @@ def test_render_preview_binds_revision_and_no_host_paths(
 def test_render_preview_rejects_stale_revision(
     rendered_project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(engine.subprocess, "run", _fake_pdftoppm())
+    monkeypatch.setattr(subprocess, "run", _fake_pdftoppm())
     result = engine.render_preview("preview-fixture", revision=99)
     assert result["ok"] is False
     assert "revision" in result["error"].lower()
@@ -216,7 +216,7 @@ def test_render_preview_refuses_stale_pdf(
     manifest_mod.bump(m, "content edit", actor="test")
     manifest_mod.save(m, str(rendered_project))
     _write_render_state(rendered_project, 1)
-    monkeypatch.setattr(engine.subprocess, "run", _fake_pdftoppm())
+    monkeypatch.setattr(subprocess, "run", _fake_pdftoppm())
     result = engine.render_preview("preview-fixture")
     assert result["ok"] is False
     assert "render" in result["error"].lower()
@@ -229,7 +229,7 @@ def test_render_preview_stamped_pdf_binds_revision(
     rendered_project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _write_render_state(rendered_project, 1)
-    monkeypatch.setattr(engine.subprocess, "run", _fake_pdftoppm())
+    monkeypatch.setattr(subprocess, "run", _fake_pdftoppm())
     result = engine.render_preview("preview-fixture")
     assert result["ok"] is True, result.get("error")
     assert result["pdf_rendered_at_revision"] == 1
@@ -242,7 +242,7 @@ def test_render_preview_unstamped_pdf_warns(
     rendered_project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     assert not (rendered_project / ".reportforge-state.json").exists()
-    monkeypatch.setattr(engine.subprocess, "run", _fake_pdftoppm())
+    monkeypatch.setattr(subprocess, "run", _fake_pdftoppm())
     result = engine.render_preview("preview-fixture")
     assert result["ok"] is True, result.get("error")
     assert result["pdf_rendered_at_revision"] is None
@@ -264,7 +264,7 @@ def test_render_preview_refuses_registry_stale_pdf(
              "manifest_revision": m.revision, "registry_version": 0,
              "formats": ["pdf"], "outputs": ["index.pdf"],
              "source": "index.qmd"}))
-    monkeypatch.setattr(engine.subprocess, "run", _fake_pdftoppm())
+    monkeypatch.setattr(subprocess, "run", _fake_pdftoppm())
     result = engine.render_preview("preview-fixture")
     assert result["ok"] is False
     assert "registry" in result["error"]
@@ -278,7 +278,7 @@ def test_render_preview_unstamped_registry_warns(
     # Finding 6: stamped revision but no registry stamp (hand-edited or
     # pre-binding state) warns symmetrically instead of skipping silently.
     _write_render_state(rendered_project, 1)
-    monkeypatch.setattr(engine.subprocess, "run", _fake_pdftoppm())
+    monkeypatch.setattr(subprocess, "run", _fake_pdftoppm())
     result = engine.render_preview("preview-fixture")
     assert result["ok"] is True, result.get("error")
     assert any("registry" in w for w in result["warnings"])
@@ -304,7 +304,7 @@ def _fake_pdftoppm_single_page() -> object:
 def test_render_preview_single_page_fallback(
     rendered_project: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(engine.subprocess, "run", _fake_pdftoppm_single_page())
+    monkeypatch.setattr(subprocess, "run", _fake_pdftoppm_single_page())
     result = engine.render_preview("preview-fixture")
     assert result["ok"] is True, result.get("error")
     assert result["page_count"] == 1

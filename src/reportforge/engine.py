@@ -10,7 +10,6 @@ import json
 import os
 import re
 import shutil
-import subprocess
 import sys
 import tempfile
 import time
@@ -25,6 +24,13 @@ from jinja2 import Template
 from reportforge import manifest as manifest_mod
 from reportforge import __version__ as _REPORTFORGE_VERSION
 from reportforge import templates
+from reportforge.renderer import errors as _rerrors
+from reportforge.renderer import interpreters as _rinterpreters
+from reportforge.renderer import lint as _rlint
+from reportforge.renderer import poppler as _rpoppler
+from reportforge.renderer import probe as _rprobe
+from reportforge.renderer import quarto as _rquarto
+from reportforge.renderer import toolchain as _rtoolchain
 
 REPORTS_DIR = Path(
     os.environ.get(
@@ -33,6 +39,7 @@ REPORTS_DIR = Path(
     )
 ).expanduser()
 QUARTO_TIMEOUT_S = 900
+CHROMIUM_PRINT_TIMEOUT_S = _rquarto.CHROMIUM_PRINT_TIMEOUT_S
 # pdf-web is not a Quarto format: it post-processes the rendered html with
 # headless Chromium (print-to-pdf) so JS-rendered/plotly visuals survive.
 PUBLIC_FORMATS = ("html", "pdf", "docx", "pdf-web")
@@ -672,32 +679,12 @@ def template_version() -> str:
 
 def _quarto_version() -> str | None:
     """Best-effort `quarto --version`; None when quarto is absent/broken."""
-    if shutil.which("quarto") is None:
-        return None
-    try:
-        proc = subprocess.run(
-            ["quarto", "--version"], capture_output=True, text=True,
-            timeout=30)
-    except (OSError, subprocess.TimeoutExpired):
-        return None
-    if proc.returncode != 0:
-        return None
-    first = (proc.stdout or "").strip().splitlines()
-    return first[0].strip() if first else None
+    return _rtoolchain.quarto_version()
 
 
 def _tool_version(cmd: list[str]) -> str | None:
-    """First output line of `cmd --version`-style probe; None when absent.
-
-    Ignores the exit code: poppler tools print their version to stderr and
-    exit nonzero on `-v`.
-    """
-    try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
-    except (OSError, subprocess.TimeoutExpired):
-        return None
-    lines = ((proc.stdout or "") + (proc.stderr or "")).strip().splitlines()
-    return lines[0].strip() if lines else None
+    """First output line of a version probe; None when absent."""
+    return _rtoolchain.tool_version(cmd)
 
 
 def _toolchain_stamp() -> dict:
@@ -788,13 +775,8 @@ def open_report(project: str) -> dict:
 
 
 def _venv_python() -> Path | None:
-    candidates: list[Path] = []
-    if configured := os.environ.get("REPORTFORGE_PYTHON"):
-        candidates.append(Path(configured).expanduser())
-    if sys.prefix != sys.base_prefix:
-        candidates.append(Path(sys.executable))
-    candidates.append(Path(__file__).resolve().parents[2] / ".venv" / "bin" / "python")
-    return next((candidate for candidate in candidates if candidate.is_file()), None)
+    """REPORTFORGE_PYTHON > active venv > repo .venv; None when absent."""
+    return _rtoolchain.venv_python()
 
 
 # --- Milestone C Task C-4: release snapshot ---------------------------------
@@ -866,18 +848,9 @@ def _public_format_name(fmt: str) -> str:
 
 
 def _ensure_reportforge_kernel() -> str:
-    venv_python = _venv_python()
-    if not venv_python:
-        return "python3"
-    try:
-        result = subprocess.run(
-            [str(venv_python), "-m", "ipykernel", "install", "--user", "--name", "reportforge", "--display-name", "reportforge"],
-            capture_output=True,
-            timeout=120,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return "python3"
-    return "reportforge" if result.returncode == 0 else "python3"
+    """Install the reportforge jupyter kernel; 'python3' fallback (reported
+    via scaffold's jupyter_kernel field)."""
+    return _rinterpreters.ensure_kernel(_venv_python())
 
 
 def render_report(source: str, formats: list[str] | None = None, project: str | None = None) -> dict:
@@ -993,15 +966,13 @@ def render_report(source: str, formats: list[str] | None = None, project: str | 
                 }
         cmd = ["quarto", "render", str(src), "--to", fmt]
         try:
-            proc = subprocess.run(
+            proc = _rquarto.run_quarto(
                 cmd,
-                cwd=str(workdir),
-                capture_output=True,
-                text=True,
+                cwd=workdir,
                 timeout=QUARTO_TIMEOUT_S,
                 env=env,
             )
-        except subprocess.TimeoutExpired:
+        except _rerrors.ToolTimeoutError:
             return {"ok": False, "error": f"quarto render ({fmt}) timed out after {QUARTO_TIMEOUT_S}s"}
         full_log = proc.stdout + proc.stderr
         # WS-3: persist the full render log — Typst/PDF failures are the #1
@@ -1089,6 +1060,7 @@ def render_report(source: str, formats: list[str] | None = None, project: str | 
                         "outputs": sorted(rendered_outputs)}
 
     # WS-3: machine-readable project state for reportforge_project_status.
+    state: dict = {}
     try:
         try:
             rendered_manifest = manifest_mod.load(str(workdir))
@@ -1132,6 +1104,11 @@ def render_report(source: str, formats: list[str] | None = None, project: str | 
         "outputs": sorted(rendered_outputs),
         "log_tail": "\n".join(tails)[-RENDER_LOG_TAIL_CHARS:],
     }
+    # Phase 1 probe: WARN-ONLY until per-family version ranges are evidenced
+    # by a snapshot cycle (plan §5 — no new render failure mode on day one).
+    warnings = _rprobe.render_probe(state["toolchain"]) if state else []
+    if warnings:
+        result["toolchain_warnings"] = warnings
     if pdf_web_note:
         result["pdf_web_note"] = pdf_web_note
     return result
@@ -1631,14 +1608,12 @@ def run_code(code: str, project: str | None = None, timeout: int = 300) -> dict:
         before = {}
     started = time.monotonic()
     try:
-        proc = subprocess.run(
+        proc = _rinterpreters.run(
             [str(interpreter), "-c", code],
             cwd=cwd,
-            capture_output=True,
-            text=True,
             timeout=timeout,
         )
-    except subprocess.TimeoutExpired:
+    except _rerrors.ToolTimeoutError:
         return {"ok": False, "error": f"run_code timed out after {timeout}s"}
     except OSError as exc:
         return {"ok": False, "error": f"interpreter launch failed: {exc}"}
@@ -1700,8 +1675,8 @@ def run_file(path: str, project: str, args: list[str] | None = None, timeout: in
     before = _snapshot_project(root)
     started = time.monotonic()
     try:
-        proc = subprocess.run(cmd, cwd=str(root), capture_output=True, text=True, timeout=timeout)
-    except subprocess.TimeoutExpired:
+        proc = _rinterpreters.run(cmd, cwd=str(root), timeout=timeout)
+    except _rerrors.ToolTimeoutError:
         return {"ok": False, "error": f"run_file timed out after {timeout}s"}
     except OSError as exc:
         return {"ok": False, "error": f"script launch failed: {exc}"}
@@ -3327,15 +3302,9 @@ def _run_figure_lint(root: Path) -> str | None:
     if not script.is_file():
         return None
     try:
-        run = subprocess.run(
-            [sys.executable, str(script), str(root)],
-            capture_output=True, text=True, timeout=120)
-    except (subprocess.TimeoutExpired, OSError):
+        return _rlint.figure_lint(script, root)
+    except _rerrors.ToolTimeoutError:
         return None
-    if run.returncode == 0:
-        return None
-    out = (run.stdout + "\n" + run.stderr).strip()
-    return out[-800:] if out else "figure_lint failed with no output"
 
 
 def _readiness_editorial(manifest) -> list[dict]:
@@ -4508,15 +4477,10 @@ def render_preview(project: str, revision: int | None = None) -> dict:
     pages_dir = previews_dir / "pages"
     try:
         pages_dir.mkdir(parents=True, exist_ok=True)
-        run = subprocess.run(  # noqa: S603 fixed binary, fixed args
-            [pdftoppm, "-png", "-r", "110", "-scale-to", "1400", pdf, str(pages_dir / "page")],
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
+        run = _rpoppler.raster_pages(pdftoppm, pdf, pages_dir)
         if run.returncode != 0:
             return {"ok": False, "error": f"pdftoppm page raster failed: {run.stderr.strip()}"}
-    except subprocess.TimeoutExpired:
+    except _rerrors.ToolTimeoutError:
         return {"ok": False, "error": "pdftoppm page raster timed out (120s)"}
     except OSError as exc:
         return {"ok": False, "error": f"pdftoppm page raster failed: {exc}"}
@@ -4574,27 +4538,7 @@ def render_preview(project: str, revision: int | None = None) -> dict:
 
 def _pdf_page_count(pdf: Path) -> int:
     """Page count via pdfinfo (poppler); -1 when unavailable/unreadable."""
-    pdfinfo = shutil.which("pdfinfo")
-    if not pdfinfo:
-        return -1
-    try:
-        run = subprocess.run(  # noqa: S603 fixed binary, fixed args
-            [pdfinfo, str(pdf)],
-            capture_output=True,
-            text=True,
-            timeout=60,
-        )
-    except (subprocess.TimeoutExpired, OSError):
-        return -1
-    if run.returncode != 0:
-        return -1
-    for line in run.stdout.splitlines():
-        if line.startswith("Pages:"):
-            try:
-                return int(line.split(":", 1)[1].strip())
-            except ValueError:
-                return -1
-    return -1
+    return _rpoppler.page_count(pdf)
 
 
 def _page_sort_key(p: Path) -> tuple[int, ...]:
@@ -4675,13 +4619,7 @@ def _file_descriptor(root: Path, relpath: str, artifact_id: str, role: str, mime
 # --- WS-5: pdf-web (headless Chromium print of the html render) --------------
 
 def _chromium_binary() -> str | None:
-    if configured := os.environ.get("REPORTFORGE_CHROMIUM"):
-        candidate = Path(configured).expanduser()
-        return str(candidate) if candidate.is_file() else None
-    for name in ("chromium", "chromium-browser", "google-chrome", "google-chrome-stable"):
-        if found := shutil.which(name):
-            return found
-    return None
+    return _rtoolchain.chromium_binary()
 
 
 def _render_pdf_web(workdir: Path, html_path: Path, out_dir: Path, stem: str) -> dict:
@@ -4696,23 +4634,11 @@ def _render_pdf_web(workdir: Path, html_path: Path, out_dir: Path, stem: str) ->
     # web-print variant so both can coexist.
     if pdf_out.exists():
         pdf_out = out_dir / f"{stem}-web.pdf"
-    cmd = [
-        chromium,
-        "--headless=new",
-        "--no-sandbox",
-        "--disable-gpu",
-        "--no-pdf-header-footer",
-        # Let JS/plotly visuals settle before the print snapshot: without a
-        # virtual-time budget, heavy pages print before charts finish drawing
-        # and the PDF ships blank figure areas.
-        "--virtual-time-budget=15000",
-        f"--print-to-pdf={pdf_out}",
-        html_path.as_uri(),
-    ]
+    cmd = _rquarto.build_print_cmd(chromium, html_path, pdf_out)
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=QUARTO_TIMEOUT_S)
-    except subprocess.TimeoutExpired:
-        return {"ok": False, "error": f"chromium print-to-pdf timed out after {QUARTO_TIMEOUT_S}s"}
+        proc = _rquarto.print_pdf(cmd, timeout=CHROMIUM_PRINT_TIMEOUT_S)
+    except _rerrors.ToolTimeoutError:
+        return {"ok": False, "error": f"chromium print-to-pdf timed out after {CHROMIUM_PRINT_TIMEOUT_S}s"}
     if proc.returncode != 0 or not pdf_out.is_file():
         tail = "\n".join((proc.stdout + proc.stderr).splitlines()[-15:])
         return {"ok": False, "error": "chromium print-to-pdf failed", "log_tail": tail}
@@ -4997,14 +4923,5 @@ def _scenario_yaml(scenarios: list[dict[str, str]]) -> str:
 
 
 def _default_reference_docx() -> Path | None:
-    pandoc = shutil.which("pandoc")
-    cache = Path(__file__).resolve().parents[2] / "assets_cache"
-    cache.mkdir(exist_ok=True)
-    target = cache / "reference-doc.docx"
-    if not target.exists() and pandoc:
-        subprocess.run(
-            [pandoc, "-o", str(target), "--print-default-data-file", "reference.docx"],
-            capture_output=True,
-            timeout=60,
-        )
-    return target if target.exists() else None
+    """Bootstrap a pandoc reference.docx into the repo cache (best effort)."""
+    return _rtoolchain.default_reference_docx()

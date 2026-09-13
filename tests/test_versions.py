@@ -47,7 +47,7 @@ def test_render_stamps_toolchain_in_state(tmp_path, monkeypatch):
         out.write_text("<html></html>")
         return subprocess.CompletedProcess(command, 0, "rendered", "")
 
-    monkeypatch.setattr(engine.subprocess, "run", fake_run)
+    monkeypatch.setattr(subprocess, "run", fake_run)
     out = engine.render_report(str(project), formats=["html"])
     assert out["ok"] is True
     state = json.loads((project / ".reportforge-state.json").read_text())

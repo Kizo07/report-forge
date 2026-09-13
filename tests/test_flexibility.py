@@ -312,7 +312,7 @@ def test_project_status_reports_files_formats_and_state(
         out.write_text("<html>ok</html>")
         return subprocess.CompletedProcess(command, 0, "rendered", "")
 
-    monkeypatch.setattr(engine.subprocess, "run", fake_run)
+    monkeypatch.setattr(subprocess, "run", fake_run)
     rendered = engine.render_report(scaffold["source"], formats=["html"])
     assert rendered["ok"] is True
 
@@ -336,7 +336,7 @@ def test_render_persists_full_log_on_failure(
     def fake_run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
         return subprocess.CompletedProcess(command, 1, "", "FATAL: kernel exploded")
 
-    monkeypatch.setattr(engine.subprocess, "run", fake_run)
+    monkeypatch.setattr(subprocess, "run", fake_run)
     result = engine.render_report(scaffold["source"], formats=["html"])
     assert result["ok"] is False
     assert "render_log" in result
@@ -402,7 +402,7 @@ def test_render_pdf_web_prints_html_via_chromium(
         Path(pdf_target).write_bytes(b"%PDF-1.4 fake")
         return subprocess.CompletedProcess(command, 0, "", "")
 
-    monkeypatch.setattr(engine.subprocess, "run", fake_run)
+    monkeypatch.setattr(subprocess, "run", fake_run)
     monkeypatch.setattr(engine, "_chromium_binary", lambda: "/fake/chromium")
 
     result = engine.render_report(scaffold["source"], formats=["pdf-web"])
@@ -425,7 +425,7 @@ def test_render_pdf_web_without_chromium_fails_cleanly(
         out.write_text("<html>page</html>")
         return subprocess.CompletedProcess(command, 0, "rendered", "")
 
-    monkeypatch.setattr(engine.subprocess, "run", fake_run)
+    monkeypatch.setattr(subprocess, "run", fake_run)
     monkeypatch.setattr(engine, "_chromium_binary", lambda: None)
 
     result = engine.render_report(scaffold["source"], formats=["pdf-web"])
@@ -455,7 +455,7 @@ def test_pdf_web_suffix_when_typst_pdf_exists(
         Path(pdf_target).write_bytes(b"%PDF chromium")
         return subprocess.CompletedProcess(command, 0, "", "")
 
-    monkeypatch.setattr(engine.subprocess, "run", fake_run)
+    monkeypatch.setattr(subprocess, "run", fake_run)
     monkeypatch.setattr(engine, "_chromium_binary", lambda: "/fake/chromium")
 
     result = engine.render_report(scaffold["source"], formats=["html", "pdf", "pdf-web"])

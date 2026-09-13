@@ -149,7 +149,7 @@ def test_render_directory_resolves_project_and_returns_created_output(
         output.write_text("<html><body>created</body></html>")
         return subprocess.CompletedProcess(command, 0, "rendered", "")
 
-    monkeypatch.setattr(engine.subprocess, "run", fake_run)
+    monkeypatch.setattr(subprocess, "run", fake_run)
 
     result = engine.render_report(str(project), formats=["html"])
 
@@ -186,7 +186,7 @@ def test_render_returns_only_outputs_requested_in_current_run(
         (output_dir / "index.html").write_text("<html><body>fresh</body></html>")
         return subprocess.CompletedProcess(command, 0, "rendered", "")
 
-    monkeypatch.setattr(engine.subprocess, "run", fake_run)
+    monkeypatch.setattr(subprocess, "run", fake_run)
 
     result = engine.render_report(scaffold["source"], formats=["html"])
 
