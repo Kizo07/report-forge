@@ -15,16 +15,17 @@ from reportforge import manifest as M
 
 
 def _expected_template_version() -> str:
-    """Independent recomputation over the asset tree (mirrors
-    templates.content_hash; kept separate so the test can disagree)."""
+    """Independent recomputation: derive from SPEC + DOMAIN_SLUGS (the
+    declared mapping) rather than re-walking the tree, so a systematic
+    error in content_hash's traversal cannot hide (milestone B review 5)."""
     assets = Path(reportforge_templates.__file__).parent / "_assets"
+    rels = list(reportforge_templates.SPEC.values())
+    rels += [f"domains/{slug}.qmd" for slug in reportforge_templates.DOMAIN_SLUGS.values()]
     h = hashlib.sha256()
-    for p in sorted(assets.rglob("*")):
-        if not p.is_file():
-            continue
-        h.update(p.relative_to(assets).as_posix().encode())
+    for rel in sorted(rels):
+        h.update(rel.encode())
         h.update(b"\x00")
-        h.update(p.read_bytes())
+        h.update((assets / rel).read_bytes())
         h.update(b"\x00")
     return h.hexdigest()[:12]
 

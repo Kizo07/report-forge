@@ -97,11 +97,16 @@ LIGHT_MAP = [
 # after token maps the derived file still says "portfolio {dark,light}
 # palette" — replace the whole header line with the ledger one (the exact
 # wording the pre-refactor generator produced, kept byte-stable).
+# Keyed (dst_family, filename) and asserted loud: a portfolio header
+# rewording must BREAK the generator, not silently keep a stale header
+# (milestone B review, finding 6).
 HEADER_FIXUPS = {
-    "typst-template.typ": [
+    ("ledger-dark", "typst-template.typ"): [
         ('// report-forge "ledger-dark" — studio structure, portfolio dark palette',
          '// report-forge "ledger-dark" — studio structure, Cyan Ledger midnight palette '
          "(derived; see scripts/derive_ledger_templates.py)"),
+    ],
+    ("ledger-light", "typst-template.typ"): [
         ('// report-forge "ledger-light" — studio structure, portfolio light palette',
          '// report-forge "ledger-light" — studio structure, Cyan Ledger ice palette '
          "(derived; see scripts/derive_ledger_templates.py)"),
@@ -121,9 +126,13 @@ def derive(src: str, mapping: list[tuple[str, str]]) -> str:
 def derive_file(src_family: str, dst_family: str, name: str) -> str:
     mapping = DARK_MAP if src_family.endswith("dark") else LIGHT_MAP
     derived = derive((ASSETS / src_family / name).read_text(encoding="utf-8"), mapping)
-    for old, new in HEADER_FIXUPS.get(name, []):
-        if old in derived:
-            derived = derived.replace(old, new, 1)
+    for old, new in HEADER_FIXUPS.get((dst_family, name), []):
+        if old not in derived:
+            raise AssertionError(
+                f"header fixup pattern no longer matches {src_family}/{name}: "
+                f"the portfolio header was reworded — update HEADER_FIXUPS"
+            )
+        derived = derived.replace(old, new, 1)
     return derived
 
 

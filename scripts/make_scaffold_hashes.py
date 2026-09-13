@@ -1,18 +1,24 @@
 #!/usr/bin/env python3
 """Scaffold-tree baselines for template-parity gating (robustness refactor
-plan, Phase 2.5). Scaffolds one minimal project per template family in an
-isolated temp REPORTS_DIR and records a sha256 over every produced file:
+plan, Phase 2.5). Scaffolds one minimal project per registered template
+(10 scaffold families + 9 domain bodies) in an isolated temp REPORTS_DIR
+and records canonical hashes of every produced file:
 
-    tests/scaffold_hashes/<family>.json   {relpath: sha256}
+    tests/scaffold_hashes/<template>.json   {relpath: sha256}
 
-This is the HTML-side backstop the PDF-ink parity gate cannot see (html
-header, styles.scss, brand.yml all land here). Regenerate after a
-DELIBERATE template change:
-    .venv/bin/python scripts/make_scaffold_hashes.py [--only fam1,fam2]
+Hashing lives in the templates package (`templates.scaffold_tree_hash`):
+report.json is projected without wall-clock timestamps, and scaffold
+dates in .qmd/.html text are normalized so baselines do not expire at
+midnight (Milestone B review, finding 1).
+
+The generator pins the kernel/reference-doc environment exactly like the
+parity-test fixture, so baselines are machine-independent (finding 3).
+
+Regenerate after a DELIBERATE template change:
+    .venv/bin/python scripts/make_scaffold_hashes.py [--only tpl1,tpl2]
 """
 
 import argparse
-import hashlib
 import json
 import os
 import shutil
@@ -28,59 +34,41 @@ _BASELINE_TMP = tempfile.mkdtemp(prefix="rf-scaffold-hashes-")
 os.environ["REPORTFORGE_REPORTS_DIR"] = _BASELINE_TMP
 
 from reportforge import engine  # noqa: E402
+from reportforge import templates  # noqa: E402
 
 FAMILIES = [
     "standard", "memo", "whitepaper", "modern", "studio",
     "portfolio-light", "portfolio-dark", "ledger-light", "ledger-dark",
     "bespoke",
 ]
+DOMAIN_SLUGS = sorted(templates.DOMAIN_SLUGS.values())
 OUT_DIR = REPO / "tests" / "scaffold_hashes"
-
-# report.json embeds wall-clock timestamps (created/updated/revision_log);
-# hash a normalized projection so the gate catches CONTENT drift only.
-VOLATILE_MANIFEST_KEYS = {"created", "updated", "revision_log"}
-
-
-def canonical_hash(path: Path) -> str:
-    if path.name == "report.json":
-        data = json.loads(path.read_text(encoding="utf-8"))
-        for key in VOLATILE_MANIFEST_KEYS:
-            data.pop(key, None)
-        return hashlib.sha256(
-            json.dumps(data, sort_keys=True).encode("utf-8")).hexdigest()
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
-def tree_hash(root: Path) -> dict[str, str]:
-    hashes: dict[str, str] = {}
-    for p in sorted(root.rglob("*")):
-        if p.is_file():
-            rel = p.relative_to(root).as_posix()
-            hashes[rel] = canonical_hash(p)
-    return hashes
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--only", help="comma-separated subset of families")
+    parser.add_argument("--only", help="comma-separated subset of templates")
     args = parser.parse_args()
-    families = args.only.split(",") if args.only else FAMILIES
+    templates_to_hash = args.only.split(",") if args.only else FAMILIES + DOMAIN_SLUGS
+
+    # Pin the environment exactly like tests/test_scaffold_parity.py's
+    # fixture, so baselines do not bake in machine-specific kernel or
+    # reference-doc state (Milestone B review, finding 3).
+    engine._ensure_reportforge_kernel = lambda: "reportforge"
+    engine._default_reference_docx = lambda: None
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     reports_dir = Path(_BASELINE_TMP)
     try:
-        for family in families:
-            slug = f"baseline-{family}"
-            result = engine.scaffold_report(slug, template=family, formats=["html"])
+        for template in templates_to_hash:
+            slug = f"baseline-{template}"
+            result = engine.scaffold_report(slug, template=template, formats=["html"])
             if not result.get("ok"):
-                raise SystemExit(f"{family}: scaffold failed: {result.get('error')}")
-            hashes = tree_hash(reports_dir / slug)
-            # toolchain-independent: scaffold output must not vary with the
-            # environment, so no toolchain block here — if it does vary,
-            # that is exactly what this gate exists to catch.
-            (OUT_DIR / f"{family}.json").write_text(
+                raise SystemExit(f"{template}: scaffold failed: {result.get('error')}")
+            hashes = templates.scaffold_tree_hash(reports_dir / slug)
+            (OUT_DIR / f"{template}.json").write_text(
                 json.dumps(hashes, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-            print(f"[{family}] {len(hashes)} files hashed")
+            print(f"[{template}] {len(hashes)} files hashed")
     finally:
         shutil.rmtree(reports_dir, ignore_errors=True)
     return 0

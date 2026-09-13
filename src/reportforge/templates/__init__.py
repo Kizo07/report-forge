@@ -13,6 +13,7 @@ RF_PARITY render gate.
 from __future__ import annotations
 
 import hashlib
+import json
 from pathlib import Path
 
 ASSETS_DIR = Path(__file__).resolve().parent / "_assets"
@@ -101,3 +102,44 @@ def content_hash() -> str:
         h.update(p.read_bytes())
         h.update(b"\x00")
     return h.hexdigest()[:12]
+
+
+# --- scaffold-output parity hashing (robustness plan Phase 2.5) -------------
+
+# report.json embeds wall-clock timestamps; scaffolded text files embed the
+# scaffold date (frontmatter `date: "…"` and studio header `<time>…</time>`).
+# The parity gate must catch CONTENT drift, not creation time.
+VOLATILE_MANIFEST_KEYS = ("created", "updated", "revision_log")
+
+def _normalize_scaffold_text(text: str) -> str:
+    import re
+
+    text = re.sub(
+        r'^date: "?\d{4}-\d{2}-\d{2}"?$', "date: <SCAFFOLD-DATE>",
+        text, flags=re.MULTILINE)
+    text = re.sub(
+        r"<time>[^<]*</time>", "<time><SCAFFOLD-DATE></time>", text)
+    return text
+
+
+def canonical_file_hash(path: Path) -> str:
+    """Hash one scaffolded file with wall-clock noise normalized away."""
+    if path.name == "report.json":
+        data = json.loads(path.read_text(encoding="utf-8"))
+        for key in VOLATILE_MANIFEST_KEYS:
+            data.pop(key, None)
+        return hashlib.sha256(
+            json.dumps(data, sort_keys=True).encode("utf-8")).hexdigest()
+    if path.suffix in (".qmd", ".html", ".yml", ".scss", ".typ"):
+        normalized = _normalize_scaffold_text(path.read_text(encoding="utf-8"))
+        return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def scaffold_tree_hash(root: Path) -> dict[str, str]:
+    """{relpath: canonical hash} for every file scaffolded under root."""
+    hashes: dict[str, str] = {}
+    for p in sorted(root.rglob("*")):
+        if p.is_file():
+            hashes[p.relative_to(root).as_posix()] = canonical_file_hash(p)
+    return hashes

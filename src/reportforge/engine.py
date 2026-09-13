@@ -560,7 +560,7 @@ def scaffold_report(
         }
         # Typed research bodies (earnings recap, outlooks, briefs, ...)
         # share the same pipeline; only the starter .qmd differs.
-        body_tpl.update(getattr(templates, "DOMAIN_BODY_TEMPLATES", {}))
+        body_tpl.update(templates.DOMAIN_BODY_TEMPLATES)
         body_tpl = body_tpl[template]
     (root / "_brand.yml").write_text(brand_tpl)
     styles = templates.STYLES_SCSS + styles_extra
