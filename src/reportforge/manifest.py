@@ -18,7 +18,7 @@ import tempfile
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 MANIFEST_FILENAME = "report.json"
 QMD_FILENAME = "index.qmd"
 
@@ -154,6 +154,9 @@ class Manifest:
     # Milestone C task C-5 (schema 4): what this report was rolled from
     # ({report, release_id, period, as_of}); empty for fresh scaffolds.
     supersedes: dict = field(default_factory=dict)
+    # Schema 5: the normalized report_brief (schema `report_brief` v1) that
+    # commissioned this report; {} for kwargs-scaffolded or imported ones.
+    report_brief: dict = field(default_factory=dict)
     schema_version: int = SCHEMA_VERSION
 
     def to_dict(self) -> dict:
@@ -506,7 +509,8 @@ def _title_from_qmd(qmd_text: str, fallback: str) -> str:
 def create(root: str, title: str, brief: str = "", profile: dict | None = None,
            formats: list | None = None, sections: list | None = None,
            actor: str = "tool:scaffold", overwrite: bool = False,
-           template_version: str = "") -> Manifest:
+           template_version: str = "",
+           report_brief: dict | None = None) -> Manifest:
     """Build a fresh revision-1 draft manifest and save it.
 
     Refuses to clobber an existing manifest unless ``overwrite=True`` —
@@ -538,6 +542,7 @@ def create(root: str, title: str, brief: str = "", profile: dict | None = None,
         report_id=os.path.basename(os.path.abspath(root)),
         title=title,
         brief=brief,
+        report_brief=report_brief or {},
         profile=profile,
         revision=1,
         state="draft",

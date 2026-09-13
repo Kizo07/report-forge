@@ -950,6 +950,7 @@ _BUNDLE_FORMATS = ("html", "pdf", "docx")
 
 MCP_TOOL_NAMES_FALLBACK = [
     "reportforge_list_templates", "reportforge_scaffold_report",
+    "reportforge_scaffold_from_brief",
     "reportforge_render_report", "reportforge_save_chart",
     "reportforge_write_report_body", "reportforge_publish_report",
     "reportforge_run_code", "reportforge_run_file",

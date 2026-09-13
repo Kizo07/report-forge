@@ -243,6 +243,32 @@ def reportforge_scaffold_report(
 
 
 @mcp.tool
+def reportforge_scaffold_from_brief(brief: dict[str, Any]) -> dict[str, Any]:
+    """Create a new report project from a structured report brief (schema
+    `report_brief` v1 — see docs/report-brief-v1.md).
+
+    The brief is the structured commissioning document: one validated dict
+    (project slug, template, formats, cover fields, engine flags) instead
+    of ~20 loose arguments. Validation is strict — unknown keys and wrong
+    versions are rejected with ALL problems listed in `errors`. The
+    normalized brief is recorded in the manifest (`report_brief` field) so
+    the report carries its own commissioning record.
+
+    Args:
+        brief: The report brief object. Requires `schema: "report_brief"`,
+            `version: 1`, `project` (kebab-case slug), `template` (one of
+            reportforge_list_templates names); all cover/layout fields are
+            optional.
+
+    Returns:
+        Scaffold result (ok, path, source, formats, jupyter_kernel) plus a
+        `report_brief` echo {schema, version}; on validation failure
+        {"ok": False, "error", "errors": [...]}.
+    """
+    return engine.scaffold_from_brief(brief)
+
+
+@mcp.tool
 def reportforge_render_report(
     source: str,
     formats: list[str] | str | None = None,

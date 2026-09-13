@@ -26,7 +26,7 @@ def test_scaffold_writes_manifest(tmp_path, monkeypatch):
     assert m["profile"]["theme"] == "light"
     assert m["formats"] == ["html", "pdf"]
     assert len(m["sections"]) > 0
-    assert m["schema_version"] == 4  # Milestone C: rollforward lineage rides schema 4
+    assert m["schema_version"] == 5  # Phase 4: report_brief record rides schema 5
 
 
 def test_status_and_open_expose_manifest_view(tmp_path, monkeypatch):

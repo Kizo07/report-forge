@@ -92,6 +92,7 @@ from reportforge.engine._impl import (  # noqa: F401
     render_report,
 )
 from reportforge.engine.scaffold import (  # noqa: F401
+    scaffold_from_brief,
     _drop_yaml_block,
     _frontmatter_flag,
     _metric_yaml,

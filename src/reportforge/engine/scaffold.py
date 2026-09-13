@@ -90,6 +90,7 @@ def scaffold_report(
     body: str | None = None,
     engine_charts_only: bool = False,
     profile: dict | None = None,
+    report_brief: dict | None = None,
 ) -> dict:
     specs = {t["name"]: t for t in list_templates()}
     if template not in specs:
@@ -424,6 +425,7 @@ def scaffold_report(
         brief=subtitle or "",
         profile=preset,
         formats=kept_formats + (["pdf-web"] if pdf_web_requested else []),
+        report_brief=report_brief,
     )
     return {"ok": True, "path": str(root), "source": str(root / "index.qmd"), "formats": kept_formats, "jupyter_kernel": kernel}
 
@@ -462,7 +464,8 @@ def _profile_for_template(template: str, pdf_web_requested: bool = False,
 
 
 def _write_scaffold_manifest(root: Path, title: str, brief: str,
-                             profile: dict, formats: list[str]) -> None:
+                             profile: dict, formats: list[str],
+                             report_brief: dict | None = None) -> None:
     manifest_mod.create(
         str(root),
         title=title,
@@ -471,6 +474,7 @@ def _write_scaffold_manifest(root: Path, title: str, brief: str,
         formats=list(formats),
         actor="tool:scaffold",
         template_version=template_version(),
+        report_brief=report_brief,
     )
 
 
@@ -606,3 +610,35 @@ def _scenario_yaml(scenarios: list[dict[str, str]]) -> str:
     )
 
 
+
+
+def scaffold_from_brief(brief: dict) -> dict:
+    """Create a report project from a structured report brief (schema
+    `report_brief` v1, see src/reportforge/brief.py and
+    docs/report-brief-v1.md).
+
+    The brief is validated strictly (all problems reported at once), the
+    normalized brief is recorded in the manifest's `report_brief` field,
+    and the remaining keys map 1:1 onto scaffold_report kwargs. Validation
+    failure returns the standard {"ok": False, ...} shape with an
+    `errors` list; template/formats validation stays with scaffold_report.
+    """
+    from reportforge import brief as brief_mod
+
+    parsed, errors = brief_mod.validate_brief(brief)
+    if errors:
+        return {
+            "ok": False,
+            "error": "invalid report_brief (schema "
+                     f"{brief_mod.SCHEMA_NAME!r} v{brief_mod.SCHEMA_VERSION}): "
+                     + " | ".join(errors),
+            "errors": errors,
+        }
+    kwargs = brief_mod.brief_to_scaffold_kwargs(parsed)
+    result = scaffold_report(report_brief=parsed, **kwargs)
+    if result.get("ok"):
+        result["report_brief"] = {
+            "schema": brief_mod.SCHEMA_NAME,
+            "version": brief_mod.SCHEMA_VERSION,
+        }
+    return result
