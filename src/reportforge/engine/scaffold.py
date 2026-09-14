@@ -17,6 +17,7 @@ from datetime import date, datetime
 from pathlib import Path
 import yaml
 from reportforge import manifest as manifest_mod
+from reportforge.engine.status import project_status
 from reportforge import templates
 
 
@@ -91,6 +92,7 @@ def scaffold_report(
     engine_charts_only: bool = False,
     profile: dict | None = None,
     report_brief: dict | None = None,
+    resume: bool = False,
 ) -> dict:
     specs = {t["name"]: t for t in list_templates()}
     if template not in specs:
@@ -157,6 +159,9 @@ def scaffold_report(
         return {"ok": False, "error": "slug must contain at least one letter, number, '-' or '_'"}
     root = _E.REPORTS_DIR / slug
     if root.exists():
+        if resume:
+            return {"ok": True, "resumed": True,
+                    "path": str(root), "status": project_status(slug)}
         return {"ok": False, "error": f"report {slug!r} already exists at {root}"}
     assets = root / "assets"
     assets.mkdir(parents=True)

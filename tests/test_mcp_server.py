@@ -121,6 +121,21 @@ def test_scaffold_accepts_csv_formats(isolated_reports: Path) -> None:
     assert set(config["format"]) == {"html", "docx"}
 
 
+def test_scaffold_resume_reopens_existing_project(isolated_reports: Path) -> None:
+    """Re-running a scaffolded slug with resume=True must reopen it
+    (2026-09-13 harness run died on 'already exists' instead)."""
+    first = engine.scaffold_report("wsb-resume", template="standard")
+    assert first["ok"] is True
+    clash = engine.scaffold_report("wsb-resume", template="standard")
+    assert clash["ok"] is False  # default still guards against overwrite
+    resumed = engine.scaffold_report(
+        "wsb-resume", template="standard", resume=True)
+    assert resumed["ok"] is True
+    assert resumed["resumed"] is True
+    assert resumed["path"] == first["path"]
+    assert resumed["status"]["ok"] is True
+
+
 # --- WS-C: publish_report delivery bridge --------------------------------
 
 def test_publish_report_copies_outputs_into_dest(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

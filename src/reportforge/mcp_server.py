@@ -145,6 +145,7 @@ def reportforge_scaffold_report(
     body: str | None = None,
     engine_charts_only: bool = False,
     profile: dict[str, str] | str | None = None,
+    resume: bool = False,
 ) -> dict[str, Any]:
     """Create a new branded report project under ~/Documents/report-forge/reports/<slug>/.
 
@@ -219,6 +220,9 @@ def reportforge_scaffold_report(
             ok:false naming the files instead of shipping them. Set it on
             every flagship; fallback is forbidden there (quote the export
             error, stringify scalar Timestamps, retry, escalate).
+        resume: Reopen an existing slug instead of failing with
+            'already exists' — returns ok:true with resumed:true plus the
+            current project status. Use it to continue an interrupted run.
 
     Returns paths and the source file to fill with content before rendering.
     """
@@ -239,6 +243,7 @@ def reportforge_scaffold_report(
         scenarios=_coerce_list(scenarios),
         frontmatter_yaml=frontmatter_yaml, body=body,
         engine_charts_only=engine_charts_only, profile=profile,
+        resume=resume,
     )
 
 
