@@ -128,12 +128,56 @@ def test_scaffold_resume_reopens_existing_project(isolated_reports: Path) -> Non
     assert first["ok"] is True
     clash = engine.scaffold_report("wsb-resume", template="standard")
     assert clash["ok"] is False  # default still guards against overwrite
+    sentinel = "\n<!-- sentinel: user work -->\n"
+    qmd = Path(first["source"])
+    qmd.write_text(qmd.read_text() + sentinel)
     resumed = engine.scaffold_report(
         "wsb-resume", template="standard", resume=True)
     assert resumed["ok"] is True
     assert resumed["resumed"] is True
     assert resumed["path"] == first["path"]
     assert resumed["status"]["ok"] is True
+    # resume must never clobber existing content
+    assert sentinel in qmd.read_text()
+    # envelope mirrors a fresh scaffold so callers can treat both alike
+    assert resumed["source"] == first["source"]
+    assert resumed["formats"] == first["formats"]
+    assert resumed["template"] == "standard"
+
+
+def test_scaffold_resume_ignores_creation_params(isolated_reports: Path) -> None:
+    """Resume returns the project on disk as-is; the requested template is
+    not applied, and the stored template is echoed for detection."""
+    first = engine.scaffold_report("wsb-resume-mismatch", template="standard")
+    assert first["ok"] is True
+    resumed = engine.scaffold_report(
+        "wsb-resume-mismatch", template="studio", resume=True)
+    assert resumed["ok"] is True
+    assert resumed["template"] == "standard"  # stored, not requested
+    qmd = Path(resumed["path"]) / "_quarto.yml"
+    assert "studio" not in qmd.read_text()
+
+
+def test_scaffold_resume_refuses_non_directory(isolated_reports: Path) -> None:
+    """A slug path that exists as a file is not a resumable project."""
+    isolated_reports.mkdir(parents=True)
+    (isolated_reports / "wsb-resume-file").write_text("not a project")
+    resumed = engine.scaffold_report(
+        "wsb-resume-file", template="standard", resume=True)
+    assert resumed["ok"] is False
+    assert "not a project directory" in resumed["error"]
+    clash = engine.scaffold_report("wsb-resume-file", template="standard")
+    assert clash["ok"] is False  # default guard still fires first
+    assert "already exists" in clash["error"]
+
+
+def test_scaffold_resume_creates_fresh_when_missing(isolated_reports: Path) -> None:
+    """resume=True on an unknown slug is a plain scaffold (upsert)."""
+    result = engine.scaffold_report(
+        "wsb-resume-fresh", template="standard", resume=True)
+    assert result["ok"] is True
+    assert "resumed" not in result
+    assert (Path(result["path"]) / "index.qmd").is_file()
 
 
 # --- WS-C: publish_report delivery bridge --------------------------------

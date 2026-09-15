@@ -223,6 +223,9 @@ def reportforge_scaffold_report(
         resume: Reopen an existing slug instead of failing with
             'already exists' — returns ok:true with resumed:true plus the
             current project status. Use it to continue an interrupted run.
+            Creation parameters (template, formats, cover fields) are
+            ignored on resume: the project on disk is returned as-is, with
+            its stored template and formats echoed in the response.
 
     Returns paths and the source file to fill with content before rendering.
     """

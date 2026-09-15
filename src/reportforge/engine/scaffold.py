@@ -17,7 +17,6 @@ from datetime import date, datetime
 from pathlib import Path
 import yaml
 from reportforge import manifest as manifest_mod
-from reportforge.engine.status import project_status
 from reportforge import templates
 
 
@@ -160,8 +159,24 @@ def scaffold_report(
     root = _E.REPORTS_DIR / slug
     if root.exists():
         if resume:
-            return {"ok": True, "resumed": True,
-                    "path": str(root), "status": project_status(slug)}
+            if not root.is_dir():
+                return {"ok": False,
+                        "error": f"cannot resume {slug!r}: {root} is not a project directory"}
+            status = _E.project_status(slug)
+            manifest = status.get("manifest") or {}
+            result = {
+                "ok": True,
+                "resumed": True,
+                "path": str(root),
+                "source": str(root / "index.qmd"),
+                "status": status,
+            }
+            if manifest.get("formats"):
+                result["formats"] = manifest["formats"]
+            stored_template = (manifest.get("profile") or {}).get("report_type")
+            if stored_template:
+                result["template"] = stored_template
+            return result
         return {"ok": False, "error": f"report {slug!r} already exists at {root}"}
     assets = root / "assets"
     assets.mkdir(parents=True)
