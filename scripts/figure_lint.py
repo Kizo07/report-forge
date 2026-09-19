@@ -64,6 +64,10 @@ ACCENTS = {
                     (248, 113, 113), (147, 163, 184), (107, 90, 38),
                     (163, 133, 58), (127, 216, 255)],
 }
+# Studio-white carries the quantflow-light identity on white paper —
+# same accents, different paper target (NVDA flagship 2026-09-19:
+# studio fell through to the dark heuristic and beige charts passed).
+ACCENTS["studio"] = ACCENTS["light"]
 
 # Absolute insanity cap (px @scale=2): must fit our own tier spec
 # (hero 1600x800 @scale=2 = 3200x1600) — a cap below the spec fails
@@ -90,12 +94,13 @@ MIN_VARIETY_CREDIT = 2
 # max cell lengths + 3 chars per column of padding — a 5-col table of
 # short numbers fits, a 3-col table with a 75-char cell does not.
 MAX_TABLE_WIDTH = 58
-# Light paper corner targets (#e5ddcc portfolio, #eef3f6 ledger ice):
-# catches white-background charts (wrong template / default-style
-# fallback) that pass brightness+accents.
+# Light paper corner targets (#e5ddcc portfolio, #eef3f6 ledger ice,
+# #f8f7f3 studio white): catches wrong-paper charts (wrong template /
+# default-style fallback) that pass brightness+accents.
 LIGHT_PAPERS = {
     "light": (229, 221, 204),
     "ledger-light": (238, 243, 246),
+    "studio": (248, 247, 243),
 }
 PAPER_TOL = 16
 

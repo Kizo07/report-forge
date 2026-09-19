@@ -16,13 +16,14 @@ def _white_fig_json():
     return px.line(x=[1, 2], y=[3, 4]).to_json()
 
 
-def test_tokens_for_all_four_palettes():
+def test_tokens_for_all_palettes():
     """C-3: every palette resolves; accent is the palette primary."""
     expected = {
         "quantflow-dark": "#c9a227",
         "quantflow-light": "#8f621f",
         "ledger-dark": "#e3ac55",
         "ledger-light": "#8f621f",
+        "studio-white": "#8f621f",
     }
     assert set(engine.tokens_for_keys()) == set(expected)
     for name, accent in expected.items():

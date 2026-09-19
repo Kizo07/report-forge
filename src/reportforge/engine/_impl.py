@@ -743,6 +743,12 @@ QUANTFLOW_PLOTLY_THEMES = {
         "positive": "#1f8a4c", "negative": "#cf4444", "muted": "#63798a",
         "ramp": ["#b09a5e", "#8f621f", "#6d4c17", "#009ed9", "#075e7d"],
     },
+    "studio-white": {
+        "paper_bg": "#f8f7f3", "plot_bg": "#f8f7f3", "font": "#362e21",
+        "grid": "#d3c8b0", "primary": "#8f621f", "secondary": "#14756c",
+        "positive": "#2e7d32", "negative": "#c62828", "muted": "#6d6250",
+        "ramp": ["#b09a5e", "#8f621f", "#6d4c17", "#14756c", "#0f4c44"],
+    },
 }
 
 
