@@ -226,6 +226,7 @@ from reportforge.engine.release import (  # noqa: F401
     rollforward_report,
 )
 from reportforge.engine.exec_env import (  # noqa: F401
+    _chrome_safe_tmp,
     _diff_snapshot,
     _exec_enabled,
     _project_optional,

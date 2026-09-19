@@ -71,3 +71,16 @@ def test_scaffold_writes_matching_brand_yml(tmp_path, monkeypatch):
         assert res["ok"] is True, res
         written = (tmp_path / "reports" / slug / "_brand.yml").read_text()
         assert written == expected, template
+
+
+def test_template_brand_base_size_uses_em_not_rem():
+    """Quarto warns '(W) brand.typography.base.size in rem units, changing
+    to em' (NVDA flagship 2026-09-19) — pin em units at the template source."""
+    import yaml
+
+    brand_paths = [v for v in templates_mod.SPEC.values() if v.endswith("brand.yml")]
+    assert brand_paths, "no brand.yml assets found in SPEC"
+    for rel in brand_paths:
+        text = (templates_mod.ASSETS_DIR / rel).read_text(encoding="utf-8")
+        size = yaml.safe_load(text)["typography"]["base"]["size"]
+        assert "rem" not in str(size), f"{rel}: base size {size!r} uses rem units"

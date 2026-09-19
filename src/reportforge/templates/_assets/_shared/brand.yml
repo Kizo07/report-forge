@@ -29,7 +29,7 @@ typography:
       source: google
   base:
     family: Inter
-    size: 1rem
+    size: 1em
   headings:
     family: Space Grotesk
     weight: 700

@@ -145,7 +145,10 @@ def save_chart(fig_json: str, out_basename: str, width: int = 1400, height: int 
     png = out.with_suffix(".png")
     html_path = out.with_suffix(".html")
     try:
-        fig.write_image(str(png), width=width, height=height, scale=scale)
+        # In-process kaleido inherits the server env, whose spawner-pinned
+        # tmp can be socket-unsafe for Chrome (NVDA flagship 2026-09-19).
+        with _E._chrome_safe_tmp():
+            fig.write_image(str(png), width=width, height=height, scale=scale)
         fig.write_html(str(html_path), include_plotlyjs="cdn", full_html=True)
     except Exception as exc:
         return {"ok": False, "error": f"chart export failed: {exc}", "partial": {"png": str(png)}}

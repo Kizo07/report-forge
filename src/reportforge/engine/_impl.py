@@ -114,11 +114,35 @@ def _non_engine_charts(workdir: Path) -> list[str]:
     return bad
 
 
+def _brand_background_is_light(workdir: Path) -> bool | None:
+    """Light-page project per the scaffolded _brand.yml background luminance?
+
+    Data-driven so every template (studio, whitepaper, memo, bespoke with a
+    brand file) resolves without a hardcoded name list. None when no
+    readable brand background — callers fall back to frontmatter.
+    """
+    brand = workdir / "_brand.yml"
+    if not brand.is_file():
+        return None
+    try:
+        match = re.search(r'background:\s*"#([0-9a-fA-F]{6})"', brand.read_text())
+        if not match:
+            return None
+        red, green, blue = (int(match.group(1)[i : i + 2], 16) for i in (0, 2, 4))
+        return (0.299 * red + 0.587 * green + 0.114 * blue) > 128
+    except Exception:
+        return None
+
+
 def _project_is_light(workdir: Path) -> bool:
-    """Light-page project? Prefers the scaffolded `reportforge-template`
-    frontmatter (exact match, immune to titles like "Spotlight on ..."),
-    falling back to the legacy 'light' substring heuristic when the key is
-    absent (bespoke / hand-written projects)."""
+    """Light-page project? Prefers the scaffolded _brand.yml background
+    luminance, then the `reportforge-template` frontmatter (exact match,
+    immune to titles like "Spotlight on ..."), falling back to the legacy
+    'light' substring heuristic when the key is absent (bespoke /
+    hand-written projects)."""
+    brand_light = _brand_background_is_light(workdir)
+    if brand_light is not None:
+        return brand_light
     qmd = workdir / "index.qmd"
     if not qmd.is_file():
         return False
@@ -137,6 +161,33 @@ def _project_is_light(workdir: Path) -> bool:
     return "light" in head
 
 
+def _corner_paper_mean(png: Path) -> tuple[int, int, int] | None:
+    """Mean RGB of the four 12px corner boxes (paper, not content); None
+    when PIL is missing or the file is unreadable."""
+    try:
+        from PIL import Image as _Image
+    except ImportError:
+        return None
+    try:
+        with _Image.open(png) as im:
+            rgb = im.convert("RGB")
+            w, h = rgb.size
+            boxes = (rgb.crop((0, 0, 12, 12)), rgb.crop((w - 12, 0, w, 12)),
+                     rgb.crop((0, h - 12, 12, h)),
+                     rgb.crop((w - 12, h - 12, w, h)))
+            chans = [0, 0, 0]
+            total = 0
+            for box in boxes:
+                raw = box.tobytes()
+                n = len(raw) // 3
+                total += n
+                for i in range(3):
+                    chans[i] += sum(raw[i::3])
+            return (chans[0] // total, chans[1] // total, chans[2] // total)
+    except Exception:
+        return None
+
+
 def _white_paper_charts(workdir: Path) -> list[str]:
     """Charts with near-white corners on a light-template project.
 
@@ -149,30 +200,31 @@ def _white_paper_charts(workdir: Path) -> list[str]:
     charts = workdir / "charts"
     if not charts.is_dir():
         return bad
-    try:
-        from PIL import Image as _Image
-    except ImportError:
+    for png in sorted(charts.glob("*.png")):
+        paper = _corner_paper_mean(png)
+        if paper is not None and all(v > 244 for v in paper):
+            bad.append(png.name)
+    return bad
+
+
+def _dark_paper_charts(workdir: Path) -> list[str]:
+    """Charts with near-black corners on a light-template project.
+
+    Engine builders default dark unless theme= is passed; an unset theme
+    silently ships dark cards on light pages (NVDA flagship 2026-09-19:
+    18-chart dark batch on light studio pages). Corner-luminance floor
+    mirrors figure_lint check 6's dark-on-light rule at paper-only level.
+    """
+    bad = []
+    charts = workdir / "charts"
+    if not charts.is_dir():
         return bad
     for png in sorted(charts.glob("*.png")):
-        try:
-            with _Image.open(png) as im:
-                rgb = im.convert("RGB")
-                w, h = rgb.size
-                boxes = (rgb.crop((0, 0, 12, 12)), rgb.crop((w - 12, 0, w, 12)),
-                         rgb.crop((0, h - 12, 12, h)),
-                         rgb.crop((w - 12, h - 12, w, h)))
-                chans = [0, 0, 0]
-                total = 0
-                for box in boxes:
-                    raw = box.tobytes()
-                    n = len(raw) // 3
-                    total += n
-                    for i in range(3):
-                        chans[i] += sum(raw[i::3])
-                paper = tuple(c // total for c in chans)
-        except Exception:
+        paper = _corner_paper_mean(png)
+        if paper is None:
             continue
-        if all(v > 244 for v in paper):
+        lum = 0.299 * paper[0] + 0.587 * paper[1] + 0.114 * paper[2]
+        if lum < 60:
             bad.append(png.name)
     return bad
 
@@ -182,12 +234,12 @@ def _engine_charts_violation(workdir: Path) -> str | None:
         return None
     bad = _non_engine_charts(workdir)
     if not bad and _project_is_light(workdir):
-        bad = _white_paper_charts(workdir)
+        bad = _white_paper_charts(workdir) + _dark_paper_charts(workdir)
     if not bad:
         return None
     return (
         "engine_charts_only is set but these charts are non-engine "
-        f"fallbacks: {', '.join(bad)}. Rebuild them with the engine "
+        f"fallbacks or off-theme: {', '.join(bad)}. Rebuild them with the engine "
         "exhibit builders (theme matching the page) or drop the flag — "
         "render refuses to ship fallback charts on a flagship."
     )

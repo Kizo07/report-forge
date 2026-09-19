@@ -18,11 +18,13 @@ def run(
     cmd: list[str],
     cwd: str | None = None,
     timeout: int = 300,
+    env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run an interpreter command line; ToolTimeoutError on timeout.
 
     OSError (interpreter missing/not executable) propagates — the engine
-    formats it as a launch failure.
+    formats it as a launch failure. ``env`` replaces the inherited
+    environment when given (callers merge os.environ first).
     """
     try:
         return subprocess.run(
@@ -31,6 +33,7 @@ def run(
             capture_output=True,
             text=True,
             timeout=timeout,
+            env=env,
         )
     except subprocess.TimeoutExpired as exc:
         raise ToolTimeoutError(cmd[0], timeout) from exc

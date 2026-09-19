@@ -9,12 +9,17 @@ from __future__ import annotations
 
 from reportforge import engine as _E
 
+import contextlib
 import os
+import tempfile
+import threading
 import time
 from pathlib import Path
 from reportforge.renderer import errors as _rerrors
 from reportforge.renderer import interpreters as _rinterpreters
 from reportforge.renderer import toolchain as _rtoolchain
+
+_SHORT_TMP_LOCK = threading.Lock()
 
 
 
@@ -67,6 +72,90 @@ def _tail(text: str, limit: int = _E.EXEC_OUTPUT_TAIL) -> str:
     return "…[truncated]…\n" + text[-limit:]
 
 
+def _short_tmp_dir() -> str:
+    """Short Chrome-safe temp dir for spawned code and in-process exports.
+
+    Unix sockets cap at 108 chars (sun_path); deer-flow pins ~150-char
+    thread tmp into MCP envs, under which Chrome cannot create its profile
+    SingletonSocket (kaleido BrowserFailedError, NVDA flagship 2026-09-19).
+    A fixed short dir under /tmp keeps exports working regardless of
+    spawner env. Per-uid so multi-user hosts don't collide on the 0700 dir.
+    """
+    path = Path(f"/tmp/rf-exec-{os.geteuid()}")
+    path.mkdir(parents=True, exist_ok=True)
+    try:
+        path.chmod(0o700)
+    except OSError:
+        pass
+    return str(path)
+
+
+def _short_tmp_env_overlay() -> dict[str, str]:
+    tmp = _short_tmp_dir()
+    return {"TMPDIR": tmp, "TEMP": tmp, "TMP": tmp}
+
+
+def _child_env() -> dict[str, str]:
+    """Environment for run_code/run_file children: inherited env with the
+    short-tmp overlay. Deliverables still land in the project via cwd; only
+    genuine temp moves out of the (possibly socket-unsafe) spawner tmp."""
+    return {**os.environ, **_short_tmp_env_overlay()}
+
+
+@contextlib.contextmanager
+def _chrome_safe_tmp():
+    """Run an in-process Chrome export (save_chart) under the short tmp.
+
+    Swaps the TMPDIR trio plus tempfile's cached tempdir; restores both
+    after. Serialized with a lock so concurrent exports can't interleave
+    the swap (the race would only misplace temp files, but exports are
+    seconds-long so serializing is free).
+    """
+    overlay = _short_tmp_env_overlay()
+    with _SHORT_TMP_LOCK:
+        saved_env = {key: os.environ.get(key) for key in overlay}
+        saved_tempdir = tempfile.tempdir
+        try:
+            os.environ.update(overlay)
+            tempfile.tempdir = overlay["TMPDIR"]
+            yield overlay["TMPDIR"]
+        finally:
+            for key, value in saved_env.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+            tempfile.tempdir = saved_tempdir
+
+
+def _png_theme_line(png_path: Path) -> dict | None:
+    """Best-effort theme observation for one created PNG: corner hex plus
+    the QuantFlow-Paper stamp save_figure burns in (None when unreadable).
+    Lets agents spot a dark batch after the first export call instead of
+    after all eighteen (NVDA flagship 2026-09-19)."""
+    try:
+        from PIL import Image
+
+        with Image.open(png_path) as img:
+            pixel = img.convert("RGB").getpixel((0, 0))
+            corner = "#{:02x}{:02x}{:02x}".format(*pixel[:3])
+            stamp = (img.info or {}).get("QuantFlow-Paper")
+        return {"corner": corner, "paper_stamp": str(stamp) if stamp else None}
+    except Exception:
+        return None
+
+
+def _theme_lines_for_created(root: Path, created: list[str]) -> list[dict]:
+    lines = []
+    for rel in created:
+        if not rel.lower().endswith(".png"):
+            continue
+        line = _png_theme_line(root / rel)
+        if line is not None:
+            lines.append({"path": rel, **line})
+    return lines
+
+
 def run_code(code: str, project: str | None = None, timeout: int = 300) -> dict:
     """Execute Python code on the HOST with the reportforge interpreter.
 
@@ -100,6 +189,7 @@ def run_code(code: str, project: str | None = None, timeout: int = 300) -> dict:
             [str(interpreter), "-c", code],
             cwd=cwd,
             timeout=timeout,
+            env=_child_env(),
         )
     except _rerrors.ToolTimeoutError:
         return {"ok": False, "error": f"run_code timed out after {timeout}s"}
@@ -110,7 +200,7 @@ def run_code(code: str, project: str | None = None, timeout: int = 300) -> dict:
         created, modified = _diff_snapshot(root, before)
     else:
         created, modified = [], []
-    return {
+    result = {
         "ok": proc.returncode == 0,
         "exit_code": proc.returncode,
         "stdout_tail": _tail(proc.stdout),
@@ -121,6 +211,11 @@ def run_code(code: str, project: str | None = None, timeout: int = 300) -> dict:
         "cwd": cwd,
         "note": "host execution with user permissions; stdout/stderr are ground truth — never report results you did not capture" if proc.returncode == 0 else None,
     }
+    if root is not None:
+        theme_lines = _theme_lines_for_created(root, created)
+        if theme_lines:
+            result["png_theme"] = theme_lines
+    return result
 
 
 def run_file(path: str, project: str, args: list[str] | None = None, timeout: int = 300) -> dict:
@@ -163,13 +258,13 @@ def run_file(path: str, project: str, args: list[str] | None = None, timeout: in
     before = _snapshot_project(root)
     started = time.monotonic()
     try:
-        proc = _rinterpreters.run(cmd, cwd=str(root), timeout=timeout)
+        proc = _rinterpreters.run(cmd, cwd=str(root), timeout=timeout, env=_child_env())
     except _rerrors.ToolTimeoutError:
         return {"ok": False, "error": f"run_file timed out after {timeout}s"}
     except OSError as exc:
         return {"ok": False, "error": f"script launch failed: {exc}"}
     created, modified = _diff_snapshot(root, before)
-    return {
+    result = {
         "ok": proc.returncode == 0,
         "exit_code": proc.returncode,
         "stdout_tail": _tail(proc.stdout),
@@ -179,5 +274,9 @@ def run_file(path: str, project: str, args: list[str] | None = None, timeout: in
         "duration_s": round(time.monotonic() - started, 3),
         "cwd": str(root),
     }
+    theme_lines = _theme_lines_for_created(root, created)
+    if theme_lines:
+        result["png_theme"] = theme_lines
+    return result
 
 

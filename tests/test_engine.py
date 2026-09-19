@@ -340,3 +340,35 @@ def test_white_paper_gate_off_without_flag(isolated_reports: Path) -> None:
     (proj / "charts").mkdir()
     _white_png(proj / "charts" / "white.png")
     assert engine._engine_charts_violation(proj) is None
+
+
+def _dark_png(path: Path) -> None:
+    from PIL import Image
+
+    Image.new("RGB", (120, 60), "#0e1117").save(path)
+
+
+def test_render_hard_fails_on_dark_paper_charts(isolated_reports: Path) -> None:
+    """Dark charts on a light flagship must trip the render gate (NVDA
+    2026-09-19: 18-chart dark batch on light studio pages was rebuilt)."""
+    proj = _flag_project(isolated_reports, "portfolio-light")
+    _dark_png(proj / "charts" / "dark.png")
+    out = engine.render_report("flag-portfolio-light")
+    assert out["ok"] is False
+    assert "dark.png" in out["error"]
+
+
+def test_paper_gate_recognizes_studio_as_light(isolated_reports: Path) -> None:
+    """Studio pages are light (#ffffff brand) — the gate must treat them as
+    light (the NVDA flagship was studio and sailed through unrecognized)."""
+    proj = _flag_project(isolated_reports, "studio")
+    _dark_png(proj / "charts" / "dark.png")
+    violation = engine._engine_charts_violation(proj)
+    assert violation is not None
+    assert "dark.png" in violation
+
+
+def test_dark_paper_gate_skipped_on_dark_template(isolated_reports: Path) -> None:
+    proj = _flag_project(isolated_reports, "portfolio-dark")
+    _dark_png(proj / "charts" / "dark.png")
+    assert engine._engine_charts_violation(proj) is None
