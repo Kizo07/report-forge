@@ -88,3 +88,48 @@ def test_ledger_light_ice_passes_and_beige_fails(tmp_path: Path) -> None:
     run = _run_lint(beige)
     assert run.returncode == 1, run.stdout
     assert "paper" in run.stdout.lower()
+
+
+# Dark-on-light regression: non-portfolio/ledger/studio templates (whitepaper,
+# memo, modern, standard) fell through to the dark heuristic, so a near-black
+# chart passed clean on a white page. Light-page now resolves from the
+# scaffolded _brand.yml background (mirroring engine._project_is_light), and
+# the mean-luminance floor applies to every light page.
+DARK_PAPER_HEX = "#0e1117"
+DARK_GOLD_PATCH = (201, 162, 39)  # dark-theme accent: isolates the lum floor
+
+
+def _branded_fixture(root: Path, template: str, paper_hex: str,
+                     brand_hex: str, patch: tuple[int, int, int]) -> Path:
+    from PIL import Image
+
+    proj = _fixture_project(root, template, paper_hex)
+    (proj / "_brand.yml").write_text(
+        f'color:\n  background: "{brand_hex}"\n', encoding="utf-8")
+    img = Image.new("RGB", (200, 140), paper_hex)
+    img.paste(patch, (80, 50, 120, 90))
+    img.save(proj / "charts" / "ex01.png")
+    return proj
+
+
+def test_whitepaper_dark_chart_fails_brightness_floor(tmp_path: Path) -> None:
+    proj = _branded_fixture(tmp_path, "whitepaper", DARK_PAPER_HEX,
+                            "#ffffff", DARK_GOLD_PATCH)
+    run = _run_lint(proj)
+    assert run.returncode == 1, run.stdout
+    assert "dark chart on light template" in run.stdout
+
+
+def test_whitepaper_light_chart_passes(tmp_path: Path) -> None:
+    proj = _branded_fixture(tmp_path, "whitepaper", "#ffffff",
+                            "#ffffff", PATCH_RGB)
+    run = _run_lint(proj)
+    assert run.returncode == 0, run.stdout
+
+
+def test_dark_brand_dark_chart_still_passes(tmp_path: Path) -> None:
+    """No false positive: dark charts on dark pages stay clean."""
+    proj = _branded_fixture(tmp_path, "ledger-dark", DARK_PAPER_HEX,
+                            "#060a12", DARK_GOLD_PATCH)
+    run = _run_lint(proj)
+    assert run.returncode == 0, run.stdout

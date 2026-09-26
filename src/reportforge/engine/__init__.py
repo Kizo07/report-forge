@@ -66,6 +66,7 @@ from reportforge.engine._impl import (  # noqa: F401
     _WIDTH_PCT_RE,
     _WINDOW_WORDS,
     _chromium_binary,
+    _dark_paper_charts,
     _declares_typst_format,
     _default_reference_docx,
     _engine_charts_violation,

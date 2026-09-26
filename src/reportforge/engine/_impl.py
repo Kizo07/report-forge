@@ -88,6 +88,36 @@ _TEMPLATE_DEFAULT_ACCENTS = {"studio": "#4f46e5", "modern": "#2e5bff",
                              "ledger-light": "#8f621f", "ledger-dark": "#e3ac55"}
 
 
+_FIGURE_DIRS = ("charts", "figures")
+
+
+def _figure_pngs(workdir: Path) -> list[tuple[str, Path]]:
+    """All figure PNGs across the skill-flow figure dirs.
+
+    Projects keep figures in either `charts/` or `figures/`; every
+    render-preflight scanner must cover both (2026-09-26: the flagship
+    gate only scanned `charts/`, so dark `figures/` batches shipped).
+    Returns (label, path) pairs; the label is the bare filename unless
+    the same basename exists in both dirs, in which case it is qualified
+    as `<dir>/<name>` so the violation names the right file.
+    """
+    per_dir: dict[str, list[Path]] = {}
+    for dirname in _FIGURE_DIRS:
+        subdir = workdir / dirname
+        if subdir.is_dir():
+            per_dir[dirname] = sorted(subdir.glob("*.png"))
+    owners: dict[str, list[str]] = {}
+    for dirname, pngs in per_dir.items():
+        for png in pngs:
+            owners.setdefault(png.name, []).append(dirname)
+    out: list[tuple[str, Path]] = []
+    for dirname, pngs in per_dir.items():
+        for png in pngs:
+            label = f"{dirname}/{png.name}" if len(owners[png.name]) > 1 else png.name
+            out.append((label, png))
+    return out
+
+
 def _non_engine_charts(workdir: Path) -> list[str]:
     """PNGs whose Software tag names matplotlib (or siblings).
 
@@ -96,21 +126,18 @@ def _non_engine_charts(workdir: Path) -> list[str]:
     `engine_charts_only: true` must contain zero of these.
     """
     bad = []
-    charts = workdir / "charts"
-    if not charts.is_dir():
-        return bad
     try:
         from PIL import Image as _Image
     except ImportError:
         return bad
-    for png in sorted(charts.glob("*.png")):
+    for label, png in _figure_pngs(workdir):
         try:
             with _Image.open(png) as im:
                 sw = str(im.info.get("Software", ""))
         except Exception:
             continue
         if "matplotlib" in sw.lower() or "seaborn" in sw.lower():
-            bad.append(png.name)
+            bad.append(label)
     return bad
 
 
@@ -197,13 +224,10 @@ def _white_paper_charts(workdir: Path) -> list[str]:
     edges but not a #ffffff background.
     """
     bad = []
-    charts = workdir / "charts"
-    if not charts.is_dir():
-        return bad
-    for png in sorted(charts.glob("*.png")):
+    for label, png in _figure_pngs(workdir):
         paper = _corner_paper_mean(png)
         if paper is not None and all(v > 244 for v in paper):
-            bad.append(png.name)
+            bad.append(label)
     return bad
 
 
@@ -216,16 +240,13 @@ def _dark_paper_charts(workdir: Path) -> list[str]:
     mirrors figure_lint check 6's dark-on-light rule at paper-only level.
     """
     bad = []
-    charts = workdir / "charts"
-    if not charts.is_dir():
-        return bad
-    for png in sorted(charts.glob("*.png")):
+    for label, png in _figure_pngs(workdir):
         paper = _corner_paper_mean(png)
         if paper is None:
             continue
         lum = 0.299 * paper[0] + 0.587 * paper[1] + 0.114 * paper[2]
         if lum < 60:
-            bad.append(png.name)
+            bad.append(label)
     return bad
 
 

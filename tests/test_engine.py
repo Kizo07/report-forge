@@ -372,3 +372,61 @@ def test_dark_paper_gate_skipped_on_dark_template(isolated_reports: Path) -> Non
     proj = _flag_project(isolated_reports, "portfolio-dark")
     _dark_png(proj / "charts" / "dark.png")
     assert engine._engine_charts_violation(proj) is None
+
+
+def test_render_hard_fails_on_fallback_charts_in_figures(isolated_reports: Path) -> None:
+    """The Software-tag scanner must cover figures/ as well as charts/
+    (2026-09-26: flagship gate was blind to figures/ and shipped bad)."""
+    result = engine.scaffold_report(
+        "flag-fail-fig", template="memo", formats=["html"], engine_charts_only=True
+    )
+    assert result["ok"] is True
+    proj = Path(result["path"])
+    (proj / "figures").mkdir()
+    _mpl_png(proj / "figures" / "fallback.png")
+    out = engine.render_report("flag-fail-fig")
+    assert out["ok"] is False
+    assert "fallback.png" in out["error"]
+    assert "engine_charts_only" in out["error"]
+
+
+def test_render_hard_fails_on_white_paper_charts_in_figures(
+    isolated_reports: Path,
+) -> None:
+    proj = _flag_project(isolated_reports, "portfolio-light")
+    (proj / "figures").mkdir()
+    _white_png(proj / "figures" / "white.png")
+    out = engine.render_report("flag-portfolio-light")
+    assert out["ok"] is False
+    assert "white.png" in out["error"]
+
+
+def test_render_hard_fails_on_dark_paper_charts_in_figures(
+    isolated_reports: Path,
+) -> None:
+    """Dark figures/ PNGs on a light flagship trip the render gate — the
+    exact ai-labs-disruption-cyber shape (flag + light pages + figures/)."""
+    proj = _flag_project(isolated_reports, "portfolio-light")
+    (proj / "figures").mkdir()
+    _dark_png(proj / "figures" / "dark.png")
+    out = engine.render_report("flag-portfolio-light")
+    assert out["ok"] is False
+    assert "dark.png" in out["error"]
+
+
+def test_figure_scanners_cover_both_dirs(isolated_reports: Path) -> None:
+    proj = _flag_project(isolated_reports, "portfolio-light")
+    (proj / "figures").mkdir()
+    _dark_png(proj / "charts" / "from-charts.png")
+    _dark_png(proj / "figures" / "from-figures.png")
+    assert engine._dark_paper_charts(proj) == ["from-charts.png", "from-figures.png"]
+
+
+def test_figure_basename_collision_labels_disambiguate(
+    isolated_reports: Path,
+) -> None:
+    proj = _flag_project(isolated_reports, "portfolio-light")
+    (proj / "figures").mkdir()
+    _dark_png(proj / "charts" / "same.png")
+    _dark_png(proj / "figures" / "same.png")
+    assert engine._dark_paper_charts(proj) == ["charts/same.png", "figures/same.png"]

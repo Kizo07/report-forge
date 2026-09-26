@@ -109,6 +109,31 @@ def _matches(px, targets, tol=60):
     return any(all(abs(a - b) <= tol for a, b in zip(px, t)) for t in targets)
 
 
+def _page_is_light(proj: Path, head: str, tpl: str) -> bool:
+    """Light-page project? Prefers the scaffolded _brand.yml background
+    luminance (data-driven, no template-name list), then the
+    reportforge-template frontmatter, falling back to the legacy 'light'
+    substring heuristic. Mirrors engine._project_is_light — without it,
+    whitepaper/memo/modern/standard fall through to the dark heuristic
+    and dark charts pass clean on white pages."""
+    brand = proj / "_brand.yml"
+    if brand.is_file():
+        try:
+            match = re.search(r'background:\s*"#([0-9a-fA-F]{6})"',
+                              brand.read_text())
+            if match:
+                r, g, b = (int(match.group(1)[i:i + 2], 16)
+                           for i in (0, 2, 4))
+                return (0.299 * r + 0.587 * g + 0.114 * b) > 128
+        except Exception:  # noqa: BLE001
+            pass
+    if tpl in LIGHT_PAPERS or tpl == "light":
+        return True
+    if tpl in ("portfolio-dark", "ledger-dark", "dark"):
+        return False
+    return "light" in head
+
+
 def main() -> int:
     proj = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(".")
     qmd = proj / "index.qmd"
@@ -229,6 +254,7 @@ def main() -> int:
         theme = tpl
     else:
         theme = "light" if "light" in head else "dark"
+    page_light = _page_is_light(proj, head, tpl)
     engine_only = bool(re.search(r"^engine_charts_only:\s*true\s*$", head, re.MULTILINE))
     accents = ACCENTS[theme]
 
@@ -257,12 +283,13 @@ def main() -> int:
             if n_accent < MIN_ACCENT_PX:
                 bad.append(f"{png.name}: no QuantFlow palette pixels "
                            f"({n_accent} sampled) — theme not applied?")
-            if theme in LIGHT_PAPERS:
+            if page_light:
                 lum = statistics.mean(
                     0.299 * r + 0.587 * g + 0.114 * b for r, g, b in px)
                 if lum < LIGHT_BRIGHTNESS_FLOOR:
                     bad.append(f"{png.name}: dark chart on light template "
                                f"(mean lum {lum:.0f})")
+            if page_light and theme in LIGHT_PAPERS:
                 boxes = (im.crop((0, 0, 12, 12)), im.crop((w - 12, 0, w, 12)),
                          im.crop((0, h - 12, 12, h)),
                          im.crop((w - 12, h - 12, w, h)))

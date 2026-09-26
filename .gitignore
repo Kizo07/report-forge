@@ -16,3 +16,28 @@ reports/*/output/
 # Scratch working reports (pattern-matched; showcase reports stay addable)
 reports/*-scratch/
 reports/*-workspace/
+
+# Report working data stays local (regenerable via engine; qmd/figures/assets stay addable)
+reports/*/data/
+
+# Knowledge/moat data never ships (defense in depth; 2026-09-26 audit: no
+# tracked files match these patterns — they only guard future adds)
+*.db
+*.sqlite*
+*.parquet
+*.npy
+*.npz
+*.faiss
+*.safetensors
+*.gguf
+*.meta.json
+kb_sources/
+**/kb_sources/
+*_experiment_bundle.json
+**/*_experiment_bundle.json
+
+# Regenerable data caches are never evidence (fred_cache.pkl, 2026-09-26 audit)
+*cache*.pkl
+*cache*.pickle
+*cache*.csv
+*cache*.parquet
