@@ -26,7 +26,14 @@ SPEC: dict[str, str] = {
     "INDEX_QMD": "_shared/index.qmd",
     "BESPOKE_YML": "_shared/bespoke.yml",
     "PORTFOLIO_YML": "_shared/portfolio.yml",
+    "TABLE_STYLE_TYP": "_shared/table-style.typ",
     "MEMO_QMD": "memo/memo.qmd",
+    "MEMO_YML": "memo/memo.yml",
+    # Memo's custom Typst shell + brand (scaffolded since the visual
+    # round; previously staged only). Listed so template_version covers them.
+    "MEMO_BRAND_YML": "memo/brand.yml",
+    "MEMO_TYPT_TEMPLATE": "memo/typst-template.typ",
+    "MEMO_TYPT_SHOW": "memo/typst-show.typ",
     "WHITEPAPER_QMD": "whitepaper/whitepaper.qmd",
     "WHITEPAPER_STYLES_EXTRA": "whitepaper/styles-extra.scss",
     "WHITEPAPER_TYPT_TEMPLATE": "whitepaper/typst-template.typ",
@@ -44,6 +51,7 @@ SPEC: dict[str, str] = {
     "STUDIO_TYPT_TEMPLATE": "studio/typst-template.typ",
     "STUDIO_TYPT_SHOW": "studio/typst-show.typ",
     "PORTFOLIO_LIGHT_BRAND_YML": "portfolio-light/brand.yml",
+    "PORTFOLIO_LIGHT_HTML_HEADER": "portfolio-light/portfolio-header.html",
     "PORTFOLIO_LIGHT_STYLES_EXTRA": "portfolio-light/styles-extra.scss",
     "PORTFOLIO_LIGHT_TYPT_TEMPLATE": "portfolio-light/typst-template.typ",
     "PORTFOLIO_LIGHT_TYPT_SHOW": "portfolio-light/typst-show.typ",
@@ -91,17 +99,38 @@ def content_hash() -> str:
     """sha256 (12-hex) over the asset tree: sorted relpath + bytes.
 
     Computed live so working-tree edits stamp honestly; old manifests
-    keep theirs forever (C-2 R1-F4)."""
+    keep theirs forever (C-2 R1-F4). Vendored third-party Quarto
+    extensions (_shared/_extensions/) are excluded: quarto-add
+    equivalents versioned by their own manifests, not template sources
+    (their registration in the pilot ymls IS hashed)."""
     h = hashlib.sha256()
     for p in sorted(ASSETS_DIR.rglob("*")):
         if not p.is_file():
             continue
         rel = p.relative_to(ASSETS_DIR).as_posix()
+        if rel.startswith("_shared/_extensions/"):
+            continue
         h.update(rel.encode("utf-8"))
         h.update(b"\x00")
         h.update(p.read_bytes())
         h.update(b"\x00")
     return h.hexdigest()[:12]
+
+
+def vendored_extension_files() -> dict[str, bytes]:
+    """Vendored Quarto extensions as {project-relative path: bytes}.
+
+    Scaffold copies these into projects whose rendered ``_quarto.yml``
+    declares the filters, so scaffolded projects render standalone
+    (the extensions are excluded from content_hash by design above)."""
+    ext_root = ASSETS_DIR / "_shared" / "_extensions"
+    if not ext_root.is_dir():
+        return {}
+    out: dict[str, bytes] = {}
+    for p in sorted(ext_root.rglob("*")):
+        if p.is_file():
+            out[p.relative_to(ASSETS_DIR / "_shared").as_posix()] = p.read_bytes()
+    return out
 
 
 # --- scaffold-output parity hashing (robustness plan Phase 2.5) -------------

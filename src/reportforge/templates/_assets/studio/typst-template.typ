@@ -21,7 +21,8 @@
   paper: "us-letter", lang: "en", region: "US",
   font: none, fontsize: 10.5pt, mathfont: none, codefont: none,
   linestretch: 1.15, sectionnumbering: none, linkcolor: none,
-  citecolor: none, filecolor: none, pagenumbering: "1", doc,
+  citecolor: none, filecolor: none, pagenumbering: "1",
+  toc: false, toc_title: none, toc_depth: none, toc_indent: 1.5em, doc,
 ) = {
   let paper-tone = rgb("#f8f7f3")
   let ink = rgb("#171923")
@@ -35,7 +36,9 @@
     paper: paper,
     margin: margin,
     fill: paper-tone,
-    numbering: pagenumbering,
+    // Front matter (cover + TOC) in roman; the body switches to arabic
+    // after the cover break below.
+    numbering: "i",
     header: context {
       let num = counter(page).at(here()).first()
       if num >= 2 {
@@ -55,7 +58,7 @@
         #set text(size: 7.8pt, fill: muted, font: "Space Grotesk")
         #grid(columns: (1fr, auto), align: horizon)[
           #if confidential-mark != none [#upper[#confidential-mark]] else []
-        ][#num]
+        ][#counter(page).display()]
       ]
     },
   )
@@ -96,7 +99,8 @@
     inset: (x: 6pt, y: 5pt),
     fill: (x, y) => if y == 0 { rgb("#e7e9f5") } else if calc.rem(y, 2) == 0 { rgb("#f1f2f8") } else { panel },
   )
-  show table: set text(size: 8.7pt)
+  show table: set text(size: 8pt, hyphenate: true)
+  show table.cell: set par(justify: false, leading: 0.4em)
   show table.cell.where(y: 0): set text(weight: "bold", fill: ink)
   show table.cell.where(x: 0): set text(weight: "bold")
 
@@ -226,7 +230,7 @@
       inset: (x: 14pt, y: 7pt),
       stroke: (left: 3pt + accent-color),
     )[
-      #set text(font: "JetBrains Mono", size: 7.7pt, weight: "medium", fill: accent-color)
+      #set text(font: "IBM Plex Mono", size: 7.7pt, weight: "medium", fill: accent-color)
       CONVICTION CALL
       #linebreak()
       #set text(size: 9.5pt, weight: "bold", fill: ink)
@@ -263,7 +267,7 @@
         inset: (x: 12pt, y: 6pt),
         stroke: if i == 1 { 1pt + accent-color } else { 0.55pt + hairline },
       )[
-        #set text(font: "JetBrains Mono", size: 7.7pt, fill: muted)
+        #set text(font: "IBM Plex Mono", size: 7.7pt, fill: muted)
         #upper[#s.label]
         #linebreak()
         #set text(size: 12pt, weight: "bold", fill: ink)
@@ -289,7 +293,22 @@
     v(0.55em)
   }
 
+  if toc {
+    block(above: 0em, below: 2em)[
+    #outline(
+      title: toc_title,
+      depth: toc_depth,
+      indent: toc_indent
+    );
+    ]
+  }
+
   pagebreak(weak: true)
+  // Body in arabic. Numbering continues (no counter reset) so the p2+
+  // header gate keeps reading physical pages; none normalizes to "1"
+  // (the custom footer renders the number either way).
+  let body-numbering = if pagenumbering == none { "1" } else { pagenumbering }
+  set page(numbering: body-numbering)
   set page(margin: margin)
   // Two-column magazine body: cover stays single-column page 1;
   // the break above starts the two-column flow on page 2.
@@ -298,6 +317,34 @@
   set page(columns: 2)
   // Tables never split across columns: a split table collides with
   // running text. Short showcase tables ride whole to the next column.
-  show table: it => block(breakable: false, it)
+  // Wide tables span both columns (wide-table-span): pandoc emits
+  // percentage columns summing to 100% of the available width, so in
+  // a ~240pt column a 4+ column table gets ~30pt tracks that
+  // unbreakable strings (as-of dates) overflow past the page edge —
+  // no font size or hyphenation setting can wrap them. Spanning
+  // floats the table across the full text width, where the same
+  // proportions fit. Narrow and auto-column tables stay inline.
+  show table: it => {
+    // Breakable hyphens (table-hyphen-break): Typst never breaks the
+    // numeric-hyphen run in date strings, so a zero-width space after
+    // each hyphen adds a break opportunity. Only takes effect when a
+    // cell would otherwise overflow its track (e.g. tables nested in
+    // quarto Div blocks, where parent-scope spanning cannot reach).
+    show "-": "-\u{200B}"
+    let cols = it.columns
+    let wide = (
+      type(cols) == array and cols.len() >= 4
+        and cols.all(c => type(c) == relative)
+    )
+    if wide {
+      figure(
+        scope: "parent", placement: auto,
+        kind: table, supplement: [Table],
+        block(breakable: false, it),
+      )
+    } else {
+      block(breakable: false, it)
+    }
+  }
   doc
 }

@@ -262,6 +262,11 @@ def scaffold_report(
         "firm": firm,
         "date": date.today().isoformat(),
         "abstract": abstract,
+        # TOC default policy: follows the template spec's toc flag —
+        # flagship-length templates (standard, whitepaper, sector-outlook,
+        # thematic-deepdive, macro-outlook, esg-sustainability,
+        # desk-synthesis) scaffold toc:true; short-form templates (memo,
+        # briefs, modern, studio/editorial family, bespoke) stay false.
         "toc": "true" if spec["toc"] else "false",
         "number_sections": "true" if spec["number_sections"] else "false",
         "exhibit_labels": spec.get("exhibit_labels", False),
@@ -351,6 +356,9 @@ def scaffold_report(
         (root / "_quarto.yml").write_text(_E._tpl(templates.MODERN_YML).render(ctx))
         (assets / "typst-template.typ").write_text(templates.MODERN_TYPT_TEMPLATE)
         (assets / "typst-show.typ").write_text(templates.MODERN_TYPT_SHOW)
+        # House table grammar partial: ledger/memo typst templates import
+        # assets/table-style.typ; inert for families that do not import it.
+        (assets / "table-style.typ").write_text(templates.TABLE_STYLE_TYP)
         brand_tpl = templates.BRAND_YML
         styles_extra = templates.MODERN_STYLES_EXTRA
         body_tpl = templates.MODERN_QMD
@@ -393,6 +401,8 @@ def scaffold_report(
         (root / "_quarto.yml").write_text(_E._tpl(yml_tpl).render(ctx))
         (assets / "typst-template.typ").write_text(typt_tpl)
         (assets / "typst-show.typ").write_text(show_tpl)
+        # House table grammar partial (see modern branch above).
+        (assets / "table-style.typ").write_text(templates.TABLE_STYLE_TYP)
         # Portfolio variants reuse the studio header markup (same eyebrow /
         # title / meta / metrics contract); the variant stylesheet dresses it.
         (assets / header_name).write_text(
@@ -410,6 +420,18 @@ def scaffold_report(
             # so titlepage templates ship their own article partials.
             (assets / "typst-template.typ").write_text(templates.WHITEPAPER_TYPT_TEMPLATE)
             (assets / "typst-show.typ").write_text(templates.WHITEPAPER_TYPT_SHOW)
+            # House table grammar partial (see modern branch above).
+            (assets / "table-style.typ").write_text(templates.TABLE_STYLE_TYP)
+        if template == "memo":
+            # Memo's custom Typst shell + brand (staged until the visual
+            # round): its own yml declares format:typst with the partials,
+            # so scaffolded memos render with the memo brand (Inter base)
+            # instead of Quarto's default Typst template/serif.
+            (root / "_quarto.yml").write_text(_E._tpl(templates.MEMO_YML).render(ctx))
+            brand_tpl = templates.MEMO_BRAND_YML
+            (assets / "typst-template.typ").write_text(templates.MEMO_TYPT_TEMPLATE)
+            (assets / "typst-show.typ").write_text(templates.MEMO_TYPT_SHOW)
+            (assets / "table-style.typ").write_text(templates.TABLE_STYLE_TYP)
         body_tpl = {
             "standard": templates.INDEX_QMD,
             "memo": templates.MEMO_QMD,
@@ -433,7 +455,17 @@ def scaffold_report(
     for fmt in ("html", "pdf", "docx"):
         if fmt not in kept_formats:
             yml = _drop_yaml_block(yml, yml_fmt_key if fmt == "pdf" else fmt)
+    # Shared HTML default (non-bespoke only; this path is past the bespoke
+    # early-return): every flagship html block ships built-in lightbox.
+    yml = _ensure_html_lightbox(yml)
     (root / "_quarto.yml").write_text(yml)
+    # Projects declaring vendored filters (iconify/highlight-text pilots)
+    # must carry the extensions or Quarto cannot render them standalone.
+    if "iconify" in yml or "highlight-text" in yml:
+        for rel, data in templates.vendored_extension_files().items():
+            dest = root / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(data)
     (root / "index.qmd").write_text(body)
     if engine_charts_only:
         _set_frontmatter_flag(root / "index.qmd", "engine_charts_only", True)
@@ -509,6 +541,36 @@ def template_version() -> str:
     working-tree edits stamp honestly; old manifests keep theirs forever.
     """
     return templates.content_hash()
+
+
+def _ensure_html_lightbox(yml: str) -> str:
+    """Enforce the shared HTML default `lightbox: true` (built-in Quarto
+    >= 1.4 — NOT the quarto-lightbox extension) on a scaffolded
+    `_quarto.yml`.
+
+    Verified: format defaults live in the yml templates, and the shared
+    templates (`_shared/quarto.yml`, `_shared/portfolio.yml`) already
+    declare it. Family yml outside the shared layer (modern, studio) is
+    out of scope for this change, so scaffold enforces the default here
+    uniformly. Idempotent: blocks that already declare `lightbox:` are
+    untouched; yml without an html block (html not requested) is a no-op.
+    """
+    lines = yml.splitlines(keepends=True)
+    try:
+        start = next(
+            i for i, line in enumerate(lines) if line.startswith("  html:")
+        )
+    except StopIteration:
+        return yml
+    for i in range(start + 1, len(lines)):
+        stripped = lines[i].lstrip(" \t")
+        indent = len(lines[i]) - len(stripped)
+        if lines[i].strip() and indent <= 2:
+            break
+        if re.match(r"\s*lightbox\s*:", lines[i]):
+            return yml
+    lines.insert(start + 1, "    lightbox: true\n")
+    return "".join(lines)
 
 
 def _drop_yaml_block(text: str, top_key: str) -> str:

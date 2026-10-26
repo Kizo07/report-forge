@@ -1,9 +1,10 @@
 {
   "_brand.yml": "04e97c0567cf0bd34b78d32915d8e0bd362bc34a8a10fe7ad81a8fe1726f4a39",
-  "_quarto.yml": "493f8f6d81263a60d7da231139aef5d61edc15bf8c7d2b836cc610a1542bee48",
-  "assets/typst-show.typ": "f711f44221f842a79fc75ed26fea7924c41466b96176034cbd74a2f5d3bdc087",
-  "assets/typst-template.typ": "e95f288bf7e062a9bae4170eb553a0a9cb1d591a93fa452325fd662d75e41ca1",
+  "_quarto.yml": "76bbddf1d076c2b63e8f043744aac83c09f4fc658fac6651bcf2f2990199e2bd",
+  "assets/table-style.typ": "b17a81c0c02723b869690fe8c3873170f3ca0e9c5496fb02e72a54dc4519ff2b",
+  "assets/typst-show.typ": "613992aa3040c0e4dc9b18d1ff6f87d20ac58324a90ed06051d1fa6609a6b31a",
+  "assets/typst-template.typ": "b6c3b5dabee194aa1b0aede48c32cfc128594300e187002a37b31818a930a7dd",
   "index.qmd": "b0570dffd9c4801a3cb44c9b74974b6d463d63251ffe732dfc41f3873439d810",
-  "report.json": "b8c755716b4a88281d5f146156c3a0f270fa41fed4b6e367ec2f203ad0d5d9dc",
-  "styles.scss": "dc2d34fd02d0396eedc08bdbf340bc001c4caff8f3c94db8f4b91366f47209de"
+  "report.json": "24961977ceee72a5938ceb2746f866d7c6e34bb073d799347ebb741b06282b24",
+  "styles.scss": "58f6e120d8712005e141e445d8e91f127d026b0eec64708ec8f1e9a46f03da07"
 }

@@ -7,7 +7,8 @@
   paper: "us-letter", lang: "en", region: "US",
   font: none, fontsize: 10.5pt, mathfont: none, codefont: none,
   linestretch: 1.15, sectionnumbering: none, linkcolor: none,
-  citecolor: none, filecolor: none, pagenumbering: "1", doc,
+  citecolor: none, filecolor: none, pagenumbering: "1",
+  toc: false, toc_title: none, toc_depth: none, toc_indent: 1.5em, doc,
 ) = {
   // brand colors
   let navy = rgb("#0f1b2d")
@@ -18,7 +19,9 @@
 
   set document(title: title, keywords: keywords)
   set page(
-    paper: paper, margin: margin, numbering: pagenumbering,
+    // Front matter (masthead, KPIs, abstract, TOC) in roman; the body
+    // switches to arabic after the cover break below.
+    paper: paper, margin: margin, numbering: "i",
     header: context {
       let num = counter(page).at(here()).first()
       if num >= 2 {
@@ -35,7 +38,7 @@
         block(width: 100%)[
           #line(length: 100%, stroke: 0.5pt + mist)
           #set text(size: 8pt, fill: rgb("#5b6b7f"), font: "Space Grotesk")
-          #grid(columns: (auto, 1fr, auto), align: horizon)[#if confidential-mark != none [#upper[#confidential-mark]] else []][][#num]
+          #grid(columns: (auto, 1fr, auto), align: horizon)[#if confidential-mark != none [#upper[#confidential-mark]] else []][][#counter(page).display()]
         ]
       }
     },
@@ -70,7 +73,19 @@
 
   // tables: light hairline rules + bold dark header row (house style)
   show table: set table(stroke: 0.5pt + rgb("#d5dbe3"))
+  show table: set text(size: 8pt, hyphenate: true)
+  show table.cell: set par(justify: false, leading: 0.4em)
   show table.cell.where(y: 0): set text(weight: "bold", fill: navy)
+  // Breakable hyphens (table-hyphen-break): Typst never breaks the
+  // numeric-hyphen run in date strings, so a zero-width space after
+  // each hyphen adds a break opportunity. Only takes effect when a
+  // cell would otherwise overflow its track. (Single-column body:
+  // percentage tracks already resolve against the full text width,
+  // so no spanning rule is needed here.)
+  show table: it => {
+    show "-": "-\u{200B}"
+    it
+  }
 
   // title block: full-bleed dark band (move bleeds past margins to page edge)
   if title != none {
@@ -143,6 +158,23 @@
     ]
     v(0.8em)
   }
+
+  if toc {
+    block(above: 0em, below: 2em)[
+    #outline(
+      title: toc_title,
+      depth: toc_depth,
+      indent: toc_indent
+    );
+    ]
+  }
+
+  pagebreak(weak: true)
+  // Body in arabic. Numbering continues (no counter reset) so the p2+
+  // header gate keeps reading physical pages; none normalizes to "1"
+  // (the custom footer renders the number either way).
+  let body-numbering = if pagenumbering == none { "1" } else { pagenumbering }
+  set page(numbering: body-numbering)
 
   doc
 }

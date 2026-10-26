@@ -34,6 +34,8 @@
   toc_title: none,
   toc_depth: none,
   toc_indent: 1.5em,
+  pagenumbering: "1",
+  confidential-mark: none,
   doc,
 ) = {
   // Set document metadata for PDF accessibility
@@ -53,6 +55,38 @@
   show raw: set text(font: codefont) if codefont != none
 
   set heading(numbering: sectionnumbering)
+
+  // Front matter (title page, abstract, TOC) in roman; the body switches
+  // to arabic after the TOC. Running header/footer follow the studio
+  // structure with whitepaper tokens only (inherited body font, slate
+  // text, hairline rules, firm masthead).
+  let slate = rgb("#5b6b7f")
+  let hairline = rgb("#dfe1e7")
+  set page(
+    numbering: "i",
+    header: context {
+      let num = counter(page).at(here()).first()
+      if num >= 2 {
+        block(width: 100%)[
+          #set text(size: 8pt, fill: slate)
+          #grid(columns: (1fr, auto), align: horizon)[
+            #if firm != none [#upper[#firm] — INVESTMENT RESEARCH] else [INVESTMENT RESEARCH]
+          ][#date]
+          #line(length: 100%, stroke: 0.5pt + hairline)
+        ]
+      }
+    },
+    footer: context {
+      let num = counter(page).at(here()).first()
+      block(width: 100%)[
+        #line(length: 100%, stroke: 0.5pt + hairline)
+        #set text(size: 8pt, fill: slate)
+        #grid(columns: (1fr, auto), align: horizon)[
+          #if confidential-mark != none [#upper[#confidential-mark]] else []
+        ][#counter(page).display()]
+      ]
+    },
+  )
 
   show link: set text(fill: rgb(content-to-string(linkcolor))) if linkcolor != none
   show ref: set text(fill: rgb(content-to-string(citecolor))) if citecolor != none
@@ -188,6 +222,13 @@
     );
     ]
   }
+
+  pagebreak(weak: true)
+  // Body in arabic. Numbering continues (no counter reset) so the p2+
+  // header gate keeps reading physical pages; none normalizes to "1"
+  // (the custom footer renders the number either way).
+  let body-numbering = if pagenumbering == none { "1" } else { pagenumbering }
+  set page(numbering: body-numbering)
 
   doc
 }

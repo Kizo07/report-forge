@@ -1,5 +1,11 @@
 /*-- scss:rules --*/
 
+/* Shared HTML theming: brand tokens are the source of truth. The
+   `_brand.yml` palette compiles to the `$brand-*` variables used below;
+   family `--rf-*` CSS custom properties (studio/portfolio/ledger extras)
+   are per-family overrides resolved at render time, not a second source.
+   Keep shared rules on `$brand-*`; do not re-derive these values. */
+
 h1.title {
   letter-spacing: -0.02em;
 }

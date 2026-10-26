@@ -25,6 +25,9 @@ format:
   html:
     toc: <% toc %>
     toc-depth: 3
+    # Built-in Quarto >= 1.4 lightbox (native `lightbox: true`) — NOT the
+    # quarto-lightbox extension (no filter to register).
+    lightbox: true
     theme:
       - brand
       - styles.scss

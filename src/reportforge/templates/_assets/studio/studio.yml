@@ -19,6 +19,13 @@ crossref:
   tbl-prefix: Table
   sec-prefix: Section
 
+# Vendored Quarto extensions (_shared/_extensions/, quarto-add equivalent).
+# Names match each extension's _extension.yml directory per its docs:
+# iconify shortcode + preload filter, highlight-text span filter.
+filters:
+  - iconify
+  - highlight-text
+
 format:
   html:
     toc: <% toc %>

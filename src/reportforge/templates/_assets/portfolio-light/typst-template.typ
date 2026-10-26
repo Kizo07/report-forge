@@ -14,7 +14,7 @@
   title-layout: "hero", accent: "#8f621f", confidential-mark: none,
   cols: 1, margin: (x: 0.82in, top: 0.72in, bottom: 0.9in),
   paper: "us-letter", lang: "en", region: "US",
-  font: none, fontsize: 10.5pt, mathfont: none, codefont: none,
+  font: "Inter", fontsize: 10.5pt, mathfont: none, codefont: none,
   linestretch: 1.15, sectionnumbering: none, linkcolor: none,
   citecolor: none, filecolor: none, pagenumbering: "1", doc,
 ) = {
@@ -36,7 +36,7 @@
       let num = counter(page).at(here()).first()
       if num >= 2 {
         block(width: 100%)[
-          #set text(size: 7.8pt, fill: muted, font: "JetBrains Mono")
+          #set text(size: 7.8pt, fill: muted, font: "IBM Plex Mono")
           #grid(columns: (1fr, auto), align: horizon)[
             #if organization != none [#upper[#organization]] else if eyebrow != none [#upper[#eyebrow]] else [PORTFOLIO REPORT]
           ][#date]
@@ -48,7 +48,7 @@
       let num = counter(page).at(here()).first()
       block(width: 100%)[
         #line(length: 100%, stroke: 0.55pt + hairline)
-        #set text(size: 7.8pt, fill: muted, font: "JetBrains Mono")
+        #set text(size: 7.8pt, fill: muted, font: "IBM Plex Mono")
         #grid(columns: (1fr, auto), align: horizon)[
           #if confidential-mark != none [#upper[#confidential-mark]] else []
         ][#num]
@@ -65,15 +65,15 @@
     #grid(columns: (18pt, 1fr), column-gutter: 9pt, align: horizon)[
       #line(length: 18pt, stroke: 2.5pt + accent-color)
     ][
-      #set text(font: "Georgia", size: 15pt, weight: "bold", fill: ink)
+      #set text(font: "Fraunces", size: 15pt, weight: "bold", fill: ink)
       #it.body
     ]
   ]
   show heading.where(level: 2): it => block(above: 1.1em, below: 0.42em)[
-    #set text(font: "Georgia", size: 11.5pt, weight: "bold", fill: ink)
+    #set text(font: "Fraunces", size: 11.5pt, weight: "bold", fill: ink)
     #it.body
   ]
-  show heading.where(level: 3): set text(font: "Georgia", size: 10pt, weight: "bold", fill: muted)
+  show heading.where(level: 3): set text(font: "Fraunces", size: 10pt, weight: "bold", fill: muted)
 
   show figure.caption: set text(size: 9pt, fill: ink)
   show figure.caption: set align(left)
@@ -92,7 +92,8 @@
     inset: (x: 6pt, y: 5pt),
     fill: (x, y) => if y == 0 { rgb("#d9cba6") } else if calc.rem(y, 2) == 0 { rgb("#e0d4ba") } else { panel },
   )
-  show table: set text(size: 8.7pt)
+  show table: set text(size: 8pt, hyphenate: true)
+  show table.cell: set par(justify: false, leading: 0.4em)
   show table.cell.where(y: 0): set text(weight: "bold", fill: ink)
   show table.cell.where(x: 0): set text(weight: "bold")
 
@@ -105,11 +106,11 @@
         #if eyebrow != none {
           line(length: 26pt, stroke: 1.4pt + accent-color)
           v(0.35em)
-          set text(font: "JetBrains Mono", size: 8pt, weight: "medium", fill: accent-color)
+          set text(font: "IBM Plex Mono", size: 8pt, weight: "medium", fill: accent-color)
           upper[#eyebrow]
           v(0.5em)
         }
-        #set text(font: "Georgia", size: 24pt, weight: "bold", fill: ink, hyphenate: false)
+        #set text(font: "Fraunces", size: 24pt, weight: "bold", fill: ink, hyphenate: false)
         #title
         #if subtitle != none {
           v(0.3em)
@@ -135,11 +136,11 @@
         #if eyebrow != none {
           line(length: 26pt, stroke: 1.4pt + accent-color)
           v(0.4em)
-          set text(font: "JetBrains Mono", size: 8pt, weight: "medium", fill: accent-color)
+          set text(font: "IBM Plex Mono", size: 8pt, weight: "medium", fill: accent-color)
           upper[#eyebrow]
           v(0.45em)
         }
-        #set text(font: "Georgia", size: 23pt, weight: "bold", fill: ink, hyphenate: false)
+        #set text(font: "Fraunces", size: 23pt, weight: "bold", fill: ink, hyphenate: false)
         #title
         #if subtitle != none {
           v(0.35em)
@@ -165,11 +166,11 @@
         #if eyebrow != none {
           line(length: 26pt, stroke: 1.4pt + accent-color)
           v(0.4em)
-          set text(font: "JetBrains Mono", size: 8.5pt, weight: "medium", fill: accent-color)
+          set text(font: "IBM Plex Mono", size: 8.5pt, weight: "medium", fill: accent-color)
           upper[#eyebrow]
           v(0.7em)
         }
-        #set text(font: "Georgia", size: 22pt, weight: "bold", fill: ink, hyphenate: false)
+        #set text(font: "Fraunces", size: 22pt, weight: "bold", fill: ink, hyphenate: false)
         #title
         #if subtitle != none {
           v(0.5em)
@@ -207,10 +208,10 @@
         inset: (x: 12pt, y: 6pt),
         stroke: 0.55pt + hairline,
       )[
-        #set text(font: "Georgia", size: 12pt, weight: "bold", fill: ink)
+        #set text(font: "Fraunces", size: 12pt, weight: "bold", fill: ink)
         #metric.value
         #linebreak()
-        #set text(font: "JetBrains Mono", size: 7.7pt, fill: muted)
+        #set text(font: "IBM Plex Mono", size: 7.7pt, fill: muted)
         #upper[#metric.label]
       ])
     )
@@ -226,7 +227,7 @@
       inset: (x: 14pt, y: 7pt),
       stroke: (left: 3pt + accent-color),
     )[
-      #set text(font: "JetBrains Mono", size: 7.7pt, weight: "medium", fill: accent-color)
+      #set text(font: "IBM Plex Mono", size: 7.7pt, weight: "medium", fill: accent-color)
       CONVICTION CALL
       #linebreak()
       #set text(size: 9.5pt, weight: "bold", fill: ink)
@@ -263,7 +264,7 @@
         inset: (x: 12pt, y: 6pt),
         stroke: if i == 1 { 1pt + accent-color } else { 0.55pt + hairline },
       )[
-        #set text(font: "JetBrains Mono", size: 7.7pt, fill: muted)
+        #set text(font: "IBM Plex Mono", size: 7.7pt, fill: muted)
         #upper[#s.label]
         #linebreak()
         #set text(size: 12pt, weight: "bold", fill: ink)
@@ -298,6 +299,34 @@
   set page(columns: 2)
   // Tables never split across columns: a split table collides with
   // running text. Short showcase tables ride whole to the next column.
-  show table: it => block(breakable: false, it)
+  // Wide tables span both columns (wide-table-span): pandoc emits
+  // percentage columns summing to 100% of the available width, so in
+  // a ~240pt column a 4+ column table gets ~30pt tracks that
+  // unbreakable strings (as-of dates) overflow past the page edge —
+  // no font size or hyphenation setting can wrap them. Spanning
+  // floats the table across the full text width, where the same
+  // proportions fit. Narrow and auto-column tables stay inline.
+  show table: it => {
+    // Breakable hyphens (table-hyphen-break): Typst never breaks the
+    // numeric-hyphen run in date strings, so a zero-width space after
+    // each hyphen adds a break opportunity. Only takes effect when a
+    // cell would otherwise overflow its track (e.g. tables nested in
+    // quarto Div blocks, where parent-scope spanning cannot reach).
+    show "-": "-\u{200B}"
+    let cols = it.columns
+    let wide = (
+      type(cols) == array and cols.len() >= 4
+        and cols.all(c => type(c) == relative)
+    )
+    if wide {
+      figure(
+        scope: "parent", placement: auto,
+        kind: table, supplement: [Table],
+        block(breakable: false, it),
+      )
+    } else {
+      block(breakable: false, it)
+    }
+  }
   doc
 }

@@ -765,10 +765,10 @@ QUANTFLOW_PLOTLY_THEMES = {
         "ramp": ["#b09a5e", "#8f621f", "#6d4c17", "#009ed9", "#075e7d"],
     },
     "studio-white": {
-        "paper_bg": "#f8f7f3", "plot_bg": "#f8f7f3", "font": "#362e21",
-        "grid": "#d3c8b0", "primary": "#8f621f", "secondary": "#14756c",
-        "positive": "#2e7d32", "negative": "#c62828", "muted": "#6d6250",
-        "ramp": ["#b09a5e", "#8f621f", "#6d4c17", "#14756c", "#0f4c44"],
+        "paper_bg": "#ffffff", "plot_bg": "#f2f5f8", "font": "#22303f",
+        "grid": "#d8dfe7", "primary": "#1a2e4a", "secondary": "#3d6b9e",
+        "positive": "#2e7d32", "negative": "#b3402a", "muted": "#5b6b7f",
+        "ramp": ["#5a6f8a", "#1a2e4a", "#101f36", "#3d6b9e", "#2a4d74"],
     },
 }
 

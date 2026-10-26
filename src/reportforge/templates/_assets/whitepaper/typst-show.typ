@@ -29,6 +29,9 @@ $endif$
 $if(firm)$
   firm: [$firm$],
 $endif$
+$if(confidential-mark)$
+  confidential-mark: [$confidential-mark$],
+$endif$
 $if(lang)$
   lang: "$lang$",
 $endif$
@@ -103,5 +106,6 @@ $if(toc-indent)$
   toc_indent: $toc-indent$,
 $endif$
   toc_depth: $toc-depth$,
+  pagenumbering: $if(page-numbering)$"$page-numbering$"$else$none$endif$,
   doc,
 )

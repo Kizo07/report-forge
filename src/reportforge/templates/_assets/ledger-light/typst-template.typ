@@ -14,7 +14,7 @@
   title-layout: "hero", accent: "#8f621f", confidential-mark: none,
   cols: 1, margin: (x: 0.82in, top: 0.72in, bottom: 0.9in),
   paper: "us-letter", lang: "en", region: "US",
-  font: none, fontsize: 10.5pt, mathfont: none, codefont: none,
+  font: "Inter", fontsize: 10.5pt, mathfont: none, codefont: none,
   linestretch: 1.15, sectionnumbering: none, linkcolor: none,
   citecolor: none, filecolor: none, pagenumbering: "1", doc,
 ) = {
@@ -92,7 +92,8 @@
     inset: (x: 6pt, y: 5pt),
     fill: (x, y) => if y == 0 { rgb("#d3dde6") } else if calc.rem(y, 2) == 0 { rgb("#d8e1e9") } else { panel },
   )
-  show table: set text(size: 8.7pt)
+  show table: set text(size: 8pt, hyphenate: true)
+  show table.cell: set par(justify: false, leading: 0.4em)
   show table.cell.where(y: 0): set text(weight: "bold", fill: ink)
   show table.cell.where(x: 0): set text(weight: "bold")
 
@@ -298,6 +299,34 @@
   set page(columns: 2)
   // Tables never split across columns: a split table collides with
   // running text. Short showcase tables ride whole to the next column.
-  show table: it => block(breakable: false, it)
+  // Wide tables span both columns (wide-table-span): pandoc emits
+  // percentage columns summing to 100% of the available width, so in
+  // a ~240pt column a 4+ column table gets ~30pt tracks that
+  // unbreakable strings (as-of dates) overflow past the page edge —
+  // no font size or hyphenation setting can wrap them. Spanning
+  // floats the table across the full text width, where the same
+  // proportions fit. Narrow and auto-column tables stay inline.
+  show table: it => {
+    // Breakable hyphens (table-hyphen-break): Typst never breaks the
+    // numeric-hyphen run in date strings, so a zero-width space after
+    // each hyphen adds a break opportunity. Only takes effect when a
+    // cell would otherwise overflow its track (e.g. tables nested in
+    // quarto Div blocks, where parent-scope spanning cannot reach).
+    show "-": "-\u{200B}"
+    let cols = it.columns
+    let wide = (
+      type(cols) == array and cols.len() >= 4
+        and cols.all(c => type(c) == relative)
+    )
+    if wide {
+      figure(
+        scope: "parent", placement: auto,
+        kind: table, supplement: [Table],
+        block(breakable: false, it),
+      )
+    } else {
+      block(breakable: false, it)
+    }
+  }
   doc
 }

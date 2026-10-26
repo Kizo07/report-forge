@@ -1,7 +1,10 @@
 {
-  "_brand.yml": "04e97c0567cf0bd34b78d32915d8e0bd362bc34a8a10fe7ad81a8fe1726f4a39",
-  "_quarto.yml": "c6f9fea6131ca38f89eec3978b8d0a2174e41914c76e88f75fa791c21ff9797a",
+  "_brand.yml": "38a7c11d415c6d924efc90ef23d021ce3d5500a554ed8d452f105a9158e2b1c0",
+  "_quarto.yml": "76bbddf1d076c2b63e8f043744aac83c09f4fc658fac6651bcf2f2990199e2bd",
+  "assets/table-style.typ": "b17a81c0c02723b869690fe8c3873170f3ca0e9c5496fb02e72a54dc4519ff2b",
+  "assets/typst-show.typ": "13378fc45e2e3dd7137af9a05d750149c8c9f475f701ffc8dc02cbc74be13545",
+  "assets/typst-template.typ": "95e17b77e361d2ae959ea791c3c5eb4148252cfa26c3c4a0128e6647070ddbb5",
   "index.qmd": "e6d784c6467329f5ba35a0847ef9d4d4da9e36e1ce9b58820152d9fdb032c929",
-  "report.json": "c09bfa44d5b7b66e0b8346aadfdb784233a7e33be3be358a9f96909afb480254",
-  "styles.scss": "f75d2e393de8f9d7d5713e1509f7cdb87bb4f8f89231c3a5af16f8d65e6f05ae"
+  "report.json": "8ea0c8399b69d7c85a2ed904633714755408eca023690744f52649cdc02de3aa",
+  "styles.scss": "4d90deb8e723a53032fa6bb0e8fc1ec7f6f7bbf2ae9a6f1e44c9e7107f73106e"
 }

@@ -71,6 +71,18 @@ $endif$
 $if(section-numbering)$
   sectionnumbering: "$section-numbering$",
 $endif$
+$if(toc)$
+  toc: $toc$,
+$endif$
+$if(toc-title)$
+  toc_title: [$toc-title$],
+$endif$
+$if(toc-depth)$
+  toc_depth: $toc-depth$,
+$endif$
+$if(toc-indent)$
+  toc_indent: $toc-indent$,
+$endif$
   pagenumbering: $if(page-numbering)$"$page-numbering$"$else$none$endif$,
   doc,
 )
